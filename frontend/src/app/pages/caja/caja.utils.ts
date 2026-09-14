@@ -1,4 +1,10 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { formatBs, toMoney } from '../../shared/utils/money';
+
+export function esErrorCajaCerrada(err: HttpErrorResponse): boolean {
+    const mensaje = String(err?.error?.mensaje || err?.error?.msg || '').toLowerCase();
+    return err?.status === 409 && mensaje.includes('caja abierta');
+}
 
 export { formatBs, toMoney };
 

@@ -13,9 +13,11 @@ import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
-import { formatBs, formatFecha } from '../caja/caja.utils';
+import { formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Compra, LineaCompra, Proveedor } from './compras.models';
 import { ComprasService, ProveedoresService } from './compras.service';
+import { ProductoLista, ProductosService } from '../inventario/productos.service';
+import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
 
 @Component({
     selector: 'app-compras',
@@ -31,15 +33,17 @@ import { ComprasService, ProveedoresService } from './compras.service';
         TableModule,
         TagModule,
         TextareaModule,
-        ToastModule
+        ToastModule,
+        DialogCajaCerradaComponent
     ],
     providers: [MessageService],
     template: `
         <p-toast />
+        <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Compras</div>
-                <div class="text-muted-color">Registra compras y un pago inicial si la caja está abierta</div>
+                <div class="text-muted-color">Elige el producto (chala) para entrar al inventario. El dinero sale cuando pagas al proveedor.</div>
             </div>
             <p-button label="Nueva compra" icon="pi pi-plus" (onClick)="abrirNueva()" />
         </div>
@@ -92,7 +96,7 @@ import { ComprasService, ProveedoresService } from './compras.service';
             </p-table>
         </div>
 
-        <p-dialog header="Nueva compra" [(visible)]="dialogNueva" [modal]="true" [style]="{ width: '48rem' }" [breakpoints]="{ '960px': '95vw' }">
+        <p-dialog header="Nueva compra" [(visible)]="dialogNueva" [modal]="true" [style]="{ width: '56rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
                 <div>
                     <label class="block font-bold mb-2">Proveedor</label>
@@ -100,18 +104,36 @@ import { ComprasService, ProveedoresService } from './compras.service';
                 </div>
                 <div>
                     <div class="flex justify-between items-center mb-2">
-                        <label class="font-bold">Líneas</label>
+                        <label class="font-bold">Productos / líneas</label>
                         <p-button label="Agregar línea" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="agregarLinea()" />
                     </div>
+                    <p class="text-muted-color text-sm mb-3">Si eliges un producto (chala), entra al inventario. Si es un concepto, déjalo vacío y escribe la descripción.</p>
                     <div class="flex flex-col gap-3" *ngFor="let linea of lineas; let i = index">
                         <div class="grid grid-cols-12 gap-2 items-end">
                             <div class="col-span-12 md:col-span-5">
-                                <input pInputText class="w-full" placeholder="Descripción" [(ngModel)]="linea.descripcion" />
+                                <label class="block text-sm mb-1">Producto</label>
+                                <p-select
+                                    [options]="productosOpciones"
+                                    optionLabel="etiqueta"
+                                    optionValue="id"
+                                    [(ngModel)]="linea.id_producto"
+                                    (ngModelChange)="onProductoCompra(linea)"
+                                    placeholder="Inventario o vacío"
+                                    [filter]="true"
+                                    [showClear]="true"
+                                    fluid
+                                />
+                            </div>
+                            <div class="col-span-12" *ngIf="!linea.id_producto">
+                                <label class="block text-sm mb-1">Descripción</label>
+                                <input pInputText class="w-full" placeholder="Ej. flete, servicio" [(ngModel)]="linea.descripcion" />
                             </div>
                             <div class="col-span-4 md:col-span-2">
+                                <label class="block text-sm mb-1">Cantidad</label>
                                 <p-inputNumber [(ngModel)]="linea.cantidad" [min]="0" [minFractionDigits]="0" [maxFractionDigits]="3" fluid />
                             </div>
                             <div class="col-span-4 md:col-span-3">
+                                <label class="block text-sm mb-1">Precio</label>
                                 <p-inputNumber [(ngModel)]="linea.precio_unitario" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                             </div>
                             <div class="col-span-4 md:col-span-2">
@@ -156,7 +178,7 @@ import { ComprasService, ProveedoresService } from './compras.service';
                     </ng-template>
                     <ng-template #body let-linea>
                         <tr>
-                            <td>{{ linea.descripcion }}</td>
+                            <td>{{ linea.descripcion }}{{ linea.id_producto ? ' · inventario' : '' }}</td>
                             <td>{{ linea.cantidad }}</td>
                             <td>{{ formatBs(linea.precio_unitario) }}</td>
                             <td>{{ formatBs(linea.subtotal) }}</td>
@@ -171,9 +193,11 @@ import { ComprasService, ProveedoresService } from './compras.service';
 export class ComprasPage implements OnInit {
     compras: Compra[] = [];
     proveedores: Proveedor[] = [];
+    productos: ProductoLista[] = [];
     cargando = false;
     guardando = false;
     dialogNueva = false;
+    dialogCajaCerrada = false;
     dialogDetalle = false;
     filtroEstado = '';
     estados = [
@@ -196,12 +220,21 @@ export class ComprasPage implements OnInit {
     constructor(
         private comprasService: ComprasService,
         private proveedoresService: ProveedoresService,
+        private productosService: ProductosService,
         private messageService: MessageService
     ) {}
 
     ngOnInit(): void {
         this.cargar();
+        this.cargarProductos();
         this.proveedoresService.listar().subscribe({ next: (data) => (this.proveedores = data) });
+    }
+
+    get productosOpciones() {
+        return this.productos.map((p) => ({
+            ...p,
+            etiqueta: `${p.nombre} · stock ${p.stock} ${p.unidad_medida}`
+        }));
     }
 
     cargar(): void {
@@ -245,9 +278,9 @@ export class ComprasPage implements OnInit {
             this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Seleccione un proveedor' });
             return;
         }
-        const lineas = this.lineas.filter((l) => l.descripcion?.trim() && Number(l.cantidad) > 0);
+        const lineas = this.lineas.filter((l) => Number(l.cantidad) > 0 && (l.id_producto || l.descripcion?.trim()));
         if (!lineas.length) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Agregue al menos una línea válida' });
+            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Agregue al menos un producto o una descripción' });
             return;
         }
         this.guardando = true;
@@ -255,9 +288,10 @@ export class ComprasPage implements OnInit {
             id_proveedor: this.idProveedor,
             observacion: this.observacion || undefined,
             lineas: lineas.map((l) => ({
-                descripcion: l.descripcion.trim(),
+                descripcion: (l.descripcion || '').trim() || this.nombreProducto(l.id_producto),
                 cantidad: Number(l.cantidad),
-                precio_unitario: Number(l.precio_unitario)
+                precio_unitario: Number(l.precio_unitario),
+                id_producto: l.id_producto || undefined
             })),
             pago_inicial: this.pagoInicial || 0,
             metodo_pago: this.pagoInicial > 0 ? this.metodoPago : undefined,
@@ -268,9 +302,14 @@ export class ComprasPage implements OnInit {
                 this.dialogNueva = false;
                 this.messageService.add({ severity: 'success', summary: 'Compra', detail: res.mensaje });
                 this.cargar();
+                this.cargarProductos();
             },
             error: (err) => {
                 this.guardando = false;
+                if (esErrorCajaCerrada(err)) {
+                    this.dialogCajaCerrada = true;
+                    return;
+                }
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo registrar la compra') });
             }
         });
@@ -293,8 +332,26 @@ export class ComprasPage implements OnInit {
         return 'secondary';
     }
 
+    onProductoCompra(linea: LineaCompra): void {
+        const producto = this.productos.find((p) => p.id === linea.id_producto);
+        if (producto) {
+            linea.descripcion = producto.nombre;
+            linea.precio_unitario = Number(producto.precio_compra || 0);
+        } else {
+            linea.descripcion = '';
+        }
+    }
+
+    private cargarProductos(): void {
+        this.productosService.listar().subscribe({ next: (data) => (this.productos = data) });
+    }
+
+    private nombreProducto(id?: number | null): string {
+        return this.productos.find((p) => p.id === id)?.nombre || '';
+    }
+
     private lineaVacia(): LineaCompra {
-        return { descripcion: '', cantidad: 1, precio_unitario: 0, subtotal: 0 };
+        return { descripcion: '', id_producto: null, cantidad: 1, precio_unitario: 0, subtotal: 0 };
     }
 
     private msg(err: HttpErrorResponse, fallback: string): string {

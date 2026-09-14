@@ -15,6 +15,7 @@ import { ESTADOS_CAJA_OPTIONS } from './caja.constants';
 import { CajaDetalle } from './caja.models';
 import { CajaService } from './caja.service';
 import { etiquetaCategoria, etiquetaMetodo, formatBs, formatFecha, formatHora } from './caja.utils';
+import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
 
 @Component({
     selector: 'app-caja-historial',
@@ -29,7 +30,8 @@ import { etiquetaCategoria, etiquetaMetodo, formatBs, formatFecha, formatHora } 
         SkeletonModule,
         TableModule,
         TagModule,
-        ToastModule
+        ToastModule,
+        CuadreCajaComponent
     ],
     providers: [MessageService],
     template: `
@@ -105,7 +107,7 @@ import { etiquetaCategoria, etiquetaMetodo, formatBs, formatFecha, formatHora } 
             </p-table>
         </div>
 
-        <p-dialog header="Detalle de caja" [(visible)]="dialogDetalle" [modal]="true" [style]="{ width: '56rem' }" [breakpoints]="{ '960px': '95vw' }">
+        <p-dialog header="Detalle de caja" [(visible)]="dialogDetalle" [modal]="true" [style]="{ width: '64rem' }" [breakpoints]="{ '960px': '95vw' }">
             <ng-container *ngIf="detalle">
                 <div class="grid grid-cols-12 gap-3 mb-4 text-sm">
                     <div class="col-span-6 md:col-span-3 text-muted-color">Apertura</div>
@@ -118,7 +120,8 @@ import { etiquetaCategoria, etiquetaMetodo, formatBs, formatFecha, formatHora } 
                     <div class="col-span-6 md:col-span-3 font-medium">{{ detalle.saldo_contado == null ? '-' : formatBs(detalle.saldo_contado) }}</div>
                 </div>
                 <p-tag *ngIf="detalle.resultado_arqueo" [value]="detalle.resultado_arqueo" [severity]="severidadArqueo(detalle.resultado_arqueo)" styleClass="mb-4" />
-                <p-table [value]="detalle.movimientos || []" responsiveLayout="scroll">
+                <app-cuadre-caja [caja]="detalle" />
+                <p-table [value]="detalle.movimientos || []" responsiveLayout="scroll" styleClass="mt-4">
                     <ng-template #header>
                         <tr>
                             <th>Hora</th>

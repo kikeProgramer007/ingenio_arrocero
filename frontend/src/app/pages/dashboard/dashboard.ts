@@ -28,6 +28,17 @@ import { StatsWidget } from './components/statswidget';
             </div>
         </div>
 
+        <div class="card mb-6 p-4 flex flex-wrap items-center justify-between gap-3" *ngIf="!loading && resumen && resumen.caja.estado !== 'ABIERTA'">
+            <div class="flex items-center gap-3">
+                <i class="pi pi-lock text-2xl text-orange-500"></i>
+                <div>
+                    <div class="font-medium">Caja cerrada</div>
+                    <div class="text-muted-color text-sm">Puedes consultar ventas y pendientes. Para cobrar, pagar o gastar, abre caja.</div>
+                </div>
+            </div>
+            <p-button label="Abrir caja" icon="pi pi-unlock" [routerLink]="cajaRoute" />
+        </div>
+
         <div class="card mb-6" *ngIf="error">
             <div class="flex items-center gap-3 text-red-500">
                 <i class="pi pi-exclamation-circle text-2xl"></i>
@@ -92,6 +103,7 @@ export class Dashboard implements OnInit {
     formatBs = formatBs;
     controlRoute = APP_ROUTES.ingresosEgresos;
     cobranzasRoute = APP_ROUTES.cobranzas;
+    cajaRoute = APP_ROUTES.caja;
 
     constructor(private cajaService: CajaService) {}
 

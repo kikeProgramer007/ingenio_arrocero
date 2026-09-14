@@ -12,6 +12,7 @@ export interface Proveedor {
 export interface LineaCompra {
     id?: number;
     descripcion: string;
+    id_producto?: number | null;
     cantidad: number;
     precio_unitario: number;
     subtotal: number;
@@ -50,7 +51,7 @@ export interface PagoProveedor {
 export interface CrearCompraPayload {
     id_proveedor: number;
     observacion?: string;
-    lineas: { descripcion: string; cantidad: number; precio_unitario: number }[];
+    lineas: { descripcion?: string; cantidad: number; precio_unitario: number; id_producto?: number }[];
     pago_inicial?: number;
     metodo_pago?: string;
     referencia?: string;

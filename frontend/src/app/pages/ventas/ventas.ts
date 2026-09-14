@@ -13,11 +13,13 @@ import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
-import { formatBs, formatFecha } from '../caja/caja.utils';
+import { formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Cliente, LineaVenta, Venta } from './ventas.models';
 import { ClientesService, VentasService } from './ventas.service';
+import { ProductoLista, ProductosService } from '../inventario/productos.service';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
+import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
 
 @Component({
     selector: 'app-ventas',
@@ -35,15 +37,17 @@ import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
         TextareaModule,
         ToastModule,
         EstadoVacioComponent,
-        KpiGridComponent
+        KpiGridComponent,
+        DialogCajaCerradaComponent
     ],
     providers: [MessageService],
     template: `
         <p-toast />
+        <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Ventas</div>
-                <div class="text-muted-color">El total de la venta no es un ingreso. El dinero entra con el cobro.</div>
+                <div class="text-muted-color">Elige el producto (arroz pelado) para bajar inventario. El dinero entra con el cobro.</div>
             </div>
             <p-button label="Nueva venta" icon="pi pi-plus" (onClick)="abrirNueva()" />
         </div>
@@ -99,7 +103,7 @@ import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
             </p-table>
         </div>
 
-        <p-dialog header="Nueva venta" [(visible)]="dialogNueva" [modal]="true" [style]="{ width: '48rem' }" [breakpoints]="{ '960px': '95vw' }">
+        <p-dialog header="Nueva venta" [(visible)]="dialogNueva" [modal]="true" [style]="{ width: '56rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
                 <div>
                     <label class="block font-bold mb-2">Cliente</label>
@@ -107,24 +111,43 @@ import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
                 </div>
                 <div>
                     <div class="flex justify-between items-center mb-2">
-                        <label class="font-bold">Líneas</label>
+                        <label class="font-bold">Productos / líneas</label>
                         <p-button label="Agregar línea" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="agregarLinea()" />
                     </div>
+                    <p class="text-muted-color text-sm mb-3">Si eliges un producto del inventario, baja el stock. Si es un concepto (flete, etc.), déjalo en blanco y escribe la descripción.</p>
                     <div class="flex flex-col gap-3" *ngFor="let linea of lineas; let i = index">
                         <div class="grid grid-cols-12 gap-2 items-end">
                             <div class="col-span-12 md:col-span-5">
-                                <input pInputText class="w-full" placeholder="Descripción" [(ngModel)]="linea.descripcion" />
+                                <label class="block text-sm mb-1">Producto</label>
+                                <p-select
+                                    [options]="productosOpciones"
+                                    optionLabel="etiqueta"
+                                    optionValue="id"
+                                    [(ngModel)]="linea.id_producto"
+                                    (ngModelChange)="onProductoVenta(linea)"
+                                    placeholder="Inventario o vacío"
+                                    [filter]="true"
+                                    [showClear]="true"
+                                    fluid
+                                />
+                            </div>
+                            <div class="col-span-12" *ngIf="!linea.id_producto">
+                                <label class="block text-sm mb-1">Descripción</label>
+                                <input pInputText class="w-full" placeholder="Ej. flete, servicio" [(ngModel)]="linea.descripcion" />
                             </div>
                             <div class="col-span-4 md:col-span-2">
+                                <label class="block text-sm mb-1">Cantidad</label>
                                 <p-inputNumber [(ngModel)]="linea.cantidad" [min]="0" [minFractionDigits]="0" [maxFractionDigits]="3" fluid />
                             </div>
                             <div class="col-span-4 md:col-span-3">
+                                <label class="block text-sm mb-1">Precio</label>
                                 <p-inputNumber [(ngModel)]="linea.precio_unitario" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                             </div>
                             <div class="col-span-4 md:col-span-2">
                                 <p-button icon="pi pi-trash" severity="danger" [outlined]="true" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1" />
                             </div>
                         </div>
+                        <small class="text-orange-500" *ngIf="avisoStock(linea)">{{ avisoStock(linea) }}</small>
                     </div>
                     <div class="text-right font-semibold mt-3">Total venta: {{ formatBs(totalLineas()) }}</div>
                     <div class="text-right text-muted-color">Cobrado ahora: {{ formatBs(pagoInicial) }} · Quedará pendiente: {{ formatBs(pendienteEstimado()) }}</div>
@@ -170,7 +193,7 @@ import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
                     </ng-template>
                     <ng-template #body let-linea>
                         <tr>
-                            <td>{{ linea.descripcion }}</td>
+                            <td>{{ linea.descripcion }}{{ linea.id_producto ? ' · inventario' : '' }}</td>
                             <td>{{ linea.cantidad }}</td>
                             <td>{{ formatBs(linea.precio_unitario) }}</td>
                             <td>{{ formatBs(linea.subtotal) }}</td>
@@ -185,10 +208,12 @@ import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
 export class VentasPage implements OnInit {
     ventas: Venta[] = [];
     clientes: Cliente[] = [];
+    productos: ProductoLista[] = [];
     cargando = false;
     guardando = false;
     dialogNueva = false;
     dialogDetalle = false;
+    dialogCajaCerrada = false;
     filtroEstado = '';
     estados = [
         { label: 'Todas', value: '' },
@@ -222,12 +247,21 @@ export class VentasPage implements OnInit {
     constructor(
         private ventasService: VentasService,
         private clientesService: ClientesService,
+        private productosService: ProductosService,
         private messageService: MessageService
     ) {}
 
     ngOnInit(): void {
         this.cargar();
+        this.cargarProductos();
         this.clientesService.listar().subscribe({ next: (data) => (this.clientes = data) });
+    }
+
+    get productosOpciones() {
+        return this.productos.map((p) => ({
+            ...p,
+            etiqueta: `${p.nombre} · stock ${p.stock} ${p.unidad_medida}`
+        }));
     }
 
     cargar(): void {
@@ -276,9 +310,9 @@ export class VentasPage implements OnInit {
             this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Seleccione un cliente' });
             return;
         }
-        const lineas = this.lineas.filter((l) => l.descripcion?.trim() && Number(l.cantidad) > 0);
+        const lineas = this.lineas.filter((l) => Number(l.cantidad) > 0 && (l.id_producto || l.descripcion?.trim()));
         if (!lineas.length) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Agregue al menos una línea válida' });
+            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Agregue al menos un producto o una descripción' });
             return;
         }
         this.guardando = true;
@@ -286,9 +320,10 @@ export class VentasPage implements OnInit {
             id_cliente: this.idCliente,
             observacion: this.observacion || undefined,
             lineas: lineas.map((l) => ({
-                descripcion: l.descripcion.trim(),
+                descripcion: (l.descripcion || '').trim() || this.nombreProducto(l.id_producto),
                 cantidad: Number(l.cantidad),
-                precio_unitario: Number(l.precio_unitario)
+                precio_unitario: Number(l.precio_unitario),
+                id_producto: l.id_producto || undefined
             })),
             pago_inicial: this.pagoInicial || 0,
             metodo_pago: this.pagoInicial > 0 ? this.metodoPago : undefined,
@@ -299,9 +334,14 @@ export class VentasPage implements OnInit {
                 this.dialogNueva = false;
                 this.messageService.add({ severity: 'success', summary: 'Venta', detail: res.mensaje });
                 this.cargar();
+                this.cargarProductos();
             },
             error: (err) => {
                 this.guardando = false;
+                if (esErrorCajaCerrada(err)) {
+                    this.dialogCajaCerrada = true;
+                    return;
+                }
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo registrar la venta') });
             }
         });
@@ -324,8 +364,40 @@ export class VentasPage implements OnInit {
         return 'secondary';
     }
 
+    onProductoVenta(linea: LineaVenta): void {
+        const producto = this.productos.find((p) => p.id === linea.id_producto);
+        if (producto) {
+            linea.descripcion = producto.nombre;
+            linea.precio_unitario = Number(producto.precio_venta || 0);
+        } else {
+            linea.descripcion = '';
+        }
+    }
+
+    avisoStock(linea: LineaVenta): string {
+        if (!linea.id_producto) {
+            return '';
+        }
+        const producto = this.productos.find((p) => p.id === linea.id_producto);
+        if (!producto) {
+            return '';
+        }
+        if (Number(linea.cantidad) > Number(producto.stock)) {
+            return `Stock insuficiente: hay ${producto.stock} ${producto.unidad_medida}`;
+        }
+        return '';
+    }
+
+    private cargarProductos(): void {
+        this.productosService.listar().subscribe({ next: (data) => (this.productos = data) });
+    }
+
+    private nombreProducto(id?: number | null): string {
+        return this.productos.find((p) => p.id === id)?.nombre || '';
+    }
+
     private lineaVacia(): LineaVenta {
-        return { descripcion: '', cantidad: 1, precio_unitario: 0, subtotal: 0 };
+        return { descripcion: '', id_producto: null, cantidad: 1, precio_unitario: 0, subtotal: 0 };
     }
 
     private msg(err: HttpErrorResponse, fallback: string): string {

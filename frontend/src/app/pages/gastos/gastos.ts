@@ -14,20 +14,22 @@ import { TableModule } from 'primeng/table';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
-import { etiquetaMetodo, formatBs, formatFecha } from '../caja/caja.utils';
+import { etiquetaMetodo, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { apiUrl } from '../../core/utils/api-url';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
+import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
 
 const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'Repuestos', 'Servicios', 'Alimentación', 'Otros'];
 
 @Component({
     selector: 'app-gastos',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TextareaModule, ToastModule, EstadoVacioComponent, KpiGridComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TextareaModule, ToastModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent],
     providers: [MessageService],
     template: `
         <p-toast />
+        <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">{{ titulo }}</div>
@@ -112,6 +114,7 @@ export class GastosPage implements OnInit {
     items: any[] = [];
     cargando = false;
     guardando = false;
+    dialogCajaCerrada = false;
     dialog = false;
     concepto = '';
     categoria = 'Otros';
@@ -261,6 +264,10 @@ export class GastosPage implements OnInit {
     }
 
     private toast(err: HttpErrorResponse, fallback: string): void {
+        if (esErrorCajaCerrada(err)) {
+            this.dialogCajaCerrada = true;
+            return;
+        }
         this.messageService.add({ severity: 'error', summary: 'Error', detail: err?.error?.mensaje || err?.error?.errores?.[0] || fallback });
     }
 }

@@ -16,10 +16,11 @@ import {
 import { METODOS_PAGO } from '../constants/caja.constants';
 
 export class LineaVentaDTO {
-    @IsNotEmpty({ message: 'La descripción es obligatoria' })
+    @ValidateIf((o) => !o.id_producto)
+    @IsNotEmpty({ message: 'Indique un producto o una descripción' })
     @IsString()
     @MaxLength(200)
-    descripcion!: string;
+    descripcion?: string;
 
     @Type(() => Number)
     @IsNumber({}, { message: 'La cantidad debe ser numérica' })

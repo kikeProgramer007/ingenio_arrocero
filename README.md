@@ -4,7 +4,7 @@
 ## backend
 
 ```bash
-npx tsc 
+npx tsc
 ```
 ```bash
 cd backend

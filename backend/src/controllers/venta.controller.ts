@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Cliente, Cobranza, sequelize, User, Venta, VentaDetalle } from '../models';
+import { Cliente, Cobranza, Productos, sequelize, User, Venta, VentaDetalle } from '../models';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser } from '../utils/auth-user';
@@ -118,7 +118,7 @@ export class VentaController {
             const precio = toMoney(linea.precio_unitario);
             const subtotal = roundMoney(cantidad * precio);
             return {
-                descripcion: linea.descripcion.trim(),
+                descripcion: (linea.descripcion || '').trim(),
                 cantidad,
                 precio_unitario: precio,
                 subtotal,
@@ -167,6 +167,10 @@ export class VentaController {
 
             const idVenta = venta.get('id') as number;
             for (const linea of lineas) {
+                if (linea.id_producto && !linea.descripcion) {
+                    const producto = await Productos.findByPk(linea.id_producto, { transaction });
+                    linea.descripcion = producto ? String(producto.get('nombre')) : 'Producto';
+                }
                 await VentaDetalle.create({ ...linea, id_venta: idVenta }, { transaction });
                 if (linea.id_producto) {
                     const stock = await aplicarStock({

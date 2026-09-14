@@ -12,11 +12,12 @@ import { TableModule } from 'primeng/table';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
-import { etiquetaMetodo, formatBs, formatFecha } from '../caja/caja.utils';
+import { etiquetaMetodo, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Compra, PagoProveedor } from './compras.models';
 import { ComprasService } from './compras.service';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
+import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
 
 @Component({
     selector: 'app-pagos',
@@ -33,15 +34,17 @@ import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
         TextareaModule,
         ToastModule,
         EstadoVacioComponent,
-        KpiGridComponent
+        KpiGridComponent,
+        DialogCajaCerradaComponent
     ],
     providers: [MessageService],
     template: `
         <p-toast />
+        <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Pagos a proveedores</div>
-                <div class="text-muted-color">Control de pagos realizados y saldos pendientes</div>
+                <div class="text-muted-color">El dinero sale de caja al pagar. Una compra pendiente no es un egreso.</div>
             </div>
             <p-button label="Registrar pago" icon="pi pi-plus" (onClick)="abrirNueva()" />
         </div>
@@ -131,6 +134,7 @@ export class PagosPage implements OnInit {
     cargando = false;
     guardando = false;
     dialog = false;
+    dialogCajaCerrada = false;
     idCompra: number | null = null;
     monto = 0;
     metodoPago = 'EFECTIVO';
@@ -231,6 +235,10 @@ export class PagosPage implements OnInit {
             },
             error: (err) => {
                 this.guardando = false;
+                if (esErrorCajaCerrada(err)) {
+                    this.dialogCajaCerrada = true;
+                    return;
+                }
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo registrar el pago') });
             }
         });

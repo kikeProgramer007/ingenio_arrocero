@@ -31,6 +31,16 @@ export interface CajaDetalle {
     ingresos: number;
     egresos: number;
     saldo_esperado: number;
+    desglose?: {
+        cobrado_clientes: number;
+        otros_ingresos: number;
+        pagos_proveedor: number;
+        gastos_empresa: number;
+        retiros: number;
+        otros_egresos: number;
+    };
+    por_cobrar?: number;
+    por_pagar?: number;
     saldo_contado: number | null;
     diferencia: number | null;
     resultado_arqueo: 'CUADRE' | 'FALTANTE' | 'SOBRANTE' | null;

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Compra, CompraDetalle, PagoProveedor, Proveedor, sequelize, User } from '../models';
+import { Compra, CompraDetalle, PagoProveedor, Productos, Proveedor, sequelize, User } from '../models';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser } from '../utils/auth-user';
@@ -126,7 +126,7 @@ export class CompraController {
             const precio = toMoney(linea.precio_unitario);
             const subtotal = roundMoney(cantidad * precio);
             return {
-                descripcion: linea.descripcion.trim(),
+                descripcion: (linea.descripcion || '').trim(),
                 cantidad,
                 precio_unitario: precio,
                 subtotal,
@@ -175,6 +175,10 @@ export class CompraController {
 
             const idCompra = compra.get('id') as number;
             for (const linea of lineas) {
+                if (linea.id_producto && !linea.descripcion) {
+                    const producto = await Productos.findByPk(linea.id_producto, { transaction });
+                    linea.descripcion = producto ? String(producto.get('nombre')) : 'Producto';
+                }
                 await CompraDetalle.create({ ...linea, id_compra: idCompra }, { transaction });
                 if (linea.id_producto) {
                     const stock = await aplicarStock({

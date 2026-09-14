@@ -26,6 +26,7 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
 import { AuthService } from '../../core/services/auth.service';
 import { CajaService } from './caja.service';
 import { etiquetaCategoria, etiquetaMetodo, formatBs, formatHora } from './caja.utils';
+import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
 
 @Component({
     selector: 'app-caja-actual',
@@ -43,7 +44,8 @@ import { etiquetaCategoria, etiquetaMetodo, formatBs, formatHora } from './caja.
         TagModule,
         TextareaModule,
         ToastModule,
-        TooltipModule
+        TooltipModule,
+        CuadreCajaComponent
     ],
     providers: [MessageService],
     template: `
@@ -52,7 +54,7 @@ import { etiquetaCategoria, etiquetaMetodo, formatBs, formatHora } from './caja.
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Caja actual</div>
-                <div class="text-muted-color">Apertura, movimientos y arqueo de la caja del ingenio</div>
+                <div class="text-muted-color">Cuánto debería haber según los movimientos, y el arqueo al cerrar</div>
             </div>
             <div class="flex gap-2" *ngIf="caja">
                 <p-button label="+ Nuevo movimiento" icon="pi pi-plus" (onClick)="abrirDialogMovimiento()" [disabled]="guardando" />
@@ -124,6 +126,10 @@ import { etiquetaCategoria, etiquetaMetodo, formatBs, formatHora } from './caja.
                         <p-tag *ngIf="card.tag" [value]="card.tag" [severity]="card.severity" />
                     </div>
                 </div>
+            </div>
+
+            <div class="card mb-6">
+                <app-cuadre-caja [caja]="caja" />
             </div>
 
             <div class="card">
@@ -206,17 +212,12 @@ import { etiquetaCategoria, etiquetaMetodo, formatBs, formatHora } from './caja.
             </ng-template>
         </p-dialog>
 
-        <p-dialog header="Cerrar caja / Arqueo" [(visible)]="dialogCierre" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '90vw' }">
+        <p-dialog header="Cerrar caja / Arqueo" [(visible)]="dialogCierre" [modal]="true" [style]="{ width: '40rem' }" [breakpoints]="{ '960px': '90vw' }">
             <div class="flex flex-col gap-4" *ngIf="caja">
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="text-muted-color">Saldo inicial</div>
-                    <div class="font-medium text-right">{{ formatBs(caja.saldo_inicial) }}</div>
-                    <div class="text-muted-color">Total ingresos</div>
-                    <div class="font-medium text-right text-green-600">{{ formatBs(caja.ingresos) }}</div>
-                    <div class="text-muted-color">Total egresos</div>
-                    <div class="font-medium text-right text-red-500">{{ formatBs(caja.egresos) }}</div>
-                    <div class="font-semibold">Saldo esperado</div>
-                    <div class="font-semibold text-right">{{ formatBs(caja.saldo_esperado) }}</div>
+                <app-cuadre-caja [caja]="caja" />
+                <div class="flex justify-between font-semibold border-t border-surface pt-3">
+                    <span>Total en sistema (esperado)</span>
+                    <span>{{ formatBs(caja.saldo_esperado) }}</span>
                 </div>
                 <div>
                     <label class="block font-bold mb-2">Saldo contado físicamente</label>
@@ -227,6 +228,7 @@ import { etiquetaCategoria, etiquetaMetodo, formatBs, formatHora } from './caja.
                     <span class="font-semibold">{{ formatBs(diferenciaCierre) }}</span>
                 </div>
                 <p-tag [value]="etiquetaArqueo" [severity]="severidadArqueo" />
+                <p class="text-muted-color text-sm m-0">Compara lo contado con lo que el sistema espera según los movimientos.</p>
                 <div>
                     <label class="block font-bold mb-2">Observación (opcional)</label>
                     <textarea pTextarea [(ngModel)]="observacionCierre" rows="2" fluid></textarea>
