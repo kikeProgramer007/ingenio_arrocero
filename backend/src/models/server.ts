@@ -17,7 +17,7 @@ import routeUploads from '../routes/upload.routes';
 import { seedProgramasCaja } from '../seed/programas-caja.seed';
 import { seedInventarioBase } from '../seed/inventario.seed';
 import { sequelize } from '../models';
-import { shouldAlterSchema } from '../utils/db-sync';
+import { assertBaseDeUsuario, shouldAlterSchema } from '../utils/db-sync';
 import { asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
 
 class Server {
@@ -66,13 +66,18 @@ class Server {
 
     async dbConnect() {
         try {
+            const dbName = sequelize.getDatabaseName();
+            assertBaseDeUsuario(dbName);
+            await sequelize.authenticate();
             const alter = shouldAlterSchema();
             await sequelize.sync({ force: false, alter });
             await seedProgramasCaja();
             await seedInventarioBase();
-            console.log(`Base de datos sincronizada (alter=${alter})`);
+            console.log(`Base de datos sincronizada (db=${dbName}, alter=${alter})`);
         } catch (error) {
-            console.error('Unable to connect to the database:', error);
+            const sqlMessage = (error as { parent?: { sqlMessage?: string } })?.parent?.sqlMessage
+                || (error as Error).message;
+            console.error('Unable to connect to the database:', sqlMessage);
         }
     }
 }
