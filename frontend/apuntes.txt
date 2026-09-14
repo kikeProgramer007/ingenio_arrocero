@@ -1,0 +1,265 @@
+npm i -g @angular/cli
+ng help
+ng new frontend
+
+
+Requisitos
+Angular CLI: 19.0.6        
+Node: 22.16.0
+Package Manager: npm 10.9.2
+OS: win32 x64
+
+
+Descargar e instalar
+git clone https://github.com/primefaces/sakai-ng.git
+npm install
+
+
+
+deploy
+ng build --configuration production
+
+mover contenido browser a carpeta raiz
+crear htaccess en caso de ser subdominio:
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /enrique/angular/
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /enrique/angular/index.html [L]
+</IfModule>
+
+ESTRUCTURA DEL ANGULAR:
+# Arquitectura de Carpetas Angular 19 - Mejores Prácticas
+
+```
+src/
+├── app/
+│   ├── core/                           # Servicios singleton y funcionalidades centrales
+│   │   ├── guards/                     # Route guards
+│   │   │   ├── auth.guard.ts
+│   │   │   └── role.guard.ts
+│   │   ├── interceptors/               # HTTP interceptors
+│   │   │   ├── auth.interceptor.ts
+│   │   │   ├── error.interceptor.ts
+│   │   │   └── loading.interceptor.ts
+│   │   ├── services/                   # Servicios globales
+│   │   │   ├── auth.service.ts
+│   │   │   ├── api.service.ts
+│   │   │   ├── storage.service.ts
+│   │   │   └── notification.service.ts
+│   │   ├── constants/                  # Constantes globales
+│   │   │   ├── api-endpoints.ts
+│   │   │   ├── app-constants.ts
+│   │   │   └── storage-keys.ts
+│   │   ├── utils/                      # Utilidades globales
+│   │   │   ├── validators.ts
+│   │   │   ├── helpers.ts
+│   │   │   └── date-utils.ts
+│   │   └── core.module.ts              # Módulo core (importar solo una vez)
+│   │
+│   ├── shared/                         # Componentes, pipes y directivas reutilizables
+│   │   ├── components/                 # Componentes compartidos
+│   │   │   ├── loader/
+│   │   │   │   ├── loader.component.ts
+│   │   │   │   ├── loader.component.html
+│   │   │   │   └── loader.component.scss
+│   │   │   ├── modal/
+│   │   │   ├── button/
+│   │   │   ├── pagination/
+│   │   │   └── breadcrumb/
+│   │   ├── pipes/                      # Pipes reutilizables
+│   │   │   ├── currency-format.pipe.ts
+│   │   │   ├── date-format.pipe.ts
+│   │   │   └── search-filter.pipe.ts
+│   │   ├── directives/                 # Directivas reutilizables
+│   │   │   ├── highlight.directive.ts
+│   │   │   ├── click-outside.directive.ts
+│   │   │   └── auto-focus.directive.ts
+│   │   ├── models/                     # Interfaces y modelos compartidos
+│   │   │   ├── user.interface.ts
+│   │   │   ├── api-response.interface.ts
+│   │   │   └── base.model.ts
+│   │   ├── enums/                      # Enumeraciones
+│   │   │   ├── user-roles.enum.ts
+│   │   │   └── api-status.enum.ts
+│   │   └── shared.module.ts            # Módulo shared
+│   │
+│   ├── features/                       # Módulos de funcionalidades
+│   │   ├── auth/                       # Módulo de autenticación
+│   │   │   ├── components/
+│   │   │   │   ├── login/
+│   │   │   │   │   ├── login.component.ts
+│   │   │   │   │   ├── login.component.html
+│   │   │   │   │   └── login.component.scss
+│   │   │   │   ├── register/
+│   │   │   │   └── forgot-password/
+│   │   │   ├── services/
+│   │   │   │   └── auth-feature.service.ts
+│   │   │   ├── models/
+│   │   │   │   ├── login-request.interface.ts
+│   │   │   │   └── auth-response.interface.ts
+│   │   │   ├── auth-routing.module.ts
+│   │   │   └── auth.module.ts
+│   │   │
+│   │   ├── dashboard/                  # Módulo del dashboard
+│   │   │   ├── components/
+│   │   │   │   ├── dashboard-home/
+│   │   │   │   ├── statistics-card/
+│   │   │   │   └── recent-activity/
+│   │   │   ├── pages/
+│   │   │   │   └── dashboard-page/
+│   │   │   ├── services/
+│   │   │   │   └── dashboard.service.ts
+│   │   │   ├── dashboard-routing.module.ts
+│   │   │   └── dashboard.module.ts
+│   │   │
+│   │   ├── users/                      # Módulo de usuarios
+│   │   │   ├── components/
+│   │   │   │   ├── user-list/
+│   │   │   │   ├── user-form/
+│   │   │   │   └── user-detail/
+│   │   │   ├── pages/
+│   │   │   │   ├── users-page/
+│   │   │   │   └── user-profile-page/
+│   │   │   ├── services/
+│   │   │   │   └── users.service.ts
+│   │   │   ├── models/
+│   │   │   │   └── user.model.ts
+│   │   │   ├── resolvers/
+│   │   │   │   └── user.resolver.ts
+│   │   │   ├── users-routing.module.ts
+│   │   │   └── users.module.ts
+│   │   │
+│   │   └── products/                   # Módulo de productos
+│   │       ├── components/
+│   │       ├── pages/
+│   │       ├── services/
+│   │       ├── models/
+│   │       ├── products-routing.module.ts
+│   │       └── products.module.ts
+│   │
+│   ├── layout/                         # Componentes de layout
+│   │   ├── header/
+│   │   │   ├── header.component.ts
+│   │   │   ├── header.component.html
+│   │   │   └── header.component.scss
+│   │   ├── sidebar/
+│   │   ├── footer/
+│   │   ├── navigation/
+│   │   └── layout.module.ts
+│   │
+│   ├── app-routing.module.ts           # Rutas principales
+│   ├── app.component.ts                # Componente raíz
+│   ├── app.component.html
+│   ├── app.component.scss
+│   └── app.module.ts                   # Módulo raíz
+│
+├── assets/                             # Recursos estáticos
+│   ├── images/
+│   │   ├── logos/
+│   │   ├── icons/
+│   │   └── backgrounds/
+│   ├── fonts/
+│   ├── i18n/                          # Archivos de internacionalización
+│   │   ├── en.json
+│   │   ├── es.json
+│   │   └── fr.json
+│   └── data/                          # Datos mock o de prueba
+│       └── mock-data.json
+│
+├── environments/                       # Configuraciones por ambiente
+│   ├── environment.ts
+│   ├── environment.prod.ts
+│   └── environment.staging.ts
+│
+└── styles/                            # Estilos globales
+    ├── _variables.scss                # Variables SCSS
+    ├── _mixins.scss                   # Mixins SCSS
+    ├── _themes.scss                   # Temas
+    ├── _components.scss               # Estilos de componentes globales
+    └── styles.scss                    # Archivo principal de estilos
+```
+
+## Principios y Buenas Prácticas
+
+### 1. **Separación por Responsabilidades**
+- **Core**: Servicios singleton que se usan en toda la aplicación
+- **Shared**: Componentes, pipes y directivas reutilizables
+- **Features**: Módulos de funcionalidades específicas con lazy loading
+- **Layout**: Componentes de estructura visual
+
+### 2. **Organización por Funcionalidad**
+Cada feature module incluye:
+- `components/`: Componentes específicos del módulo
+- `pages/`: Componentes que representan páginas completas
+- `services/`: Servicios específicos del módulo
+- `models/`: Interfaces y modelos del dominio
+- `resolvers/`: Resolvers para pre-cargar datos
+
+### 3. **Convenciones de Nomenclatura**
+- Usar kebab-case para nombres de archivos
+- Sufijos descriptivos: `.component.ts`, `.service.ts`, `.guard.ts`
+- Nombres de clases en PascalCase
+- Nombres de variables y métodos en camelCase
+
+### 4. **Estrategia de Módulos**
+- **CoreModule**: Importar solo en AppModule
+- **SharedModule**: Importar en feature modules que lo necesiten
+- **Feature Modules**: Lazy loading siempre que sea posible
+
+### 5. **Gestión de Estado**
+Para aplicaciones grandes, considera agregar:
+```
+src/app/store/                         # Estado global (NgRx)
+├── actions/
+├── effects/
+├── reducers/
+└── selectors/
+```
+
+### 6. **Testing**
+Estructura paralela para tests:
+```
+src/app/
+├── shared/
+│   ├── components/
+│   │   └── loader/
+│   │       └── loader.component.spec.ts
+│   └── services/
+│       └── api.service.spec.ts
+```
+
+### 7. **Configuración Adicional**
+- Usar path mapping en `tsconfig.json` para imports limpios
+- Configurar aliases: `@core`, `@shared`, `@features`
+- Implementar linting rules específicas para la estructura
+
+## Beneficios de esta Arquitectura
+
+✅ **Escalabilidad**: Fácil agregar nuevas funcionalidades
+✅ **Mantenibilidad**: Código organizado y predecible  
+✅ **Reutilización**: Componentes y servicios compartidos
+✅ **Performance**: Lazy loading de módulos
+✅ **Testing**: Estructura clara para pruebas
+✅ **Colaboración**: Convenciones claras para el equipo
+
+features/
+└── auth/
+    ├── components/
+    │   ├── login.component.ts
+    │   └── register.component.ts
+    ├── services/
+    │   └── auth.service.ts
+    ├── models/
+    │   └── user.model.ts
+    └── auth.module.ts
+
+8. Internacionalización (i18n)
+Si tu aplicación soporta varios idiomas, crea un directorio i18n/ en src/ para los archivos de traducción:
+
+src/
+└── i18n/
+    ├── en.json
+    └── es.json

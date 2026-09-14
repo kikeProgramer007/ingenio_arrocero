@@ -1,0 +1,367 @@
+@startuml
+title db_empresas — esquema actual
+
+hide circle
+skinparam linetype ortho
+skinparam wrapWidth 200
+left to right direction
+
+package "Acceso y menú" {
+  entity "perfil" as Perfil {
+    * id : INT <<PK>>
+    --
+    nombre : VARCHAR(100)
+    eliminado : TINYINT(1)
+  }
+
+  entity "programas" as Programas {
+    * id : INT <<PK>>
+    --
+    id_padre : INT <<FK>>
+    nombre_programa : VARCHAR(100)
+    url : VARCHAR(255)
+    class_icon : VARCHAR(100)
+    es_expandible : TINYINT(1)
+    nro_posicion : INT
+    eliminado : TINYINT(1)
+  }
+
+  entity "perfil_programas" as PerfilProgramas {
+    * id_perfil : INT <<PK,FK>>
+    * id_programa : INT <<PK,FK>>
+    --
+    permiso_lectura : TINYINT(1)
+    permiso_escritura : TINYINT(1)
+    permiso_modificacion : TINYINT(1)
+  }
+
+  entity "user" as User {
+    * id : INT <<PK>>
+    --
+    username : VARCHAR(255)
+    password : VARCHAR(255)
+    id_perfil : INT <<FK>>
+    eliminado : TINYINT(1)
+    createdAt : DATETIME
+    updatedAt : DATETIME
+  }
+}
+
+package "Caja e ingresos/egresos" {
+  entity "cajas" as Cajas {
+    * id : INT <<PK>>
+    --
+    fecha_apertura : DATETIME
+    fecha_cierre : DATETIME
+    saldo_inicial : DECIMAL(12,2)
+    saldo_esperado : DECIMAL(12,2)
+    saldo_contado : DECIMAL(12,2)
+    diferencia : DECIMAL(12,2)
+    estado : VARCHAR(20)
+    id_usuario_apertura : INT <<FK>>
+    id_usuario_cierre : INT <<FK>>
+    observacion : TEXT
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "movimientos_caja" as MovimientosCaja {
+    * id : INT <<PK>>
+    --
+    id_caja : INT <<FK>>
+    tipo : VARCHAR(20)
+    categoria : VARCHAR(40)
+    concepto : VARCHAR(200)
+    monto : DECIMAL(12,2)
+    metodo_pago : VARCHAR(30)
+    referencia : VARCHAR(100)
+    observacion : TEXT
+    origen : VARCHAR(40)
+    origen_id : INT
+    id_usuario : INT <<FK>>
+    fecha : DATETIME
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "gastos" as Gastos {
+    * id : INT <<PK>>
+    --
+    tipo : VARCHAR(40)
+    concepto : VARCHAR(200)
+    categoria : VARCHAR(40)
+    monto : DECIMAL(12,2)
+    metodo_pago : VARCHAR(30)
+    referencia : VARCHAR(100)
+    observacion : TEXT
+    id_caja : INT <<FK>>
+    fecha : DATETIME
+    id_usuario : INT <<FK>>
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+}
+
+package "Ventas y cobranzas" {
+  entity "clientes" as Clientes {
+    * id : INT <<PK>>
+    --
+    nombre : VARCHAR(150)
+    nit_ci : VARCHAR(30)
+    telefono : VARCHAR(30)
+    direccion : VARCHAR(250)
+    observacion : TEXT
+    activo : TINYINT(1)
+    path_imagen : VARCHAR(255)
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "ventas" as Ventas {
+    * id : INT <<PK>>
+    --
+    id_cliente : INT <<FK>>
+    fecha : DATETIME
+    total : DECIMAL(12,2)
+    saldo_pendiente : DECIMAL(12,2)
+    estado : VARCHAR(20)
+    observacion : TEXT
+    id_usuario : INT <<FK>>
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "venta_detalles" as VentaDetalles {
+    * id : INT <<PK>>
+    --
+    id_venta : INT <<FK>>
+    descripcion : VARCHAR(200)
+    id_producto : INT <<FK>>
+    cantidad : DECIMAL(12,3)
+    precio_unitario : DECIMAL(12,2)
+    subtotal : DECIMAL(12,2)
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "cobranzas" as Cobranzas {
+    * id : INT <<PK>>
+    --
+    id_venta : INT <<FK>>
+    id_cliente : INT <<FK>>
+    id_caja : INT <<FK>>
+    monto : DECIMAL(12,2)
+    metodo_pago : VARCHAR(30)
+    referencia : VARCHAR(100)
+    observacion : TEXT
+    fecha : DATETIME
+    id_usuario : INT <<FK>>
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+}
+
+package "Compras y pagos" {
+  entity "proveedores" as Proveedores {
+    * id : INT <<PK>>
+    --
+    nombre : VARCHAR(150)
+    nit_ci : VARCHAR(30)
+    telefono : VARCHAR(30)
+    direccion : VARCHAR(250)
+    observacion : TEXT
+    activo : TINYINT(1)
+    path_imagen : VARCHAR(255)
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "compras" as Compras {
+    * id : INT <<PK>>
+    --
+    id_proveedor : INT <<FK>>
+    fecha : DATETIME
+    total : DECIMAL(12,2)
+    saldo_pendiente : DECIMAL(12,2)
+    estado : VARCHAR(20)
+    observacion : TEXT
+    id_usuario : INT <<FK>>
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "compra_detalles" as CompraDetalles {
+    * id : INT <<PK>>
+    --
+    id_compra : INT <<FK>>
+    descripcion : VARCHAR(200)
+    id_producto : INT <<FK>>
+    cantidad : DECIMAL(12,3)
+    precio_unitario : DECIMAL(12,2)
+    subtotal : DECIMAL(12,2)
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "pagos_proveedor" as PagosProveedor {
+    * id : INT <<PK>>
+    --
+    id_compra : INT <<FK>>
+    id_proveedor : INT <<FK>>
+    id_caja : INT <<FK>>
+    monto : DECIMAL(12,2)
+    metodo_pago : VARCHAR(30)
+    referencia : VARCHAR(100)
+    observacion : TEXT
+    fecha : DATETIME
+    id_usuario : INT <<FK>>
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+}
+
+package "Inventario, acopio y producción" {
+  entity "categorias_producto" as CategoriasProducto {
+    * id : INT <<PK>>
+    --
+    nombre : VARCHAR(80)
+  }
+
+  entity "productos" as Productos {
+    * id : INT <<PK>>
+    --
+    nombre : VARCHAR(150)
+    descripcion : TEXT
+    precio_venta : DECIMAL(12,2)
+    precio_compra : DECIMAL(12,2)
+    stock : DECIMAL(12,3)
+    stock_minimo : DECIMAL(12,3)
+    unidad_medida : VARCHAR(30)
+    path_imagen : VARCHAR(255)
+    eliminado : TINYINT(1)
+    id_categoria : INT <<FK>>
+    fecha_creacion : DATETIME
+    fecha_modificacion : DATETIME
+  }
+
+  entity "movimientos_inventario" as MovimientosInventario {
+    * id : INT <<PK>>
+    --
+    id_producto : INT <<FK>>
+    tipo : VARCHAR(20)
+    cantidad : DECIMAL(12,3)
+    stock_resultante : DECIMAL(12,3)
+    origen : VARCHAR(40)
+    origen_id : INT
+    observacion : TEXT
+    id_usuario : INT <<FK>>
+    fecha : DATETIME
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "campanas" as Campanas {
+    * id : INT <<PK>>
+    --
+    nombre : VARCHAR(150)
+    fecha_inicio : DATE
+    fecha_fin : DATE
+    meta_cantidad : DECIMAL(12,3)
+    estado : VARCHAR(20)
+    observacion : TEXT
+    id_usuario : INT <<FK>>
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "acopios" as Acopios {
+    * id : INT <<PK>>
+    --
+    id_campana : INT <<FK>>
+    id_proveedor : INT <<FK>>
+    id_producto : INT <<FK>>
+    descripcion : VARCHAR(200)
+    cantidad : DECIMAL(12,3)
+    precio_unitario : DECIMAL(12,2)
+    total : DECIMAL(12,2)
+    metodo_pago : VARCHAR(30)
+    pago : DECIMAL(12,2)
+    id_caja : INT <<FK>>
+    observacion : TEXT
+    fecha : DATETIME
+    id_usuario : INT <<FK>>
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+
+  entity "producciones" as Producciones {
+    * id : INT <<PK>>
+    --
+    fecha : DATETIME
+    id_producto_origen : INT <<FK>>
+    cantidad_entrada : DECIMAL(12,3)
+    id_producto_destino : INT <<FK>>
+    cantidad_salida : DECIMAL(12,3)
+    merma : DECIMAL(12,3)
+    observacion : TEXT
+    id_usuario : INT <<FK>>
+    created_at : DATETIME
+    updated_at : DATETIME
+  }
+}
+
+' Acceso
+Perfil ||--o{ User : id_perfil
+Perfil ||--o{ PerfilProgramas : id_perfil
+Programas ||--o{ PerfilProgramas : id_programa
+Programas ||--o{ Programas : id_padre
+
+' Caja
+User ||--o{ Cajas : id_usuario_apertura
+User ||--o{ Cajas : id_usuario_cierre
+Cajas ||--o{ MovimientosCaja : id_caja
+User ||--o{ MovimientosCaja : id_usuario
+Cajas ||--o{ Gastos : id_caja
+User ||--o{ Gastos : id_usuario
+
+' Ventas
+Clientes ||--o{ Ventas : id_cliente
+User ||--o{ Ventas : id_usuario
+Ventas ||--o{ VentaDetalles : id_venta
+Productos ||--o{ VentaDetalles : id_producto
+Ventas ||--o{ Cobranzas : id_venta
+Clientes ||--o{ Cobranzas : id_cliente
+Cajas ||--o{ Cobranzas : id_caja
+User ||--o{ Cobranzas : id_usuario
+
+' Compras
+Proveedores ||--o{ Compras : id_proveedor
+User ||--o{ Compras : id_usuario
+Compras ||--o{ CompraDetalles : id_compra
+Productos ||--o{ CompraDetalles : id_producto
+Compras ||--o{ PagosProveedor : id_compra
+Proveedores ||--o{ PagosProveedor : id_proveedor
+Cajas ||--o{ PagosProveedor : id_caja
+User ||--o{ PagosProveedor : id_usuario
+
+' Inventario y operaciones
+CategoriasProducto ||--o{ Productos : id_categoria
+Productos ||--o{ MovimientosInventario : id_producto
+User ||--o{ MovimientosInventario : id_usuario
+User ||--o{ Campanas : id_usuario
+Campanas ||--o{ Acopios : id_campana
+Proveedores ||--o{ Acopios : id_proveedor
+Productos ||--o{ Acopios : id_producto
+Cajas ||--o{ Acopios : id_caja
+User ||--o{ Acopios : id_usuario
+Productos ||--o{ Producciones : id_producto_origen
+Productos ||--o{ Producciones : id_producto_destino
+User ||--o{ Producciones : id_usuario
+
+note right of MovimientosCaja
+  origen / origen_id son polimórficos
+  (cobranza, pago, gasto, acopio, etc.).
+  No hay FK física a esas tablas.
+end note
+
+@enduml

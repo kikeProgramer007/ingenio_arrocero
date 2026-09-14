@@ -1,0 +1,350 @@
+{
+  "info": {
+    "_postman_id": "a4c8e1d2-7b39-4f6a-9c10-ingenioarrozero",
+    "name": "Ingenio Arrozero API",
+    "description": "Collection generada a partir de las rutas reales del backend.\n\n**Base URL:** `{{baseUrl}}` (por defecto `http://localhost:3001`)\n\n**Auth:** cursos y estudiantes requieren `Authorization: Bearer {{token}}`. El request **Login** guarda el token automáticamente.\n\n**Orden sugerido:**\n1. Crear un registro en la tabla `perfil` (phpMyAdmin) si aún no existe.\n2. Crear usuario.\n3. Login (el token se guarda en la collection).\n4. Probar cursos y estudiantes.\n\n**No expuestos aún:** productos, programas, perfiles, materias, avisos, asistencias y licencias tienen modelos pero no endpoints montados en el server.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "cursoId",
+      "value": "1"
+    },
+    {
+      "key": "estudianteId",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Usuarios",
+      "description": "No requieren token. `id_perfil` debe existir en la tabla `perfil`.",
+      "auth": {
+        "type": "noauth"
+      },
+      "item": [
+        {
+          "name": "Crear usuario",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\",\n  \"id_perfil\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "`POST /api/users`\n\nCrea un usuario. El password se hashea con bcrypt.\n\n**Body:**\n- `username` (string, único)\n- `password` (string)\n- `id_perfil` (number, FK a `perfil.id`)"
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.token) {",
+                  "        pm.collectionVariables.set('token', json.token);",
+                  "        console.log('Token guardado en la collection');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "login"]
+            },
+            "description": "`POST /api/users/login`\n\nDevuelve `{ token, user }` y guarda `token` en la variable de collection para el resto de requests."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cursos",
+      "description": "CRUD de cursos. Requiere Bearer token.",
+      "item": [
+        {
+          "name": "Listar cursos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/cursos",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cursos"]
+            },
+            "description": "`GET /api/cursos` — lista todos los cursos."
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener curso por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/cursos/{{cursoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cursos", "{{cursoId}}"]
+            },
+            "description": "`GET /api/cursos/:id`"
+          },
+          "response": []
+        },
+        {
+          "name": "Crear curso",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grado\": \"1ro\",\n  \"grupo\": \"A\",\n  \"nivel\": \"Primaria\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cursos",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cursos"]
+            },
+            "description": "`POST /api/cursos`\n\n**Body:**\n- `grado` (string, 1-20)\n- `grupo` (string, exactamente 1 caracter)\n- `nivel` (string, 1-20)"
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar curso",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grado\": \"2do\",\n  \"grupo\": \"B\",\n  \"nivel\": \"Primaria\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cursos/{{cursoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cursos", "{{cursoId}}"]
+            },
+            "description": "`PUT /api/cursos/:id` — mismos campos que crear."
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar curso",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/cursos/{{cursoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cursos", "{{cursoId}}"]
+            },
+            "description": "`DELETE /api/cursos/:id`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Estudiantes",
+      "description": "CRUD de estudiantes. Requiere Bearer token.",
+      "item": [
+        {
+          "name": "Listar estudiantes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/estudiantes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "estudiantes"]
+            },
+            "description": "`GET /api/estudiantes`"
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener estudiante por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/estudiantes/{{estudianteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "estudiantes", "{{estudianteId}}"]
+            },
+            "description": "`GET /api/estudiantes/:id`"
+          },
+          "response": []
+        },
+        {
+          "name": "Crear estudiante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.data && json.data.id) {",
+                  "        pm.collectionVariables.set('estudianteId', String(json.data.id));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo_rude\": \"123456789\",\n  \"cedula_identidad\": \"1234567\",\n  \"nombre\": \"Juan\",\n  \"apellido_paterno\": \"Perez\",\n  \"apellido_materno\": \"Lopez\",\n  \"genero\": \"M\",\n  \"fecha_nacimiento\": \"2010-05-20\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/estudiantes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "estudiantes"]
+            },
+            "description": "`POST /api/estudiantes`\n\n**Body:**\n- `codigo_rude` (string, máx. 15, único)\n- `cedula_identidad` (string, máx. 10, único)\n- `nombre` (string)\n- `apellido_paterno` (string)\n- `apellido_materno` (string)\n- `genero` (`M` o `F`)\n- `fecha_nacimiento` (`YYYY-MM-DD`)\n\nSi responde 201, guarda `estudianteId` en la collection."
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar estudiante",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo_rude\": \"123456789\",\n  \"cedula_identidad\": \"1234567\",\n  \"nombre\": \"Juan Carlos\",\n  \"apellido_paterno\": \"Perez\",\n  \"apellido_materno\": \"Lopez\",\n  \"genero\": \"M\",\n  \"fecha_nacimiento\": \"2010-05-20\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/estudiantes/{{estudianteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "estudiantes", "{{estudianteId}}"]
+            },
+            "description": "`PUT /api/estudiantes/:id` — mismos campos que crear."
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar estudiante",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/estudiantes/{{estudianteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "estudiantes", "{{estudianteId}}"]
+            },
+            "description": "`DELETE /api/estudiantes/:id`"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

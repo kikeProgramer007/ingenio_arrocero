@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" height="652px" preserveAspectRatio="none" style="width:1399px;height:652px;background:#FFFFFF;" version="1.1" viewBox="0 0 1399 652" width="1399px" zoomAndPan="magnify"><defs/><g><!--MD5=[c0734ae52de813c3eeca7fab5925dac1]
+class Estudiantes--><g id="elem_Estudiantes"><rect codeLine="4" fill="#F1F1F1" height="172.6719" id="Estudiantes" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="247" x="192" y="24"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="82" x="274.5" y="41.9951">estudiantes</text><line style="stroke:#181818;stroke-width:0.5;" x1="193" x2="438" y1="50.2969" y2="50.2969"/><ellipse cx="203" cy="63.9453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="212" y="67.292">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="193" x2="438" y1="74.5938" y2="74.5938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="194" x="198" y="91.5889">codigo_rude : VARCHAR(15)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="225" x="198" y="107.8857">cedula_identidad : VARCHAR(10)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="171" x="198" y="124.1826">nombre : VARCHAR(255)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="231" x="198" y="140.4795">apellido_paterno : VARCHAR(255)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="235" x="198" y="156.7764">apellido_materno : VARCHAR(255)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="121" x="198" y="173.0732">genero : CHAR(1)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="172" x="198" y="189.3701">fecha_nacimiento : DATE</text></g><!--MD5=[ec0cfa9a897747b7e4808038467fbcf1]
+class Asistencias--><g id="elem_Asistencias"><rect codeLine="16" fill="#F1F1F1" height="123.7813" id="Asistencias" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="179" x="71" y="497.5"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="77" x="122" y="515.4951">asistencias</text><line style="stroke:#181818;stroke-width:0.5;" x1="72" x2="249" y1="523.7969" y2="523.7969"/><ellipse cx="82" cy="537.4453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="91" y="540.792">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="72" x2="249" y1="548.0938" y2="548.0938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="156" x="77" y="565.0889">estado : VARCHAR(20)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="89" x="77" y="581.3857">fecha : DATE</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="167" x="77" y="597.6826">id_estudiante : INT «FK»</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="144" x="77" y="613.9795">id_licencia : INT «FK»</text></g><!--MD5=[679b805afaaf271090bf4800d3fb4b02]
+class Licencias--><g id="elem_Licencias"><rect codeLine="25" fill="#F1F1F1" height="140.0781" id="Licencias" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="209" x="117" y="265"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="59" x="192" y="282.9951">licencias</text><line style="stroke:#181818;stroke-width:0.5;" x1="118" x2="325" y1="291.2969" y2="291.2969"/><ellipse cx="128" cy="304.9453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="137" y="308.292">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="118" x2="325" y1="315.5938" y2="315.5938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="165" x="123" y="332.5889">asunto : VARCHAR(255)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="197" x="123" y="348.8857">justificacion : VARCHAR(255)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="89" x="123" y="365.1826">fecha : DATE</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="106" x="123" y="381.4795">activo : TINYINT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="167" x="123" y="397.7764">id_estudiante : INT «FK»</text></g><!--MD5=[6daeaa08cb4b401666c03551ca4474e2]
+class CursoEstudiante--><g id="elem_CursoEstudiante"><rect codeLine="35" fill="#F1F1F1" height="107.4844" id="CursoEstudiante" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="179" x="433" y="281.5"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="120" x="462.5" y="299.4951">curso_estudiante</text><line style="stroke:#181818;stroke-width:0.5;" x1="434" x2="611" y1="307.7969" y2="307.7969"/><ellipse cx="444" cy="321.4453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="453" y="324.792">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="434" x2="611" y1="332.0938" y2="332.0938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="132" x="439" y="349.0889">id_curso : INT «FK»</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="167" x="439" y="365.3857">id_estudiante : INT «FK»</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="151" x="439" y="381.6826">gestion : VARCHAR(4)</text></g><!--MD5=[10ba99c0e9336485bbffc3348110f6cf]
+class Cursos--><g id="elem_Cursos"><rect codeLine="43" fill="#F1F1F1" height="107.4844" id="Cursos" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="160" x="505.5" y="57"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="47" x="562" y="74.9951">cursos</text><line style="stroke:#181818;stroke-width:0.5;" x1="506.5" x2="664.5" y1="83.2969" y2="83.2969"/><ellipse cx="516.5" cy="96.9453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="525.5" y="100.292">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="506.5" x2="664.5" y1="107.5938" y2="107.5938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="148" x="511.5" y="124.5889">grado : VARCHAR(20)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="112" x="511.5" y="140.8857">grupo : CHAR(1)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="139" x="511.5" y="157.1826">nivel : VARCHAR(20)</text></g><!--MD5=[020dce10f757f321cab2b684776e5c7a]
+class Materias--><g id="elem_Materias"><rect codeLine="51" fill="#F1F1F1" height="107.4844" id="Materias" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="178" x="647.5" y="281.5"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="59" x="707" y="299.4951">materias</text><line style="stroke:#181818;stroke-width:0.5;" x1="648.5" x2="824.5" y1="307.7969" y2="307.7969"/><ellipse cx="658.5" cy="321.4453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="667.5" y="324.792">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="648.5" x2="824.5" y1="332.0938" y2="332.0938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="162" x="653.5" y="349.0889">nombre : VARCHAR(50)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="166" x="653.5" y="365.3857">docente : VARCHAR(45)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="132" x="653.5" y="381.6826">id_curso : INT «FK»</text></g><!--MD5=[a6befbec54b84114273d3ae09fe9ae17]
+class EstudianteMateria--><g id="elem_EstudianteMateria"><rect codeLine="59" fill="#F1F1F1" height="172.6719" id="EstudianteMateria" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="237" x="321" y="473"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="132" x="373.5" y="490.9951">estudiante_materia</text><line style="stroke:#181818;stroke-width:0.5;" x1="322" x2="557" y1="499.2969" y2="499.2969"/><ellipse cx="332" cy="512.9453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="341" y="516.292">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="322" x2="557" y1="523.5938" y2="523.5938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="167" x="327" y="540.5889">id_estudiante : INT «FK»</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="144" x="327" y="556.8857">id_materia : INT «FK»</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="207" x="327" y="573.1826">nota_primer_bimestre : FLOAT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="225" x="327" y="589.4795">nota_segundo_bimestre : FLOAT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="204" x="327" y="605.7764">nota_tercer_bimestre : FLOAT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="207" x="327" y="622.0732">nota_cuarto_bimestre : FLOAT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="167" x="327" y="638.3701">promedio_anual : FLOAT</text></g><!--MD5=[58e6ea489b7c8ea07226d312cf3fd8ce]
+class Avisos--><g id="elem_Avisos"><rect codeLine="71" fill="#F1F1F1" height="123.7813" id="Avisos" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="156" x="700.5" y="48.5"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="43" x="757" y="66.4951">avisos</text><line style="stroke:#181818;stroke-width:0.5;" x1="701.5" x2="855.5" y1="74.7969" y2="74.7969"/><ellipse cx="711.5" cy="88.4453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="720.5" y="91.792">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="701.5" x2="855.5" y1="99.0938" y2="99.0938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="142" x="706.5" y="116.0889">titulo : VARCHAR(30)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="129" x="706.5" y="132.3857">descripcion : TEXT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="89" x="706.5" y="148.6826">fecha : DATE</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="144" x="706.5" y="164.9795">autor : VARCHAR(50)</text></g><!--MD5=[b0d447918147c1f7edd71021b59528c0]
+class Perfil--><g id="elem_Perfil"><rect codeLine="80" fill="#F1F1F1" height="91.1875" id="Perfil" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="183" x="1201" y="65"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="33" x="1276" y="82.9951">perfil</text><line style="stroke:#181818;stroke-width:0.5;" x1="1202" x2="1383" y1="91.2969" y2="91.2969"/><ellipse cx="1212" cy="104.9453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="1221" y="108.292">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="1202" x2="1383" y1="115.5938" y2="115.5938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="171" x="1207" y="132.5889">nombre : VARCHAR(100)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="132" x="1207" y="148.8857">eliminado : TINYINT</text></g><!--MD5=[a7a7f9a14eac403e24a4d30cfb7ed424]
+class Programas--><g id="elem_Programas"><rect codeLine="87" fill="#F1F1F1" height="172.6719" id="Programas" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="256" x="891.5" y="24"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="74" x="982.5" y="41.9951">programas</text><line style="stroke:#181818;stroke-width:0.5;" x1="892.5" x2="1146.5" y1="50.2969" y2="50.2969"/><ellipse cx="902.5" cy="63.9453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="911.5" y="67.292">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="892.5" x2="1146.5" y1="74.5938" y2="74.5938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="133" x="897.5" y="91.5889">id_padre : INT «FK»</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="244" x="897.5" y="107.8857">nombre_programa : VARCHAR(100)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="134" x="897.5" y="124.1826">url : VARCHAR(255)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="188" x="897.5" y="140.4795">class_icon : VARCHAR(100)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="165" x="897.5" y="156.7764">es_expandible : TINYINT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="123" x="897.5" y="173.0732">nro_posicion : INT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="132" x="897.5" y="189.3701">eliminado : TINYINT</text></g><!--MD5=[e9157fdc38201804d154f626377f3b78]
+class PerfilProgramas--><g id="elem_PerfilProgramas"><rect codeLine="99" fill="#F1F1F1" height="123.7813" id="PerfilProgramas" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="227" x="928" y="273"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="114" x="984.5" y="290.9951">perfil_programas</text><line style="stroke:#181818;stroke-width:0.5;" x1="929" x2="1154" y1="299.2969" y2="299.2969"/><ellipse cx="939" cy="312.9453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="148" x="948" y="316.292">id_perfil : INT «PK,FK»</text><ellipse cx="939" cy="329.2422" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="181" x="948" y="332.5889">id_programa : INT «PK,FK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="929" x2="1154" y1="339.8906" y2="339.8906"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="176" x="934" y="356.8857">permiso_lectura : TINYINT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="189" x="934" y="373.1826">permiso_escritura : TINYINT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="215" x="934" y="389.4795">permiso_modificacion : TINYINT</text></g><!--MD5=[3fd616f346a44cd59a91eb10b19e157c]
+class User--><g id="elem_User"><rect codeLine="108" fill="#F1F1F1" height="156.375" id="User" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="199" x="1193" y="257"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="31" x="1277" y="274.9951">user</text><line style="stroke:#181818;stroke-width:0.5;" x1="1194" x2="1391" y1="283.2969" y2="283.2969"/><ellipse cx="1204" cy="296.9453" fill="#000000" rx="3" ry="3" style="stroke:#000000;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="87" x="1213" y="300.292">id : INT «PK»</text><line style="stroke:#181818;stroke-width:1.0;" x1="1194" x2="1391" y1="307.5938" y2="307.5938"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="187" x="1199" y="324.5889">username : VARCHAR(255)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="184" x="1199" y="340.8857">password : VARCHAR(255)</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="126" x="1199" y="357.1826">id_perfil : INT «FK»</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="132" x="1199" y="373.4795">eliminado : TINYINT</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="151" x="1199" y="389.7764">createdAt : DATETIME</text><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="156" x="1199" y="406.0732">updatedAt : DATETIME</text></g><!--MD5=[612517f0b24ea2891809322b29b8bde5]
+link Estudiantes to Asistencias--><g id="link_Estudiantes_Asistencias"><path codeLine="120" d="M183.8,111 C183.8,111 94,111 94,111 C94,111 94,489.14 94,489.14 " fill="none" id="Estudiantes-Asistencias" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="94" x2="100" y1="489.14" y2="497.14"/><line style="stroke:#181818;stroke-width:1.0;" x1="94" x2="88" y1="489.14" y2="497.14"/><line style="stroke:#181818;stroke-width:1.0;" x1="94" x2="94" y1="489.14" y2="497.14"/><ellipse cx="94" cy="483.14" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="187.8" x2="187.8" y1="107" y2="115"/><line style="stroke:#181818;stroke-width:1.0;" x1="184.8" x2="184.8" y1="107" y2="115"/><line style="stroke:#181818;stroke-width:1.0;" x1="183.8" x2="191.8" y1="111" y2="111"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="86" x="7" y="251.2369">id_estudiante</text></g><!--MD5=[43ae975ff2e0c018a059f8581112c514]
+link Licencias to Asistencias--><g id="link_Licencias_Asistencias"><path codeLine="121" d="M183.5,413.11 C183.5,413.11 183.5,489.14 183.5,489.14 " fill="none" id="Licencias-Asistencias" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="183.5" x2="189.5" y1="489.14" y2="497.14"/><line style="stroke:#181818;stroke-width:1.0;" x1="183.5" x2="177.5" y1="489.14" y2="497.14"/><line style="stroke:#181818;stroke-width:1.0;" x1="183.5" x2="183.5" y1="489.14" y2="497.14"/><ellipse cx="183.5" cy="483.14" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="179.5" x2="187.5" y1="409.11" y2="409.11"/><line style="stroke:#181818;stroke-width:1.0;" x1="179.5" x2="187.5" y1="412.11" y2="412.11"/><line style="stroke:#181818;stroke-width:1.0;" x1="183.5" x2="183.5" y1="413.11" y2="405.11"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="65" x="117.5" y="447.1969">id_licencia</text></g><!--MD5=[942b9700a7010fba5cfde466177b9819]
+link Estudiantes to Licencias--><g id="link_Estudiantes_Licencias"><path codeLine="123" d="M259,205.3 C259,205.3 259,256.76 259,256.76 " fill="none" id="Estudiantes-Licencias" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="259" x2="265" y1="256.76" y2="264.76"/><line style="stroke:#181818;stroke-width:1.0;" x1="259" x2="253" y1="256.76" y2="264.76"/><line style="stroke:#181818;stroke-width:1.0;" x1="259" x2="259" y1="256.76" y2="264.76"/><ellipse cx="259" cy="250.76" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="255" x2="263" y1="201.3" y2="201.3"/><line style="stroke:#181818;stroke-width:1.0;" x1="255" x2="263" y1="204.3" y2="204.3"/><line style="stroke:#181818;stroke-width:1.0;" x1="259" x2="259" y1="205.3" y2="197.3"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="86" x="172" y="227.0969">id_estudiante</text></g><!--MD5=[f3caeb6e1f0e699bfce88937d795e0cd]
+link Estudiantes to CursoEstudiante--><g id="link_Estudiantes_CursoEstudiante"><path codeLine="125" d="M447.01,185 C447.01,185 472.25,185 472.25,185 C472.25,185 472.25,273.27 472.25,273.27 " fill="none" id="Estudiantes-CursoEstudiante" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="472.25" x2="478.25" y1="273.27" y2="281.27"/><line style="stroke:#181818;stroke-width:1.0;" x1="472.25" x2="466.25" y1="273.27" y2="281.27"/><line style="stroke:#181818;stroke-width:1.0;" x1="472.25" x2="472.25" y1="273.27" y2="281.27"/><ellipse cx="472.25" cy="267.27" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="443.01" x2="443.01" y1="189" y2="181"/><line style="stroke:#181818;stroke-width:1.0;" x1="446.01" x2="446.01" y1="189" y2="181"/><line style="stroke:#181818;stroke-width:1.0;" x1="447.01" x2="439.01" y1="185" y2="185"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="86" x="385.25" y="212.5769">id_estudiante</text></g><!--MD5=[4d3705a9ae946d70d9152e2e3904c723]
+link Cursos to CursoEstudiante--><g id="link_Cursos_CursoEstudiante"><path codeLine="126" d="M558.75,172.27 C558.75,172.27 558.75,273.28 558.75,273.28 " fill="none" id="Cursos-CursoEstudiante" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="558.75" x2="564.75" y1="273.28" y2="281.28"/><line style="stroke:#181818;stroke-width:1.0;" x1="558.75" x2="552.75" y1="273.28" y2="281.28"/><line style="stroke:#181818;stroke-width:1.0;" x1="558.75" x2="558.75" y1="273.28" y2="281.28"/><ellipse cx="558.75" cy="267.28" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="554.75" x2="562.75" y1="168.27" y2="168.27"/><line style="stroke:#181818;stroke-width:1.0;" x1="554.75" x2="562.75" y1="171.27" y2="171.27"/><line style="stroke:#181818;stroke-width:1.0;" x1="558.75" x2="558.75" y1="172.27" y2="164.27"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="53" x="504.75" y="218.8469">id_curso</text></g><!--MD5=[edd426decb9b49be4adc0d9f18e55c81]
+link Cursos to Materias--><g id="link_Cursos_Materias"><path codeLine="128" d="M656.5,172.27 C656.5,172.27 656.5,273.28 656.5,273.28 " fill="none" id="Cursos-Materias" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="656.5" x2="662.5" y1="273.28" y2="281.28"/><line style="stroke:#181818;stroke-width:1.0;" x1="656.5" x2="650.5" y1="273.28" y2="281.28"/><line style="stroke:#181818;stroke-width:1.0;" x1="656.5" x2="656.5" y1="273.28" y2="281.28"/><ellipse cx="656.5" cy="267.28" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="652.5" x2="660.5" y1="168.27" y2="168.27"/><line style="stroke:#181818;stroke-width:1.0;" x1="652.5" x2="660.5" y1="171.27" y2="171.27"/><line style="stroke:#181818;stroke-width:1.0;" x1="656.5" x2="656.5" y1="172.27" y2="164.27"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="53" x="602.5" y="218.8469">id_curso</text></g><!--MD5=[4f3380c9184dfcf138c6837572861690]
+link Materias to EstudianteMateria--><g id="link_Materias_EstudianteMateria"><path codeLine="129" d="M736.5,396.61 C736.5,396.61 736.5,560 736.5,560 C736.5,560 566.16,560 566.16,560 " fill="none" id="Materias-EstudianteMateria" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="566.16" x2="558.16" y1="560" y2="566"/><line style="stroke:#181818;stroke-width:1.0;" x1="566.16" x2="558.16" y1="560" y2="554"/><line style="stroke:#181818;stroke-width:1.0;" x1="566.16" x2="558.16" y1="560" y2="560"/><ellipse cx="572.16" cy="560" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="732.5" x2="740.5" y1="392.61" y2="392.61"/><line style="stroke:#181818;stroke-width:1.0;" x1="732.5" x2="740.5" y1="395.61" y2="395.61"/><line style="stroke:#181818;stroke-width:1.0;" x1="736.5" x2="736.5" y1="396.61" y2="388.61"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="68" x="664.03" y="556.0669">id_materia</text></g><!--MD5=[ece07f0a3f00540e8c88032b6334543b]
+link Estudiantes to EstudianteMateria--><g id="link_Estudiantes_EstudianteMateria"><path codeLine="130" d="M379.5,205.07 C379.5,205.07 379.5,464.81 379.5,464.81 " fill="none" id="Estudiantes-EstudianteMateria" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="379.5" x2="385.5" y1="464.81" y2="472.81"/><line style="stroke:#181818;stroke-width:1.0;" x1="379.5" x2="373.5" y1="464.81" y2="472.81"/><line style="stroke:#181818;stroke-width:1.0;" x1="379.5" x2="379.5" y1="464.81" y2="472.81"/><ellipse cx="379.5" cy="458.81" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="375.5" x2="383.5" y1="201.07" y2="201.07"/><line style="stroke:#181818;stroke-width:1.0;" x1="375.5" x2="383.5" y1="204.07" y2="204.07"/><line style="stroke:#181818;stroke-width:1.0;" x1="379.5" x2="379.5" y1="205.07" y2="197.07"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="86" x="336.5" y="348.0069">id_estudiante</text></g><!--MD5=[65aeb50d8337e23c4cf388cfc837e5e0]
+link Perfil to PerfilProgramas--><g id="link_Perfil_PerfilProgramas"><path codeLine="132" d="M1192.65,111 C1192.65,111 1151.25,111 1151.25,111 C1151.25,111 1151.25,264.9 1151.25,264.9 " fill="none" id="Perfil-PerfilProgramas" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="1151.25" x2="1157.25" y1="264.9" y2="272.9"/><line style="stroke:#181818;stroke-width:1.0;" x1="1151.25" x2="1145.25" y1="264.9" y2="272.9"/><line style="stroke:#181818;stroke-width:1.0;" x1="1151.25" x2="1151.25" y1="264.9" y2="272.9"/><ellipse cx="1151.25" cy="258.9" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="1196.65" x2="1196.65" y1="107" y2="115"/><line style="stroke:#181818;stroke-width:1.0;" x1="1193.65" x2="1193.65" y1="107" y2="115"/><line style="stroke:#181818;stroke-width:1.0;" x1="1192.65" x2="1200.65" y1="111" y2="111"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="49" x="1152.25" y="180.3169">id_perfil</text></g><!--MD5=[5ea365c7dfd4d90917756a32679ce964]
+link Programas to PerfilProgramas--><g id="link_Programas_PerfilProgramas"><path codeLine="133" d="M1037.75,205.3 C1037.75,205.3 1037.75,264.79 1037.75,264.79 " fill="none" id="Programas-PerfilProgramas" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="1037.75" x2="1043.75" y1="264.79" y2="272.79"/><line style="stroke:#181818;stroke-width:1.0;" x1="1037.75" x2="1031.75" y1="264.79" y2="272.79"/><line style="stroke:#181818;stroke-width:1.0;" x1="1037.75" x2="1037.75" y1="264.79" y2="272.79"/><ellipse cx="1037.75" cy="258.79" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="1033.75" x2="1041.75" y1="201.3" y2="201.3"/><line style="stroke:#181818;stroke-width:1.0;" x1="1033.75" x2="1041.75" y1="204.3" y2="204.3"/><line style="stroke:#181818;stroke-width:1.0;" x1="1037.75" x2="1037.75" y1="205.3" y2="197.3"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="81" x="955.75" y="231.1069">id_programa</text></g><!--MD5=[c5d3940eaf3ffc22413709a055ed894c]
+link Programas to Programas--><g id="link_Programas_Programas"><path codeLine="135" d="M1019.5,15.73 C1019.5,15.73 1019.5,6 1019.5,6 C1019.5,6 874,6 874,6 C874,6 874,227 874,227 C874,227 909.75,227 909.75,227 C909.75,227 909.75,205.3 909.75,205.3 " fill="none" id="Programas-Programas" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="909.75" x2="903.75" y1="205.3" y2="197.3"/><line style="stroke:#181818;stroke-width:1.0;" x1="909.75" x2="915.75" y1="205.3" y2="197.3"/><line style="stroke:#181818;stroke-width:1.0;" x1="909.75" x2="909.75" y1="205.3" y2="197.3"/><ellipse cx="909.75" cy="211.3" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="1023.5" x2="1015.5" y1="19.73" y2="19.73"/><line style="stroke:#181818;stroke-width:1.0;" x1="1023.5" x2="1015.5" y1="16.73" y2="16.73"/><line style="stroke:#181818;stroke-width:1.0;" x1="1019.5" x2="1019.5" y1="15.73" y2="23.73"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="63" x="842.5" y="85.6769">id_padre :</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="93" x="804.7871" y="216.6044">subprogramas</text></g><!--MD5=[0e329ba0c4169783abb76b18eed74d57]
+link Perfil to User--><g id="link_Perfil_User"><path codeLine="137" d="M1292.5,164.2 C1292.5,164.2 1292.5,248.63 1292.5,248.63 " fill="none" id="Perfil-User" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="1292.5" x2="1298.5" y1="248.63" y2="256.63"/><line style="stroke:#181818;stroke-width:1.0;" x1="1292.5" x2="1286.5" y1="248.63" y2="256.63"/><line style="stroke:#181818;stroke-width:1.0;" x1="1292.5" x2="1292.5" y1="248.63" y2="256.63"/><ellipse cx="1292.5" cy="242.63" fill="none" rx="4" ry="4" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="1288.5" x2="1296.5" y1="160.2" y2="160.2"/><line style="stroke:#181818;stroke-width:1.0;" x1="1288.5" x2="1296.5" y1="163.2" y2="163.2"/><line style="stroke:#181818;stroke-width:1.0;" x1="1292.5" x2="1292.5" y1="164.2" y2="156.2"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="49" x="1242.5" y="202.4869">id_perfil</text></g><!--MD5=[c28f0433b6017df413c1f744dd974620]
+@startuml
+hide circle
+skinparam linetype ortho
+
+entity "estudiantes" as Estudiantes {
+  * id : INT <<PK>>
+  - -
+  codigo_rude : VARCHAR(15)
+  cedula_identidad : VARCHAR(10)
+  nombre : VARCHAR(255)
+  apellido_paterno : VARCHAR(255)
+  apellido_materno : VARCHAR(255)
+  genero : CHAR(1)
+  fecha_nacimiento : DATE
+}
+
+entity "asistencias" as Asistencias {
+  * id : INT <<PK>>
+  - -
+  estado : VARCHAR(20)
+  fecha : DATE
+  id_estudiante : INT <<FK>>
+  id_licencia : INT <<FK>>
+}
+
+entity "licencias" as Licencias {
+  * id : INT <<PK>>
+  - -
+  asunto : VARCHAR(255)
+  justificacion : VARCHAR(255)
+  fecha : DATE
+  activo : TINYINT
+  id_estudiante : INT <<FK>>
+}
+
+entity "curso_estudiante" as CursoEstudiante {
+  * id : INT <<PK>>
+  - -
+  id_curso : INT <<FK>>
+  id_estudiante : INT <<FK>>
+  gestion : VARCHAR(4)
+}
+
+entity "cursos" as Cursos {
+  * id : INT <<PK>>
+  - -
+  grado : VARCHAR(20)
+  grupo : CHAR(1)
+  nivel : VARCHAR(20)
+}
+
+entity "materias" as Materias {
+  * id : INT <<PK>>
+  - -
+  nombre : VARCHAR(50)
+  docente : VARCHAR(45)
+  id_curso : INT <<FK>>
+}
+
+entity "estudiante_materia" as EstudianteMateria {
+  * id : INT <<PK>>
+  - -
+  id_estudiante : INT <<FK>>
+  id_materia : INT <<FK>>
+  nota_primer_bimestre : FLOAT
+  nota_segundo_bimestre : FLOAT
+  nota_tercer_bimestre : FLOAT
+  nota_cuarto_bimestre : FLOAT
+  promedio_anual : FLOAT
+}
+
+entity "avisos" as Avisos {
+  * id : INT <<PK>>
+  - -
+  titulo : VARCHAR(30)
+  descripcion : TEXT
+  fecha : DATE
+  autor : VARCHAR(50)
+}
+
+entity "perfil" as Perfil {
+  * id : INT <<PK>>
+  - -
+  nombre : VARCHAR(100)
+  eliminado : TINYINT
+}
+
+entity "programas" as Programas {
+  * id : INT <<PK>>
+  - -
+  id_padre : INT <<FK>>
+  nombre_programa : VARCHAR(100)
+  url : VARCHAR(255)
+  class_icon : VARCHAR(100)
+  es_expandible : TINYINT
+  nro_posicion : INT
+  eliminado : TINYINT
+}
+
+entity "perfil_programas" as PerfilProgramas {
+  * id_perfil : INT <<PK,FK>>
+  * id_programa : INT <<PK,FK>>
+  - -
+  permiso_lectura : TINYINT
+  permiso_escritura : TINYINT
+  permiso_modificacion : TINYINT
+}
+
+entity "user" as User {
+  * id : INT <<PK>>
+  - -
+  username : VARCHAR(255)
+  password : VARCHAR(255)
+  id_perfil : INT <<FK>>
+  eliminado : TINYINT
+  createdAt : DATETIME
+  updatedAt : DATETIME
+}
+
+' Relaciones
+Estudiantes ||- -o{ Asistencias      : id_estudiante
+Licencias   ||- -o{ Asistencias      : id_licencia
+
+Estudiantes ||- -o{ Licencias        : id_estudiante
+
+Estudiantes ||- -o{ CursoEstudiante  : id_estudiante
+Cursos      ||- -o{ CursoEstudiante  : id_curso
+
+Cursos      ||- -o{ Materias         : id_curso
+Materias    ||- -o{ EstudianteMateria: id_materia
+Estudiantes ||- -o{ EstudianteMateria: id_estudiante
+
+Perfil      ||- -o{ PerfilProgramas : id_perfil
+Programas   ||- -o{ PerfilProgramas : id_programa
+
+Programas   ||- -o{ Programas        : id_padre : "subprogramas"
+
+Perfil      ||- -o{ User             : id_perfil
+@enduml
+
+@startuml
+hide circle
+skinparam linetype ortho
+
+entity "estudiantes" as Estudiantes {
+  * id : INT <<PK>>
+  - -
+  codigo_rude : VARCHAR(15)
+  cedula_identidad : VARCHAR(10)
+  nombre : VARCHAR(255)
+  apellido_paterno : VARCHAR(255)
+  apellido_materno : VARCHAR(255)
+  genero : CHAR(1)
+  fecha_nacimiento : DATE
+}
+
+entity "asistencias" as Asistencias {
+  * id : INT <<PK>>
+  - -
+  estado : VARCHAR(20)
+  fecha : DATE
+  id_estudiante : INT <<FK>>
+  id_licencia : INT <<FK>>
+}
+
+entity "licencias" as Licencias {
+  * id : INT <<PK>>
+  - -
+  asunto : VARCHAR(255)
+  justificacion : VARCHAR(255)
+  fecha : DATE
+  activo : TINYINT
+  id_estudiante : INT <<FK>>
+}
+
+entity "curso_estudiante" as CursoEstudiante {
+  * id : INT <<PK>>
+  - -
+  id_curso : INT <<FK>>
+  id_estudiante : INT <<FK>>
+  gestion : VARCHAR(4)
+}
+
+entity "cursos" as Cursos {
+  * id : INT <<PK>>
+  - -
+  grado : VARCHAR(20)
+  grupo : CHAR(1)
+  nivel : VARCHAR(20)
+}
+
+entity "materias" as Materias {
+  * id : INT <<PK>>
+  - -
+  nombre : VARCHAR(50)
+  docente : VARCHAR(45)
+  id_curso : INT <<FK>>
+}
+
+entity "estudiante_materia" as EstudianteMateria {
+  * id : INT <<PK>>
+  - -
+  id_estudiante : INT <<FK>>
+  id_materia : INT <<FK>>
+  nota_primer_bimestre : FLOAT
+  nota_segundo_bimestre : FLOAT
+  nota_tercer_bimestre : FLOAT
+  nota_cuarto_bimestre : FLOAT
+  promedio_anual : FLOAT
+}
+
+entity "avisos" as Avisos {
+  * id : INT <<PK>>
+  - -
+  titulo : VARCHAR(30)
+  descripcion : TEXT
+  fecha : DATE
+  autor : VARCHAR(50)
+}
+
+entity "perfil" as Perfil {
+  * id : INT <<PK>>
+  - -
+  nombre : VARCHAR(100)
+  eliminado : TINYINT
+}
+
+entity "programas" as Programas {
+  * id : INT <<PK>>
+  - -
+  id_padre : INT <<FK>>
+  nombre_programa : VARCHAR(100)
+  url : VARCHAR(255)
+  class_icon : VARCHAR(100)
+  es_expandible : TINYINT
+  nro_posicion : INT
+  eliminado : TINYINT
+}
+
+entity "perfil_programas" as PerfilProgramas {
+  * id_perfil : INT <<PK,FK>>
+  * id_programa : INT <<PK,FK>>
+  - -
+  permiso_lectura : TINYINT
+  permiso_escritura : TINYINT
+  permiso_modificacion : TINYINT
+}
+
+entity "user" as User {
+  * id : INT <<PK>>
+  - -
+  username : VARCHAR(255)
+  password : VARCHAR(255)
+  id_perfil : INT <<FK>>
+  eliminado : TINYINT
+  createdAt : DATETIME
+  updatedAt : DATETIME
+}
+
+Estudiantes ||- -o{ Asistencias      : id_estudiante
+Licencias   ||- -o{ Asistencias      : id_licencia
+
+Estudiantes ||- -o{ Licencias        : id_estudiante
+
+Estudiantes ||- -o{ CursoEstudiante  : id_estudiante
+Cursos      ||- -o{ CursoEstudiante  : id_curso
+
+Cursos      ||- -o{ Materias         : id_curso
+Materias    ||- -o{ EstudianteMateria: id_materia
+Estudiantes ||- -o{ EstudianteMateria: id_estudiante
+
+Perfil      ||- -o{ PerfilProgramas : id_perfil
+Programas   ||- -o{ PerfilProgramas : id_programa
+
+Programas   ||- -o{ Programas        : id_padre : "subprogramas"
+
+Perfil      ||- -o{ User             : id_perfil
+@enduml
+
+PlantUML version 1.2022.7(Mon Aug 22 17:01:30 UTC 2022)
+(GPL source distribution)
+Java Runtime: OpenJDK Runtime Environment
+JVM: OpenJDK 64-Bit Server VM
+Default Encoding: UTF-8
+Language: en
+Country: null
+--></g></svg>
