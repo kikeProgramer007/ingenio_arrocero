@@ -1,5 +1,5 @@
 export const environment = {
     production: true,
-    endpoint: 'http://localhost:3001/',
-    apiUrl: 'http://localhost:3001/'
+    endpoint: 'https://ingenio-arrocero.onrender.com/',
+    apiUrl: 'https://ingenio-arrocero.onrender.com/'
 };
