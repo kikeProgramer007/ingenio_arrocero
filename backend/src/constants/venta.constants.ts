@@ -1,3 +1,5 @@
+import { roundMoney, toMoney } from '../utils/money';
+
 export const ESTADO_VENTA = {
     PENDIENTE: 'PENDIENTE',
     PARCIAL: 'PARCIAL',
@@ -15,4 +17,19 @@ export function estadoVentaPorSaldo(total: number, saldoPendiente: number): stri
         return ESTADO_VENTA.PENDIENTE;
     }
     return ESTADO_VENTA.PARCIAL;
+}
+
+/** Lo cobrado del documento: 0 si está anulada (el dinero se revirtió en caja). */
+export function cobradoVenta(total: unknown, saldoPendiente: unknown, estado: string): number {
+    if (estado === ESTADO_VENTA.ANULADA) {
+        return 0;
+    }
+    return roundMoney(toMoney(total) - toMoney(saldoPendiente));
+}
+
+export function saldoVenta(saldoPendiente: unknown, estado: string): number {
+    if (estado === ESTADO_VENTA.ANULADA) {
+        return 0;
+    }
+    return toMoney(saldoPendiente);
 }

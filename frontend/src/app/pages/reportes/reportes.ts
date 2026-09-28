@@ -71,7 +71,9 @@ export class ReportesPage implements OnInit {
             next: (d) => {
                 this.data = d;
                 this.cards = [
-                    { label: 'Ventas', value: `${d.ventas.cantidad} · ${formatBs(d.ventas.total)}` },
+                    { label: 'Ventas vigentes', value: `${d.ventas.cantidad} · ${formatBs(d.ventas.total)}` },
+                    { label: 'Cobrado neto', value: formatBs(d.caja?.cobrado_neto) },
+                    { label: 'Anulaciones', value: formatBs(d.caja?.anulaciones_venta) },
                     { label: 'Por cobrar', value: formatBs(d.ventas.por_cobrar) },
                     { label: 'Compras', value: `${d.compras.cantidad} · ${formatBs(d.compras.total)}` },
                     { label: 'Por pagar', value: formatBs(d.compras.por_pagar) },

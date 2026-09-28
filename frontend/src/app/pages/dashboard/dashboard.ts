@@ -13,15 +13,19 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
 import { RecentSalesWidget } from './components/recentsaleswidget';
 import { RevenueStreamWidget } from './components/revenuestreamwidget';
 import { StatsWidget } from './components/statswidget';
+import { EMPRESA } from '../../core/constants/empresa';
 
 @Component({
     selector: 'app-dashboard',
     imports: [CommonModule, ButtonModule, RouterModule, TableModule, TagModule, StatsWidget, RecentSalesWidget, RevenueStreamWidget, EstadoVacioComponent, TablaEsqueletoComponent],
     template: `
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-            <div>
-                <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Dashboard</div>
-                <div class="text-muted-color">Control de ingresos y egresos del día. Una venta no es dinero cobrado.</div>
+            <div class="flex items-center gap-3">
+                <img [src]="empresa.logo" [alt]="empresa.nombre" class="h-12 w-12 rounded-md object-cover shrink-0" />
+                <div>
+                    <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Dashboard</div>
+                    <div class="text-muted-color">Control de ingresos y egresos del día. La venta no es cobro; el cobrado es neto de anulaciones.</div>
+                </div>
             </div>
             <div class="flex gap-2">
                 <p-button label="Ingresos y egresos" icon="pi pi-arrows-h" [outlined]="true" [routerLink]="controlRoute" />
@@ -108,6 +112,7 @@ export class Dashboard implements OnInit {
     controlRoute = APP_ROUTES.ingresosEgresos;
     cobranzasRoute = APP_ROUTES.cobranzas;
     cajaRoute = APP_ROUTES.caja;
+    empresa = EMPRESA;
 
     constructor(private cajaService: CajaService) {}
 

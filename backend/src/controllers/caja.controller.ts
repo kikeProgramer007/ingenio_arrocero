@@ -6,14 +6,13 @@ import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser } from '../utils/auth-user';
 import { clasificarDiferencia, roundMoney, toMoney } from '../utils/money';
 import {
-    CATEGORIA_EGRESO,
-    CATEGORIA_INGRESO,
     ESTADO_CAJA,
     ORIGEN_MOVIMIENTO,
     TIPO_MOVIMIENTO
 } from '../constants/caja.constants';
 import { ESTADO_VENTA } from '../constants/venta.constants';
 import { ESTADO_COMPRA } from '../constants/compra.constants';
+import { resumirMovimientos } from '../utils/caja-resumen';
 import {
     AbrirCajaDTO,
     CerrarCajaDTO,
@@ -308,58 +307,26 @@ export class CajaController {
             transaction
         });
 
-        let ingresos = 0;
-        let egresos = 0;
-        let cobradoClientes = 0;
-        let otrosIngresos = 0;
-        let pagosProveedor = 0;
-        let gastosEmpresa = 0;
-        let retiros = 0;
-        let otrosEgresos = 0;
-
-        for (const movimiento of movimientos) {
-            const monto = toMoney(movimiento.get('monto'));
-            const categoria = String(movimiento.get('categoria') || '');
-            if (movimiento.get('tipo') === TIPO_MOVIMIENTO.INGRESO) {
-                ingresos += monto;
-                if (categoria === CATEGORIA_INGRESO.VENTA || categoria === CATEGORIA_INGRESO.COBRANZA) {
-                    cobradoClientes += monto;
-                } else {
-                    otrosIngresos += monto;
-                }
-            } else {
-                egresos += monto;
-                if (categoria === CATEGORIA_EGRESO.PAGO_PROVEEDOR) {
-                    pagosProveedor += monto;
-                } else if (categoria === CATEGORIA_EGRESO.GASTO_EMPRESA) {
-                    gastosEmpresa += monto;
-                } else if (categoria === CATEGORIA_EGRESO.RETIRO_PERSONAL) {
-                    retiros += monto;
-                } else {
-                    otrosEgresos += monto;
-                }
-            }
-        }
-
+        const flujo = resumirMovimientos(movimientos);
         const caja = await Caja.findByPk(idCaja, { transaction });
         const saldoInicial = toMoney(caja?.get('saldo_inicial'));
-        ingresos = roundMoney(ingresos);
-        egresos = roundMoney(egresos);
-        const saldoEsperado = roundMoney(saldoInicial + ingresos - egresos);
+        const saldoEsperado = roundMoney(saldoInicial + flujo.ingresos - flujo.egresos);
 
         return {
             saldoInicial,
-            ingresos,
-            egresos,
+            ingresos: flujo.ingresos,
+            egresos: flujo.egresos,
             saldoEsperado,
             movimientos,
             desglose: {
-                cobrado_clientes: roundMoney(cobradoClientes),
-                otros_ingresos: roundMoney(otrosIngresos),
-                pagos_proveedor: roundMoney(pagosProveedor),
-                gastos_empresa: roundMoney(gastosEmpresa),
-                retiros: roundMoney(retiros),
-                otros_egresos: roundMoney(otrosEgresos)
+                cobrado_clientes: flujo.cobros_clientes,
+                cobrado_neto: flujo.cobrado_neto,
+                otros_ingresos: flujo.otros_ingresos,
+                pagos_proveedor: flujo.pagos_proveedor,
+                gastos_empresa: flujo.gastos_empresa,
+                retiros: flujo.retiros,
+                anulaciones_venta: flujo.anulaciones_venta,
+                otros_egresos: flujo.otros_egresos
             }
         };
     }

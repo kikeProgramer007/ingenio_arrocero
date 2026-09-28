@@ -9,6 +9,7 @@ import Nora from '@primeng/themes/nora';
 import { PrimeNG } from 'primeng/config';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { LayoutService } from '../service/layout.service';
+import { ROYAL_PRIMARY_PALETTE } from '../../core/theme/royal-theme';
 
 const presets = {
     Aura,
@@ -268,7 +269,10 @@ export class AppConfigurator {
     primaryColors = computed<SurfacesType[]>(() => {
         const presetPalette = presets[this.layoutService.layoutConfig().preset as KeyOfType<typeof presets>].primitive;
         const colors = ['emerald', 'green', 'lime', 'orange', 'amber', 'yellow', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose'];
-        const palettes: SurfacesType[] = [{ name: 'noir', palette: {} }];
+        const palettes: SurfacesType[] = [
+            { name: 'royal', palette: ROYAL_PRIMARY_PALETTE },
+            { name: 'noir', palette: {} }
+        ];
 
         colors.forEach((color) => {
             palettes.push({

@@ -33,10 +33,12 @@ export interface CajaDetalle {
     saldo_esperado: number;
     desglose?: {
         cobrado_clientes: number;
+        cobrado_neto: number;
         otros_ingresos: number;
         pagos_proveedor: number;
         gastos_empresa: number;
         retiros: number;
+        anulaciones_venta: number;
         otros_egresos: number;
     };
     por_cobrar?: number;
@@ -88,6 +90,8 @@ export interface MovimientoResumen {
 export interface DashboardResumen {
     ventas_hoy: number;
     cobrado_hoy: number;
+    cobros_brutos_hoy?: number;
+    anulaciones_hoy?: number;
     por_cobrar: number;
     por_pagar: number;
     ingresos_hoy: number;
@@ -123,6 +127,8 @@ export interface ControlIngresosEgresos {
     total_egresos: number;
     saldo_neto: number;
     cobrado: number;
+    cobros_brutos?: number;
+    anulaciones?: number;
     por_cobrar: number;
     por_pagar: number;
     movimientos: MovimientoResumen[];

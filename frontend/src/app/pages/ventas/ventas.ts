@@ -15,7 +15,6 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
-import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
 import { formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Cliente, LineaVenta, Venta } from './ventas.models';
 import { ClientesService, VentasService } from './ventas.service';
@@ -27,6 +26,7 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
@@ -52,6 +52,7 @@ import { TooltipModule } from 'primeng/tooltip';
         BotonesExportarComponent,
         TablaEsqueletoComponent,
         AyudaCampoComponent,
+        MetodoPagoComponent,
         TooltipModule
     ],
     providers: [MessageService],
@@ -198,8 +199,8 @@ import { TooltipModule } from 'primeng/tooltip';
                         <p-inputNumber [(ngModel)]="pagoInicial" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                     </div>
                     <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
-                        <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo recibió el dinero: efectivo, QR o transferencia." posicion="top" /></label>
-                        <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="metodoPago" placeholder="Método" fluid />
+                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Más rápido que el desplegable." posicion="top" /></label>
+                        <app-metodo-pago [(ngModel)]="metodoPago" />
                     </div>
                     <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
                         <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia, nro. de QR o comprobante." posicion="left" /></label>
@@ -208,8 +209,8 @@ import { TooltipModule } from 'primeng/tooltip';
                 </div>
                 <div class="grid grid-cols-12 gap-3" *ngIf="modoCobro === 'CONTADO'">
                     <div class="col-span-12 md:col-span-6">
-                        <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo recibió el dinero: efectivo, QR o transferencia." posicion="top" /></label>
-                        <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="metodoPago" placeholder="Método" fluid />
+                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Más rápido que el desplegable." posicion="top" /></label>
+                        <app-metodo-pago [(ngModel)]="metodoPago" />
                     </div>
                     <div class="col-span-12 md:col-span-6">
                         <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia, nro. de QR o comprobante." posicion="left" /></label>
@@ -303,8 +304,8 @@ import { TooltipModule } from 'primeng/tooltip';
                     <p-inputNumber [(ngModel)]="cobroMonto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo entra a caja este cobro: efectivo, QR o transferencia." posicion="right" /></label>
-                    <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="cobroMetodo" fluid />
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Cómo entra a caja este cobro: efectivo, QR o transferencia." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="cobroMetodo" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante QR. Opcional en efectivo." posicion="top" /></label>
@@ -359,7 +360,6 @@ export class VentasPage implements OnInit {
         { label: 'Pagada', value: 'PAGADA' },
         { label: 'Anulada', value: 'ANULADA' }
     ];
-    metodos = METODOS_PAGO_OPTIONS;
     modosCobro = [
         { label: 'Contado', value: 'CONTADO' },
         { label: 'Crédito', value: 'CREDITO' }
@@ -381,9 +381,9 @@ export class VentasPage implements OnInit {
         const cobrado = vigentes.reduce((acc, v) => acc + Number(v.pagado || 0), 0);
         const pendiente = vigentes.reduce((acc, v) => acc + Number(v.saldo_pendiente || 0), 0);
         return [
-            { label: 'Ventas', value: formatBs(total), icon: 'pi pi-shopping-cart', tone: 'neutral' },
-            { label: 'Cobrado', value: formatBs(cobrado), icon: 'pi pi-money-bill', tone: 'success' },
-            { label: 'Pendiente', value: formatBs(pendiente), icon: 'pi pi-clock', tone: 'warn' },
+            { label: 'Ventas', value: formatBs(total), icon: 'pi pi-shopping-cart', tone: 'neutral', hint: 'Documentos vigentes' },
+            { label: 'Cobrado', value: formatBs(cobrado), icon: 'pi pi-money-bill', tone: 'success', hint: 'Pagado de vigentes; anulada = 0' },
+            { label: 'Pendiente', value: formatBs(pendiente), icon: 'pi pi-clock', tone: 'warn', hint: 'Saldo por cobrar vigente' },
             { label: 'Documentos', value: String(vigentes.length), icon: 'pi pi-file', tone: 'info' }
         ];
     }
@@ -406,8 +406,15 @@ export class VentasPage implements OnInit {
         return hasta ? this.ymd(hasta) : undefined;
     }
 
-    exportarVenta(venta: Venta, formato: FormatoExport): void {
-        this.exportarService.descargar({ tipo: 'venta', formato, id: venta.id }).subscribe({
+    exportarVenta(venta: Venta, formato: FormatoExport = 'pdf', visor?: Window | null): void {
+        if (formato === 'xlsx') {
+            this.exportarService.descargar({ tipo: 'venta', formato, id: venta.id }).subscribe({
+                error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el Excel de la venta' })
+            });
+            return;
+        }
+        const ventana = visor ?? this.exportarService.abrirVentanaEspera('Generando nota de venta...');
+        this.exportarService.mostrarPdf({ tipo: 'venta', formato: 'pdf', id: venta.id }, ventana).subscribe({
             error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de la venta' })
         });
     }
@@ -498,6 +505,7 @@ export class VentasPage implements OnInit {
             return;
         }
         const cobro = this.pagoAlRegistrar();
+        const visor = this.exportarService.abrirVentanaEspera('Generando nota de venta...');
         this.guardando = true;
         this.ventasService.crear({
             id_cliente: this.idCliente,
@@ -515,11 +523,17 @@ export class VentasPage implements OnInit {
             next: (res) => {
                 this.guardando = false;
                 this.dialogNueva = false;
-                this.messageService.add({ severity: 'success', summary: 'Venta', detail: res.mensaje });
+                this.messageService.add({ severity: 'success', summary: 'Venta', detail: 'Venta registrada. Se abre la nota de venta.' });
                 this.cargar();
                 this.cargarProductos();
+                if (res.data?.id) {
+                    this.exportarVenta(res.data, 'pdf', visor);
+                } else {
+                    visor?.close();
+                }
             },
             error: (err) => {
+                visor?.close();
                 this.guardando = false;
                 if (esErrorCajaCerrada(err)) {
                     this.dialogCajaCerrada = true;
@@ -587,20 +601,23 @@ export class VentasPage implements OnInit {
             return;
         }
         this.guardando = true;
+        const visor = this.exportarService.abrirVentanaEspera('Generando nota de venta...');
         this.ventasService.crearCobranza({
             id_venta: this.detalle.id,
             monto: this.cobroMonto,
             metodo_pago: this.cobroMetodo,
             referencia: this.cobroReferencia || undefined
         }).subscribe({
-            next: (res) => {
+            next: () => {
                 this.guardando = false;
                 this.dialogCobro = false;
-                this.messageService.add({ severity: 'success', summary: 'Cobranza', detail: res.mensaje });
+                this.messageService.add({ severity: 'success', summary: 'Cobranza', detail: 'Cobro registrado. Se abre la nota de venta actualizada.' });
                 this.cargar();
                 this.ver(this.detalle!);
+                this.exportarVenta(this.detalle!, 'pdf', visor);
             },
             error: (err) => {
+                visor?.close();
                 this.guardando = false;
                 if (esErrorCajaCerrada(err)) {
                     this.dialogCajaCerrada = true;

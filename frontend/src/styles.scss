@@ -3,3 +3,28 @@
 @use './assets/layout/layout.scss';
 @use 'primeicons/primeicons.css';
 @use './assets/demo/demo.scss';
+
+.login-royal {
+    background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--royal-red) 14%, transparent) 0%, transparent 42%),
+        var(--p-surface-50, #f8fafc);
+}
+
+.app-dark .login-royal {
+    background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--royal-red) 22%, transparent) 0%, transparent 46%),
+        var(--p-surface-950, #020617);
+}
+
+.login-royal-frame {
+    background: linear-gradient(180deg, var(--primary-color) 0%, var(--royal-gold) 42%, transparent 78%);
+}
+
+.login-royal-logo {
+    width: 7.5rem;
+    height: 7.5rem;
+    object-fit: cover;
+    border-radius: 1rem;
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--royal-red) 28%, transparent);
+}
+

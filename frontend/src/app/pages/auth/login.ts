@@ -9,6 +9,7 @@ import { RippleModule } from 'primeng/ripple';
 import { AppFloatingConfigurator } from '../../layout/component/app.floatingconfigurator';
 import { AuthService } from '../../core/services/auth.service';
 import { APP_ROUTES } from '../../core/constants/app-routes';
+import { EMPRESA } from '../../core/constants/empresa';
 
 @Component({
     selector: 'app-login',
@@ -24,6 +25,7 @@ export class Login {
         username: '',
         password: ''
     };
+    empresa = EMPRESA;
     router = inject(Router);
     private authService = inject(AuthService);
 

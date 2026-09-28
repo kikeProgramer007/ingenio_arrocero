@@ -228,8 +228,15 @@ export class CajaHistorial implements OnInit {
     }
 
     exportarCaja(caja: CajaDetalle, formato: FormatoExport): void {
-        this.exportarService.descargar({ tipo: 'caja', formato, id_caja: caja.id }).subscribe({
-            error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el archivo' })
+        if (formato !== 'pdf') {
+            this.exportarService.descargar({ tipo: 'caja', formato, id_caja: caja.id }).subscribe({
+                error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el archivo' })
+            });
+            return;
+        }
+        const visor = this.exportarService.abrirVentanaEspera('Generando arqueo de caja...');
+        this.exportarService.mostrarPdf({ tipo: 'caja', formato: 'pdf', id_caja: caja.id }, visor).subscribe({
+            error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de caja' })
         });
     }
 

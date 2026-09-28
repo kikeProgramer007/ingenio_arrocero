@@ -12,7 +12,6 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
-import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
 import { etiquetaMetodo, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Cobranza, Venta } from './ventas.models';
 import { VentasService } from './ventas.service';
@@ -22,6 +21,8 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { ExportarService } from '../../shared/services/exportar.service';
 
 @Component({
     selector: 'app-cobranzas',
@@ -43,7 +44,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
         DialogCajaCerradaComponent,
         BotonesExportarComponent,
         TablaEsqueletoComponent,
-        AyudaCampoComponent
+        AyudaCampoComponent,
+        MetodoPagoComponent
     ],
     providers: [MessageService],
     template: `
@@ -121,8 +123,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
                     <p-inputNumber [(ngModel)]="monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo entra el dinero a caja: efectivo, QR o transferencia." posicion="right" /></label>
-                    <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="metodoPago" fluid />
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Cómo entra el dinero a caja." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="metodoPago" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o QR. Opcional en efectivo." posicion="top" /></label>
@@ -153,7 +155,6 @@ export class CobranzasPage implements OnInit {
     referencia = '';
     observacion = '';
     pendientePorCobrar = 0;
-    metodos = METODOS_PAGO_OPTIONS;
     formatBs = formatBs;
     formatFecha = formatFecha;
     etiquetaMetodo = etiquetaMetodo;
@@ -166,7 +167,7 @@ export class CobranzasPage implements OnInit {
         ];
     }
 
-    constructor(private ventasService: VentasService, private messageService: MessageService) {}
+    constructor(private ventasService: VentasService, private messageService: MessageService, private exportarService: ExportarService) {}
 
     ngOnInit(): void {
         this.cargar();
@@ -228,6 +229,7 @@ export class CobranzasPage implements OnInit {
             return;
         }
         this.guardando = true;
+        const visor = this.exportarService.abrirVentanaEspera('Generando nota de venta...');
         this.ventasService.crearCobranza({
             id_venta: this.idVenta,
             monto: this.monto,
@@ -235,13 +237,22 @@ export class CobranzasPage implements OnInit {
             referencia: this.referencia || undefined,
             observacion: this.observacion || undefined
         }).subscribe({
-            next: (res) => {
+            next: () => {
                 this.guardando = false;
                 this.dialog = false;
-                this.messageService.add({ severity: 'success', summary: 'Cobranza', detail: res.mensaje });
+                this.messageService.add({ severity: 'success', summary: 'Cobranza', detail: 'Cobro registrado. Se abre la nota de venta actualizada.' });
+                const idVenta = this.idVenta;
                 this.cargar();
+                if (idVenta) {
+                    this.exportarService.mostrarPdf({ tipo: 'venta', formato: 'pdf', id: idVenta }, visor).subscribe({
+                        error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de la venta' })
+                    });
+                } else {
+                    visor?.close();
+                }
             },
             error: (err) => {
+                visor?.close();
                 this.guardando = false;
                 if (esErrorCajaCerrada(err)) {
                     this.dialogCajaCerrada = true;

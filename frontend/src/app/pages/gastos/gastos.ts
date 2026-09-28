@@ -15,7 +15,6 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
-import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
 import { etiquetaMetodo, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { apiUrl } from '../../core/utils/api-url';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
@@ -24,13 +23,14 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 
 const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'Repuestos', 'Servicios', 'Alimentación', 'Otros'];
 
 @Component({
     selector: 'app-gastos',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent],
     providers: [MessageService],
     template: `
         <p-toast />
@@ -136,8 +136,8 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                 </div>
                 <small class="text-muted-color" *ngIf="esRetiro && !descontarCaja">Se registra el retiro, pero no sale dinero de caja.</small>
                 <div *ngIf="!esRetiro || descontarCaja">
-                    <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo salió el dinero: efectivo, QR o transferencia." posicion="right" /></label>
-                    <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="metodo" fluid />
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Cómo salió el dinero." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="metodo" />
                 </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o factura. Opcional." posicion="top" /></label><input pInputText class="w-full" [(ngModel)]="referencia" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Detalle interno del gasto o retiro." posicion="top" /></label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea></div>
@@ -171,7 +171,6 @@ export class GastosPage implements OnInit {
     descontarCaja = true;
     referencia = '';
     observacion = '';
-    metodos = METODOS_PAGO_OPTIONS;
     categorias = CATEGORIAS;
     chartData: any;
     chartOptions: any = { plugins: { legend: { position: 'bottom' } } };

@@ -53,6 +53,17 @@ function numeroTabla(valor: number): string {
     return toMoney(valor).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+export const PDF_COLOR = {
+    vino: '#a51c24',
+    vinoOscuro: '#741419',
+    zebra: '#FDF6F5',
+    linea: '#E4D0CE',
+    texto: '#222222',
+    muted: '#5C5C5C',
+    blanco: '#FFFFFF',
+    fondoResumen: '#FAF6F6'
+};
+
 export function dibujarLogotipo(doc: PDFKit.PDFDocument, x: number, y: number, maxH = 70): number {
     const logo = rutaLogotipo();
     if (!logo) {
@@ -138,45 +149,56 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
 
     const tableTop = bloqueY + 58;
     const cols = [
-        { title: 'Codigo', w: 70 },
-        { title: 'Cant.', w: 55 },
-        { title: 'Descripcion', w: width - 70 - 55 - 90 - 100 },
-        { title: 'Precio', w: 90 },
-        { title: 'Imp. Neto', w: 100 }
+        { title: 'Código', w: 78, align: 'left' as const },
+        { title: 'Cant.', w: 50, align: 'right' as const },
+        { title: 'Descripción', w: width - 78 - 50 - 90 - 100, align: 'left' as const },
+        { title: 'Precio', w: 90, align: 'right' as const },
+        { title: 'Imp. Neto', w: 100, align: 'right' as const }
     ];
-    doc.lineWidth(0.8);
-    doc.moveTo(left, tableTop).lineTo(right, tableTop).stroke();
+    const headerH = 20;
+    doc.save();
+    doc.rect(left, tableTop, width, headerH).fill(PDF_COLOR.vino);
     let x = left;
-    doc.font('Helvetica-Bold').fontSize(8);
+    doc.fillColor(PDF_COLOR.blanco).font('Helvetica-Bold').fontSize(8);
     cols.forEach((col) => {
-        const align = col.title === 'Descripcion' || col.title === 'Codigo' ? 'left' : 'right';
-        doc.text(col.title, x + 2, tableTop + 4, { width: col.w - 4, align });
+        doc.text(col.title, x + 5, tableTop + 6, { width: col.w - 10, align: col.align, lineBreak: false });
         x += col.w;
     });
-    doc.moveTo(left, tableTop + 18).lineTo(right, tableTop + 18).stroke();
+    doc.restore();
 
-    let rowY = tableTop + 22;
-    doc.font('Helvetica').fontSize(8);
+    let rowY = tableTop + headerH;
+    doc.font('Helvetica').fontSize(8).fillColor(PDF_COLOR.texto);
     let cantTotal = 0;
-    datos.lineas.forEach((linea) => {
+    datos.lineas.forEach((linea, idx) => {
         cantTotal += Number(linea.cantidad) || 0;
-        x = left;
         const celdas = [
-            linea.codigo,
+            linea.codigo || '',
             String(linea.cantidad),
-            linea.descripcion,
+            linea.descripcion || '',
             numeroTabla(linea.precio),
             numeroTabla(linea.importe)
         ];
+        const altos = cols.map((col, i) =>
+            Math.max(11, doc.heightOfString(celdas[i], { width: col.w - 10, align: col.align }))
+        );
+        const rowH = Math.max(18, Math.max(...altos) + 8);
+        if (idx % 2 === 0) {
+            doc.rect(left, rowY, width, rowH).fill(PDF_COLOR.zebra);
+        }
+        x = left;
+        doc.fillColor(PDF_COLOR.texto).font('Helvetica').fontSize(8);
         cols.forEach((col, i) => {
-            const align = i <= 2 ? 'left' : 'right';
-            doc.text(celdas[i], x + 2, rowY, { width: col.w - 4, align, ellipsis: true });
+            doc.text(celdas[i], x + 5, rowY + 4, { width: col.w - 10, align: col.align });
             x += col.w;
         });
-        rowY += 14;
+        doc.strokeColor(PDF_COLOR.linea).lineWidth(0.3);
+        doc.moveTo(left, rowY + rowH).lineTo(right, rowY + rowH).stroke();
+        rowY += rowH;
     });
+    doc.strokeColor(PDF_COLOR.vinoOscuro).lineWidth(0.8);
+    doc.rect(left, tableTop, width, rowY - tableTop).stroke();
 
-    const totY = Math.max(rowY + 8, tableTop + 90);
+    const totY = Math.max(rowY + 10, tableTop + 90);
     doc.moveTo(left, totY).lineTo(right, totY).stroke();
     doc.font('Helvetica-Bold').fontSize(9);
     doc.text(`SUBTOTALES  ${cantTotal}`, left, totY + 8);
@@ -223,15 +245,24 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
 export function dibujarEncabezadoPdf(doc: PDFKit.PDFDocument, titulo: string, subtitulo?: string): void {
     const left = doc.page.margins.left;
     const top = doc.page.margins.top;
-    const logoW = dibujarLogotipo(doc, left, top, 48);
+    const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const logoW = dibujarLogotipo(doc, left, top, 52);
     const x = left + logoW;
+    const textW = width - logoW;
     const empresa = datosEmpresa();
-    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(14).text(empresa.nombre, x, top, { width: 400 });
-    doc.fontSize(12).text(titulo, x, top + 18, { width: 500 });
+    let y = top;
+    doc.fillColor(PDF_COLOR.texto).font('Helvetica-Bold').fontSize(12).text(empresa.nombre, x, y, { width: textW });
+    y = doc.y + 2;
+    doc.fontSize(15).fillColor(PDF_COLOR.vino).text(titulo, x, y, { width: textW });
+    y = doc.y + 2;
     if (subtitulo) {
-        doc.font('Helvetica').fontSize(9).fillColor('#555555').text(subtitulo, x, top + 36, { width: 500 });
-        doc.fillColor('#000000');
+        doc.font('Helvetica').fontSize(9).fillColor(PDF_COLOR.muted).text(subtitulo, x, y, { width: textW });
+        y = doc.y;
     }
-    doc.y = Math.max(doc.y, top + 78);
-    doc.moveDown(0.4);
+    const headerBottom = Math.max(top + 56, y + 8);
+    doc.strokeColor(PDF_COLOR.vino).lineWidth(1.4);
+    doc.moveTo(left, headerBottom).lineTo(left + width, headerBottom).stroke();
+    doc.strokeColor('#000000').lineWidth(1);
+    doc.fillColor(PDF_COLOR.texto);
+    doc.y = headerBottom + 12;
 }

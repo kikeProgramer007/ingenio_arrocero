@@ -12,7 +12,6 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
-import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
 import { formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Compra, LineaCompra, Proveedor } from './compras.models';
 import { ComprasService, ProveedoresService } from './compras.service';
@@ -22,6 +21,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { ExportarService, FormatoExport } from '../../shared/services/exportar.service';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 
 @Component({
     selector: 'app-compras',
@@ -41,7 +41,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
         DialogCajaCerradaComponent,
         BotonesExportarComponent,
         TablaEsqueletoComponent,
-        AyudaCampoComponent
+        AyudaCampoComponent,
+        MetodoPagoComponent
     ],
     providers: [MessageService],
     template: `
@@ -163,8 +164,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
                         <p-inputNumber [(ngModel)]="pagoInicial" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                     </div>
                     <div class="col-span-12 md:col-span-4">
-                        <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo pagas ahora: efectivo, QR o transferencia." posicion="top" /></label>
-                        <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="metodoPago" placeholder="Método" fluid />
+                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Cómo pagas ahora." posicion="top" /></label>
+                        <app-metodo-pago [(ngModel)]="metodoPago" />
                     </div>
                     <div class="col-span-12 md:col-span-4">
                         <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante." posicion="left" /></label>
@@ -224,7 +225,6 @@ export class ComprasPage implements OnInit {
         { label: 'Parcial', value: 'PARCIAL' },
         { label: 'Pagada', value: 'PAGADA' }
     ];
-    metodos = METODOS_PAGO_OPTIONS;
     idProveedor: number | null = null;
     lineas: LineaCompra[] = [this.lineaVacia()];
     pagoInicial = 0;
@@ -243,8 +243,15 @@ export class ComprasPage implements OnInit {
         private exportarService: ExportarService
     ) {}
 
-    exportarCompra(compra: Compra, formato: FormatoExport): void {
-        this.exportarService.descargar({ tipo: 'compra', formato, id: compra.id }).subscribe({
+    exportarCompra(compra: Compra, formato: FormatoExport = 'pdf', visor?: Window | null): void {
+        if (formato === 'xlsx') {
+            this.exportarService.descargar({ tipo: 'compra', formato, id: compra.id }).subscribe({
+                error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el Excel de la compra' })
+            });
+            return;
+        }
+        const ventana = visor ?? this.exportarService.abrirVentanaEspera('Generando nota de compra...');
+        this.exportarService.mostrarPdf({ tipo: 'compra', formato: 'pdf', id: compra.id }, ventana).subscribe({
             error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de la compra' })
         });
     }
@@ -309,6 +316,7 @@ export class ComprasPage implements OnInit {
             return;
         }
         this.guardando = true;
+        const visor = this.exportarService.abrirVentanaEspera('Generando nota de compra...');
         this.comprasService.crear({
             id_proveedor: this.idProveedor,
             observacion: this.observacion || undefined,
@@ -325,11 +333,17 @@ export class ComprasPage implements OnInit {
             next: (res) => {
                 this.guardando = false;
                 this.dialogNueva = false;
-                this.messageService.add({ severity: 'success', summary: 'Compra', detail: res.mensaje });
+                this.messageService.add({ severity: 'success', summary: 'Compra', detail: 'Compra registrada. Se abre la nota de compra.' });
                 this.cargar();
                 this.cargarProductos();
+                if (res.data?.id) {
+                    this.exportarCompra(res.data, 'pdf', visor);
+                } else {
+                    visor?.close();
+                }
             },
             error: (err) => {
+                visor?.close();
                 this.guardando = false;
                 if (esErrorCajaCerrada(err)) {
                     this.dialogCajaCerrada = true;

@@ -9,7 +9,7 @@ import { roundMoney, toMoney } from '../utils/money';
 import { obtenerCajaAbierta, registrarEgresoCaja, registrarIngresoCaja } from '../utils/caja-ingreso';
 import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
 import { CATEGORIA_EGRESO, CATEGORIA_INGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
-import { ESTADO_VENTA, estadoVentaPorSaldo } from '../constants/venta.constants';
+import { cobradoVenta, ESTADO_VENTA, estadoVentaPorSaldo } from '../constants/venta.constants';
 import { CrearCobranzaDTO, CrearVentaDTO } from '../dtos/venta.dto';
 
 const usuarioAtributos = ['id', 'username'];
@@ -34,7 +34,7 @@ function mapVenta(venta: any) {
         fecha: venta.fecha,
         total,
         saldo_pendiente: saldo,
-        pagado: venta.estado === ESTADO_VENTA.ANULADA ? 0 : roundMoney(total - saldo),
+        pagado: cobradoVenta(total, saldo, venta.estado),
         estado: venta.estado,
         observacion: venta.observacion,
         cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,

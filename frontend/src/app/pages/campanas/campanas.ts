@@ -13,15 +13,15 @@ import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { apiUrl } from '../../core/utils/api-url';
-import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
 import { formatBs } from '../caja/caja.utils';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 
 @Component({
     selector: 'app-campanas',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, TablaEsqueletoComponent, AyudaCampoComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent],
     providers: [MessageService],
     template: `
         <p-toast />
@@ -76,7 +76,7 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
                 <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad <app-ayuda-campo texto="Kilos acopiados en esta entrega." posicion="right" /></label><p-inputNumber [(ngModel)]="acopio.cantidad" [min]="0.001" [maxFractionDigits]="3" fluid /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Precio unitario <app-ayuda-campo texto="Bs por kilo o unidad. El total es cantidad × precio." posicion="right" /></label><p-inputNumber [(ngModel)]="acopio.precio_unitario" mode="decimal" prefix="Bs " fluid /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Pago ahora <app-ayuda-campo texto="Lo que pagas ahora sale de caja. 0 = queda por pagar." posicion="right" /></label><p-inputNumber [(ngModel)]="acopio.pago" mode="decimal" prefix="Bs " [min]="0" fluid /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo pagas ahora. Obligatorio si hay pago." posicion="top" /></label><p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="acopio.metodo_pago" fluid /></div>
+                <div *ngIf="acopio.pago > 0"><label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Obligatorio si hay pago." posicion="top" /></label><app-metodo-pago [(ngModel)]="acopio.metodo_pago" /></div>
             </div>
             <ng-template #footer>
                 <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogAcopio = false" />
@@ -95,7 +95,6 @@ export class CampanasPage implements OnInit {
     dialogAcopio = false;
     campana: any = { nombre: '', fecha_inicio: new Date().toISOString().slice(0, 10), meta_cantidad: 0, observacion: '' };
     acopio: any = {};
-    metodos = METODOS_PAGO_OPTIONS;
     formatBs = formatBs;
 
     constructor(private http: HttpClient, private messageService: MessageService) {}

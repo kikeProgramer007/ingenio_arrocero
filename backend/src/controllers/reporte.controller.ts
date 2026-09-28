@@ -22,6 +22,8 @@ import { clasificarDiferencia, formatBs, roundMoney, toMoney } from '../utils/mo
 import { enviarExcel, enviarPdf, HojaExport } from '../utils/exportar';
 import { DatosVoucher, enviarVoucherPdf, LineaVoucher } from '../utils/pdf-voucher';
 import { ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
+import { cobradoVenta, ESTADO_VENTA, saldoVenta } from '../constants/venta.constants';
+import { resumirMovimientos } from '../utils/caja-resumen';
 
 function rango(req: Request) {
     const desde = typeof req.query.fecha_desde === 'string' && req.query.fecha_desde
@@ -193,10 +195,12 @@ export class ReporteController {
             subtitulo: periodoTexto(desde, hasta),
             columnas: ['Indicador', 'Valor'],
             filas: [
-                ['Ventas (cantidad)', resumen.ventas.cantidad],
-                ['Ventas (total)', resumen.ventas.total],
-                ['Cobrado', resumen.ventas.cobrado],
-                ['Por cobrar', resumen.ventas.por_cobrar],
+                ['Ventas vigentes (cantidad)', resumen.ventas.cantidad],
+                ['Ventas vigentes (total)', resumen.ventas.total],
+                ['Cobrado neto a clientes', resumen.caja.cobrado_neto],
+                ['Cobros brutos', resumen.caja.cobros_clientes],
+                ['Anulaciones / devoluciones', resumen.caja.anulaciones_venta],
+                ['Por cobrar (documentos del período)', resumen.ventas.por_cobrar],
                 ['Gastos de empresa', resumen.gastos],
                 ['Retiros personales', resumen.retiros],
                 ['Caja ingresos', resumen.caja.ingresos],
@@ -224,30 +228,39 @@ export class ReporteController {
             Acopio.findAll({ where: filtro }),
             MovimientoCaja.findAll({ where: filtro })
         ]);
-        const totalVentas = roundMoney(ventas.reduce((acc, v) => acc + toMoney(v.get('total')), 0));
-        const cobrado = roundMoney(ventas.reduce((acc, v) => acc + toMoney(v.get('total')) - toMoney(v.get('saldo_pendiente')), 0));
-        const porCobrar = roundMoney(ventas.reduce((acc, v) => acc + toMoney(v.get('saldo_pendiente')), 0));
+        const vigentes = ventas.filter((v) => v.get('estado') !== ESTADO_VENTA.ANULADA);
+        const totalVentas = roundMoney(vigentes.reduce((acc, v) => acc + toMoney(v.get('total')), 0));
+        const cobradoDocumentos = roundMoney(
+            vigentes.reduce((acc, v) => acc + cobradoVenta(v.get('total'), v.get('saldo_pendiente'), String(v.get('estado'))), 0)
+        );
+        const porCobrar = roundMoney(vigentes.reduce((acc, v) => acc + toMoney(v.get('saldo_pendiente')), 0));
         const totalCompras = roundMoney(compras.reduce((acc, c) => acc + toMoney(c.get('total')), 0));
         const porPagar = roundMoney(compras.reduce((acc, c) => acc + toMoney(c.get('saldo_pendiente')), 0));
         const totalGastos = roundMoney(gastos.filter((g) => g.get('tipo') === 'GASTO_EMPRESA').reduce((acc, g) => acc + toMoney(g.get('monto')), 0));
         const totalRetiros = roundMoney(gastos.filter((g) => g.get('tipo') === 'RETIRO_PERSONAL').reduce((acc, g) => acc + toMoney(g.get('monto')), 0));
         const totalAcopio = roundMoney(acopios.reduce((acc, a) => acc + toMoney(a.get('total')), 0));
-        let ingresosCaja = 0;
-        let egresosCaja = 0;
-        for (const m of movimientos) {
-            const monto = toMoney(m.get('monto'));
-            if (m.get('tipo') === TIPO_MOVIMIENTO.INGRESO) ingresosCaja += monto;
-            else egresosCaja += monto;
-        }
+        const flujo = resumirMovimientos(movimientos);
         return {
             desde,
             hasta,
-            ventas: { cantidad: ventas.length, total: totalVentas, cobrado, por_cobrar: porCobrar },
+            ventas: {
+                cantidad: vigentes.length,
+                anuladas: ventas.length - vigentes.length,
+                total: totalVentas,
+                cobrado: cobradoDocumentos,
+                por_cobrar: porCobrar
+            },
             compras: { cantidad: compras.length, total: totalCompras, por_pagar: porPagar },
             gastos: totalGastos,
             retiros: totalRetiros,
             acopios: { cantidad: acopios.length, total: totalAcopio },
-            caja: { ingresos: roundMoney(ingresosCaja), egresos: roundMoney(egresosCaja) }
+            caja: {
+                ingresos: flujo.ingresos,
+                egresos: flujo.egresos,
+                cobros_clientes: flujo.cobros_clientes,
+                anulaciones_venta: flujo.anulaciones_venta,
+                cobrado_neto: flujo.cobrado_neto
+            }
         };
     }
 
@@ -306,19 +319,20 @@ export class ReporteController {
         });
         const filas = ventas.map((v: any) => {
             const total = toMoney(v.total);
-            const pendiente = toMoney(v.saldo_pendiente);
+            const estado = String(v.estado);
             return [
                 v.id,
                 fmtFecha(v.fecha),
                 v.cliente?.nombre || '-',
                 total,
-                roundMoney(total - pendiente),
-                pendiente,
-                v.estado
+                cobradoVenta(total, v.saldo_pendiente, estado),
+                saldoVenta(v.saldo_pendiente, estado),
+                estado
             ];
         });
-        const total = roundMoney(filas.reduce((acc, f) => acc + Number(f[3]), 0));
-        const cobrado = roundMoney(filas.reduce((acc, f) => acc + Number(f[4]), 0));
+        const vigentes = filas.filter((f) => f[6] !== ESTADO_VENTA.ANULADA);
+        const total = roundMoney(vigentes.reduce((acc, f) => acc + Number(f[3]), 0));
+        const cobrado = roundMoney(vigentes.reduce((acc, f) => acc + Number(f[4]), 0));
         return {
             nombre: 'Ventas',
             titulo: 'Ventas',
@@ -401,12 +415,11 @@ export class ReporteController {
             include: [{ model: User, as: 'usuario', attributes: ['id', 'username'] }],
             order: [['fecha', 'ASC'], ['id', 'ASC']]
         });
-        let ingresos = 0;
-        let egresos = 0;
+        const flujo = resumirMovimientos(movimientos);
+        const ingresos = flujo.ingresos;
+        const egresos = flujo.egresos;
         const filas = movimientos.map((item: any) => {
             const monto = toMoney(item.monto);
-            if (item.tipo === TIPO_MOVIMIENTO.INGRESO) ingresos += monto;
-            else egresos += monto;
             return [
                 fmtFecha(item.fecha),
                 item.tipo,
@@ -429,8 +442,11 @@ export class ReporteController {
             subtitulo: `Apertura ${fmtFecha(caja.get('fecha_apertura') as Date)} · Cierre ${fmtFecha(caja.get('fecha_cierre') as Date | null)}`,
             resumen: [
                 { label: 'Saldo inicial', valor: saldoInicial },
-                { label: 'Ingresos', valor: roundMoney(ingresos) },
-                { label: 'Egresos', valor: roundMoney(egresos) },
+                { label: 'Ingresos', valor: ingresos },
+                { label: 'Egresos', valor: egresos },
+                { label: 'Cobros de clientes', valor: flujo.cobros_clientes },
+                { label: 'Anulaciones / devoluciones', valor: flujo.anulaciones_venta },
+                { label: 'Cobrado neto', valor: flujo.cobrado_neto },
                 { label: 'Saldo esperado', valor: saldoEsperado },
                 { label: 'Saldo contado', valor: saldoContado == null ? '-' : formatBs(saldoContado) },
                 { label: 'Diferencia', valor: diferencia == null ? '-' : formatBs(diferencia) },
@@ -459,8 +475,8 @@ export class ReporteController {
             return [];
         }
         const total = toMoney(venta.total);
-        const pendiente = toMoney(venta.saldo_pendiente);
-        const cobrado = roundMoney(total - pendiente);
+        const pendiente = saldoVenta(venta.saldo_pendiente, venta.estado);
+        const cobrado = cobradoVenta(total, venta.saldo_pendiente, venta.estado);
         const filas = (venta.detalles || []).map((linea: any) => [
             linea.descripcion || '',
             Number(linea.cantidad),
@@ -726,7 +742,8 @@ export class ReporteController {
             return null;
         }
         const total = toMoney(venta.total);
-        const pendiente = toMoney(venta.saldo_pendiente);
+        const pendiente = saldoVenta(venta.saldo_pendiente, venta.estado);
+        const cobrado = cobradoVenta(total, venta.saldo_pendiente, venta.estado);
         const fecha = venta.fecha instanceof Date ? venta.fecha : new Date(venta.fecha);
         return {
             tipoDocumento: 'NOTA DE VENTA',
@@ -738,11 +755,11 @@ export class ReporteController {
             codigoContraparte: venta.cliente?.id != null ? String(venta.cliente.id).padStart(6, '0') : '-',
             direccion: venta.cliente?.direccion || '',
             vendedor: venta.usuario?.username || '-',
-            tipoPago: ReporteController.tipoPagoPorSaldo(total, pendiente),
+            tipoPago: venta.estado === ESTADO_VENTA.ANULADA ? 'ANULADA' : ReporteController.tipoPagoPorSaldo(total, pendiente),
             detalle: 'VENTA',
             lineas: ReporteController.lineasVoucher(venta.detalles),
             total,
-            cobrado: roundMoney(total - pendiente),
+            cobrado,
             pendiente
         };
     }

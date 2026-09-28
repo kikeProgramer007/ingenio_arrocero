@@ -17,7 +17,6 @@ import { TooltipModule } from 'primeng/tooltip';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
     CATEGORIAS_POR_TIPO,
-    METODOS_PAGO_OPTIONS,
     TIPOS_MOVIMIENTO_OPTIONS,
     TIPO_MOVIMIENTO
 } from './caja.constants';
@@ -30,6 +29,8 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { ExportarService } from '../../shared/services/exportar.service';
 
 @Component({
     selector: 'app-caja-actual',
@@ -51,7 +52,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
         CuadreCajaComponent,
         BotonesExportarComponent,
         TablaEsqueletoComponent,
-        AyudaCampoComponent
+        AyudaCampoComponent,
+        MetodoPagoComponent
     ],
     providers: [MessageService],
     template: `
@@ -64,7 +66,7 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
             </div>
             <div class="flex gap-2 flex-wrap" *ngIf="caja">
                 <app-botones-exportar tipo="caja" [idCaja]="caja.id" />
-                <p-button label="+ Nuevo movimiento" icon="pi pi-plus" (onClick)="abrirDialogMovimiento()" [disabled]="guardando" />
+                <p-button label="Nuevo movimiento" icon="pi pi-plus" (onClick)="abrirDialogMovimiento()" [disabled]="guardando" />
                 <p-button label="Cerrar caja" icon="pi pi-lock" severity="warn" (onClick)="abrirDialogCierre()" [disabled]="guardando" />
             </div>
         </div>
@@ -204,8 +206,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
                     <p-inputnumber [(ngModel)]="movimiento.monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" [maxFractionDigits]="2" locale="es-BO" prefix="Bs " fluid />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Método de pago <app-ayuda-campo texto="Efectivo, QR, transferencia u otro." posicion="right" /></label>
-                    <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="movimiento.metodo_pago" placeholder="Selecciona" fluid />
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR, transferencia u otro." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="movimiento.metodo_pago" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Referencia (opcional) <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante." posicion="top" /></label>
@@ -266,7 +268,6 @@ export class CajaActual implements OnInit {
     saldoContado = 0;
     observacionCierre = '';
     tipos = TIPOS_MOVIMIENTO_OPTIONS;
-    metodos = METODOS_PAGO_OPTIONS;
     categorias = CATEGORIAS_POR_TIPO[TIPO_MOVIMIENTO.INGRESO];
     movimiento: CrearMovimientoRequest = this.movimientoVacio();
 
@@ -279,7 +280,8 @@ export class CajaActual implements OnInit {
         private cajaService: CajaService,
         private messageService: MessageService,
         private router: Router,
-        private authService: AuthService
+        private authService: AuthService,
+        private exportarService: ExportarService
     ) {}
 
     ngOnInit(): void {
@@ -412,17 +414,27 @@ export class CajaActual implements OnInit {
             return;
         }
         this.guardando = true;
+        const visor = this.exportarService.abrirVentanaEspera('Generando arqueo de caja...');
         this.cajaService.cerrar(this.caja.id, {
             saldo_contado: this.saldoContado,
             observacion: this.observacionCierre || undefined
         }).subscribe({
-            next: (res) => {
+            next: () => {
+                const idCaja = this.caja?.id;
                 this.guardando = false;
                 this.dialogCierre = false;
-                this.messageService.add({ severity: 'success', summary: 'Caja cerrada', detail: res.mensaje });
+                this.messageService.add({ severity: 'success', summary: 'Caja cerrada', detail: 'Se abre el PDF del arqueo.' });
+                if (idCaja) {
+                    this.exportarService.mostrarPdf({ tipo: 'caja', formato: 'pdf', id_caja: idCaja }, visor).subscribe({
+                        error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de caja' })
+                    });
+                } else {
+                    visor?.close();
+                }
                 this.router.navigateByUrl(APP_ROUTES.cajaHistorial);
             },
             error: (err) => {
+                visor?.close();
                 this.guardando = false;
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: this.mensajeError(err, 'No se pudo cerrar la caja') });
             }
@@ -435,7 +447,7 @@ export class CajaActual implements OnInit {
             categoria: '',
             concepto: '',
             monto: 0,
-            metodo_pago: '',
+            metodo_pago: 'EFECTIVO',
             referencia: '',
             observacion: ''
         };

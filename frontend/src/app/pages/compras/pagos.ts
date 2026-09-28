@@ -11,7 +11,6 @@ import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
-import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
 import { etiquetaMetodo, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Compra, PagoProveedor } from './compras.models';
 import { ComprasService } from './compras.service';
@@ -21,6 +20,7 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 
 @Component({
     selector: 'app-pagos',
@@ -41,7 +41,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
         DialogCajaCerradaComponent,
         BotonesExportarComponent,
         TablaEsqueletoComponent,
-        AyudaCampoComponent
+        AyudaCampoComponent,
+        MetodoPagoComponent
     ],
     providers: [MessageService],
     template: `
@@ -121,8 +122,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
                     <p-inputNumber [(ngModel)]="monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo sale el dinero de caja: efectivo, QR o transferencia." posicion="right" /></label>
-                    <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="metodoPago" fluid />
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Cómo sale el dinero de caja." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="metodoPago" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante. Opcional en efectivo." posicion="top" /></label>
@@ -153,7 +154,6 @@ export class PagosPage implements OnInit {
     referencia = '';
     observacion = '';
     saldoPendiente = 0;
-    metodos = METODOS_PAGO_OPTIONS;
     formatBs = formatBs;
     formatFecha = formatFecha;
     etiquetaMetodo = etiquetaMetodo;

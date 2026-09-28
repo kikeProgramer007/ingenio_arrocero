@@ -13,8 +13,8 @@ import { formatBs } from '../../pages/caja/caja.utils';
             <div class="col-span-12 xl:col-span-7">
                 <div class="font-semibold text-lg mb-1">Cuadre de caja</div>
                 <p class="text-muted-color text-sm mb-4">
-                    Solo entra lo que suma o resta dinero en caja.
-                    <app-ayuda-campo texto="El saldo inicial no es un ingreso del día. Las ventas sin cobro no entran aquí." posicion="right" />
+                    Libro de caja: cada cobro queda como ingreso; si se anula la venta, se registra un egreso de devolución. No se borra el asiento.
+                    <app-ayuda-campo texto="Saldo esperado = saldo inicial + ingresos − egresos. El cobrado neto (cobros menos anulaciones) es un indicador; no se suma dos veces." posicion="right" />
                 </p>
                 <div class="flex flex-col gap-2 text-sm">
                     <div class="flex justify-between py-2 border-b border-surface">
@@ -22,7 +22,7 @@ import { formatBs } from '../../pages/caja/caja.utils';
                         <span class="font-semibold text-green-600">{{ formatBs(caja.ingresos) }}</span>
                     </div>
                     <div class="flex justify-between pl-4 text-muted-color">
-                        <span>Cobrado a clientes</span>
+                        <span>Cobros de clientes</span>
                         <span>{{ formatBs(d.cobrado_clientes) }}</span>
                     </div>
                     <div class="flex justify-between pl-4 text-muted-color mb-2">
@@ -45,6 +45,10 @@ import { formatBs } from '../../pages/caja/caja.utils';
                         <span>Retiros personales</span>
                         <span>{{ formatBs(d.retiros) }}</span>
                     </div>
+                    <div class="flex justify-between pl-4 text-muted-color">
+                        <span>Devoluciones por anulación</span>
+                        <span>{{ formatBs(d.anulaciones_venta) }}</span>
+                    </div>
                     <div class="flex justify-between pl-4 text-muted-color mb-2">
                         <span>Otros egresos</span>
                         <span>{{ formatBs(d.otros_egresos) }}</span>
@@ -58,6 +62,11 @@ import { formatBs } from '../../pages/caja/caja.utils';
                         <span class="font-semibold">{{ formatBs(caja.saldo_esperado) }}</span>
                     </div>
                     <div class="text-muted-color text-xs">Saldo inicial + ingresos − egresos</div>
+                    <div class="flex justify-between py-2 mt-3 border-t border-surface">
+                        <span class="font-medium">Cobrado neto a clientes</span>
+                        <span class="font-semibold text-green-700">{{ formatBs(d.cobrado_neto) }}</span>
+                    </div>
+                    <div class="text-muted-color text-xs">Cobros de clientes − devoluciones por anulación</div>
                 </div>
             </div>
             <div class="col-span-12 xl:col-span-5">
@@ -67,7 +76,7 @@ import { formatBs } from '../../pages/caja/caja.utils';
                     <div class="card mb-0">
                         <div class="text-muted-color text-sm mb-1">Por cobrar</div>
                         <div class="font-semibold text-xl">{{ formatBs(caja.por_cobrar) }}</div>
-                        <div class="text-muted-color text-xs mt-1">Ventas aún no cobradas (total o parcial)</div>
+                        <div class="text-muted-color text-xs mt-1">Ventas vigentes aún no cobradas (total o parcial). Las anuladas no cuentan.</div>
                     </div>
                     <div class="card mb-0">
                         <div class="text-muted-color text-sm mb-1">Por pagar</div>
@@ -84,13 +93,19 @@ export class CuadreCajaComponent {
     formatBs = formatBs;
 
     get d() {
-        return this.caja?.desglose || {
-            cobrado_clientes: 0,
-            otros_ingresos: 0,
-            pagos_proveedor: 0,
-            gastos_empresa: 0,
-            retiros: 0,
-            otros_egresos: 0
+        const raw = this.caja?.desglose;
+        const cobros = Number(raw?.cobrado_clientes || 0);
+        const anulaciones = Number(raw?.anulaciones_venta || 0);
+        const neto = raw?.cobrado_neto != null ? Number(raw.cobrado_neto) : cobros - anulaciones;
+        return {
+            cobrado_clientes: cobros,
+            cobrado_neto: neto,
+            otros_ingresos: Number(raw?.otros_ingresos || 0),
+            pagos_proveedor: Number(raw?.pagos_proveedor || 0),
+            gastos_empresa: Number(raw?.gastos_empresa || 0),
+            retiros: Number(raw?.retiros || 0),
+            anulaciones_venta: anulaciones,
+            otros_egresos: Number(raw?.otros_egresos || 0)
         };
     }
 }

@@ -32,6 +32,13 @@
             width: 3rem;
         }
 
+        img {
+            height: 2.6rem;
+            width: auto;
+            border-radius: 0.4rem;
+            object-fit: cover;
+        }
+
         &:focus-visible {
             @include focused();
         }

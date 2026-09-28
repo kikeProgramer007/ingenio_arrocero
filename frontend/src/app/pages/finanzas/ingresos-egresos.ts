@@ -159,9 +159,9 @@ export class IngresosEgresosPage implements OnInit {
     get kpis(): KpiItem[] {
         return [
             { label: 'Total ingresos', value: formatBs(this.data?.total_ingresos), icon: 'pi pi-arrow-down-left', tone: 'success', hint: 'Dinero que realmente ingresó' },
-            { label: 'Total egresos', value: formatBs(this.data?.total_egresos), icon: 'pi pi-arrow-up-right', tone: 'danger', hint: 'Pagos, gastos y retiros' },
+            { label: 'Total egresos', value: formatBs(this.data?.total_egresos), icon: 'pi pi-arrow-up-right', tone: 'danger', hint: 'Pagos, gastos, retiros y devoluciones por anulación' },
             { label: 'Saldo neto', value: formatBs(this.data?.saldo_neto), icon: 'pi pi-wallet', tone: 'info', hint: 'Ingresos menos egresos' },
-            { label: 'Cobrado', value: formatBs(this.data?.cobrado), icon: 'pi pi-money-bill', tone: 'success', hint: 'Cobros de clientes en el período' },
+            { label: 'Cobrado', value: formatBs(this.data?.cobrado), icon: 'pi pi-money-bill', tone: 'success', hint: 'Cobros menos anulaciones del período' },
             { label: 'Por cobrar', value: formatBs(this.data?.por_cobrar), icon: 'pi pi-clock', tone: 'warn', hint: 'Saldo pendiente de clientes' },
             { label: 'Por pagar', value: formatBs(this.data?.por_pagar), icon: 'pi pi-send', tone: 'warn', hint: 'Saldo pendiente a proveedores' }
         ];

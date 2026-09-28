@@ -4,26 +4,10 @@ import { Caja, Cliente, Compra, MovimientoCaja, User, Venta } from '../models';
 import { handleError } from '../utils/error.handler';
 import { clasificarDiferencia, roundMoney, toMoney } from '../utils/money';
 import { inicioFinDia, inicioFinMes, rangoDesdeQuery } from '../utils/fecha';
-import { CATEGORIA_EGRESO, CATEGORIA_INGRESO, ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
-import { ESTADO_VENTA } from '../constants/venta.constants';
+import { CATEGORIA_EGRESO, ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
+import { cobradoVenta, ESTADO_VENTA } from '../constants/venta.constants';
 import { ESTADO_COMPRA } from '../constants/compra.constants';
-
-const CATEGORIAS_COBRO = [CATEGORIA_INGRESO.VENTA, CATEGORIA_INGRESO.COBRANZA];
-
-function sumarPorTipo(movimientos: any[]) {
-    let ingresos = 0;
-    let egresos = 0;
-    for (const movimiento of movimientos) {
-        const monto = toMoney(movimiento.get ? movimiento.get('monto') : movimiento.monto);
-        const tipo = movimiento.get ? movimiento.get('tipo') : movimiento.tipo;
-        if (tipo === TIPO_MOVIMIENTO.INGRESO) {
-            ingresos += monto;
-        } else {
-            egresos += monto;
-        }
-    }
-    return { ingresos: roundMoney(ingresos), egresos: roundMoney(egresos) };
-}
+import { resumirMovimientos } from '../utils/caja-resumen';
 
 function mapMovimiento(movimiento: any) {
     const tipo = movimiento.tipo;
@@ -86,13 +70,11 @@ export class DashboardController {
                 })
             ]);
 
-            const { ingresos: ingresosHoy, egresos: egresosHoy } = sumarPorTipo(movimientosHoy);
+            const flujoHoy = resumirMovimientos(movimientosHoy);
+            const ingresosHoy = flujoHoy.ingresos;
+            const egresosHoy = flujoHoy.egresos;
             const ventasHoy = roundMoney(ventasHoyRows.reduce((acc, v) => acc + toMoney(v.get('total')), 0));
-            const cobradoHoy = roundMoney(
-                movimientosHoy
-                    .filter((m) => m.get('tipo') === TIPO_MOVIMIENTO.INGRESO && CATEGORIAS_COBRO.includes(m.get('categoria') as any))
-                    .reduce((acc, m) => acc + toMoney(m.get('monto')), 0)
-            );
+            const cobradoHoy = flujoHoy.cobrado_neto;
 
             const porCobrarTotal = await Venta.sum('saldo_pendiente', {
                 where: { estado: { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] } }
@@ -123,7 +105,7 @@ export class DashboardController {
                 const movimientosCaja = await MovimientoCaja.findAll({
                     where: { id_caja: cajaAbierta.get('id') as number }
                 });
-                const cajaTotales = sumarPorTipo(movimientosCaja);
+                const cajaTotales = resumirMovimientos(movimientosCaja);
                 saldoEsperado = roundMoney(saldoInicial + cajaTotales.ingresos - cajaTotales.egresos);
             }
 
@@ -139,6 +121,8 @@ export class DashboardController {
             res.status(200).json({
                 ventas_hoy: ventasHoy,
                 cobrado_hoy: cobradoHoy,
+                cobros_brutos_hoy: flujoHoy.cobros_clientes,
+                anulaciones_hoy: flujoHoy.anulaciones_venta,
                 por_cobrar: roundMoney(Number(porCobrarTotal || 0)),
                 por_pagar: roundMoney(Number(porPagarTotal || 0)),
                 ingresos_hoy: ingresosHoy,
@@ -172,7 +156,7 @@ export class DashboardController {
                     fecha: venta.fecha,
                     cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,
                     total: toMoney(venta.total),
-                    cobrado: roundMoney(toMoney(venta.total) - toMoney(venta.saldo_pendiente)),
+                    cobrado: cobradoVenta(venta.total, venta.saldo_pendiente, venta.estado),
                     pendiente: toMoney(venta.saldo_pendiente),
                     estado: venta.estado
                 })),
@@ -194,12 +178,10 @@ export class DashboardController {
                 order: [['fecha', 'DESC'], ['id', 'DESC']]
             });
 
-            const { ingresos, egresos } = sumarPorTipo(movimientos);
-            const cobrado = roundMoney(
-                movimientos
-                    .filter((m) => m.get('tipo') === TIPO_MOVIMIENTO.INGRESO && CATEGORIAS_COBRO.includes(m.get('categoria') as any))
-                    .reduce((acc, m) => acc + toMoney(m.get('monto')), 0)
-            );
+            const flujo = resumirMovimientos(movimientos);
+            const ingresos = flujo.ingresos;
+            const egresos = flujo.egresos;
+            const cobrado = flujo.cobrado_neto;
             const porCobrar = await Venta.sum('saldo_pendiente', {
                 where: { estado: { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] } }
             });
@@ -214,6 +196,8 @@ export class DashboardController {
                 total_egresos: egresos,
                 saldo_neto: roundMoney(ingresos - egresos),
                 cobrado,
+                cobros_brutos: flujo.cobros_clientes,
+                anulaciones: flujo.anulaciones_venta,
                 por_cobrar: roundMoney(Number(porCobrar || 0)),
                 por_pagar: roundMoney(Number(porPagar || 0)),
                 movimientos: movimientos.map((item: any) => mapMovimiento(item))
