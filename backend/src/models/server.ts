@@ -18,6 +18,7 @@ import { seedProgramasCaja } from '../seed/programas-caja.seed';
 import { seedInventarioBase } from '../seed/inventario.seed';
 import { sequelize } from '../models';
 import { assertBaseDeUsuario, shouldAlterSchema } from '../utils/db-sync';
+import { asegurarEsquemaGastos } from '../utils/ensure-schema';
 import { asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
 
 class Server {
