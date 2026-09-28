@@ -1,12 +1,14 @@
 import { Request, Response } from 'express';
 import { Cliente, Cobranza, Productos, sequelize, User, Venta, VentaDetalle } from '../models';
+import { Op } from 'sequelize';
 import { handleError } from '../utils/error.handler';
+import { parseFechaLocal } from '../utils/fecha';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
-import { obtenerCajaAbierta, registrarIngresoCaja } from '../utils/caja-ingreso';
+import { obtenerCajaAbierta, registrarEgresoCaja, registrarIngresoCaja } from '../utils/caja-ingreso';
 import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
-import { CATEGORIA_INGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
+import { CATEGORIA_EGRESO, CATEGORIA_INGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { ESTADO_VENTA, estadoVentaPorSaldo } from '../constants/venta.constants';
 import { CrearCobranzaDTO, CrearVentaDTO } from '../dtos/venta.dto';
 
@@ -32,7 +34,7 @@ function mapVenta(venta: any) {
         fecha: venta.fecha,
         total,
         saldo_pendiente: saldo,
-        pagado: roundMoney(total - saldo),
+        pagado: venta.estado === ESTADO_VENTA.ANULADA ? 0 : roundMoney(total - saldo),
         estado: venta.estado,
         observacion: venta.observacion,
         cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,
@@ -63,19 +65,35 @@ const includesVenta = [
     { model: Cliente, as: 'cliente', attributes: ['id', 'nombre'] },
     { model: User, as: 'usuario', attributes: usuarioAtributos },
     { model: VentaDetalle, as: 'detalles' },
-    { model: Cobranza, as: 'cobranzas' }
+    { model: Cobranza, as: 'cobranzas', include: [{ model: User, as: 'usuario', attributes: usuarioAtributos }] }
 ];
 
 export class VentaController {
     public static async listar(req: Request, res: Response): Promise<void> {
         try {
             const where: any = {};
-            const { estado, id_cliente } = req.query;
+            const { estado, id_cliente, fecha_desde, fecha_hasta } = req.query;
             if (typeof estado === 'string' && estado) {
                 where.estado = estado;
+            } else {
+                where.estado = { [Op.ne]: ESTADO_VENTA.ANULADA };
             }
             if (typeof id_cliente === 'string' && id_cliente) {
                 where.id_cliente = Number(id_cliente);
+            }
+            if (typeof fecha_desde === 'string' && fecha_desde) {
+                const inicio = parseFechaLocal(fecha_desde);
+                if (!Number.isNaN(inicio.getTime())) {
+                    inicio.setHours(0, 0, 0, 0);
+                    where.fecha = { ...(where.fecha || {}), [Op.gte]: inicio };
+                }
+            }
+            if (typeof fecha_hasta === 'string' && fecha_hasta) {
+                const fin = parseFechaLocal(fecha_hasta);
+                if (!Number.isNaN(fin.getTime())) {
+                    fin.setHours(23, 59, 59, 999);
+                    where.fecha = { ...(where.fecha || {}), [Op.lte]: fin };
+                }
             }
             const ventas = await Venta.findAll({
                 where,
@@ -216,7 +234,7 @@ export class VentaController {
                     metodoPago: datos.metodo_pago!,
                     referencia: datos.referencia || null,
                     origen: ORIGEN_MOVIMIENTO.VENTA,
-                    origenId: cobranza.get('id') as number
+                    origenId: idVenta
                 });
             }
 
@@ -226,6 +244,98 @@ export class VentaController {
         } catch (error) {
             await transaction.rollback();
             handleError(res, error, 'Error al registrar la venta');
+        }
+    }
+
+    public static async anular(req: Request, res: Response): Promise<void> {
+        const usuario = getAuthUser(req);
+        if (!usuario) {
+            res.status(401).json({ mensaje: 'Usuario no autenticado' });
+            return;
+        }
+        const transaction = await sequelize.transaction();
+        try {
+            const venta = await Venta.findByPk(req.params.id, {
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+            if (!venta) {
+                await transaction.rollback();
+                res.status(404).json({ mensaje: `No se encontró la venta con ID ${req.params.id}` });
+                return;
+            }
+            if (venta.get('estado') === ESTADO_VENTA.ANULADA) {
+                await transaction.rollback();
+                res.status(409).json({ mensaje: 'Esta venta ya está anulada' });
+                return;
+            }
+
+            const idVenta = venta.get('id') as number;
+            const [cliente, detalles, cobranzas] = await Promise.all([
+                Cliente.findByPk(venta.get('id_cliente') as number, { transaction }),
+                VentaDetalle.findAll({ where: { id_venta: idVenta }, transaction }),
+                Cobranza.findAll({ where: { id_venta: idVenta }, transaction })
+            ]);
+            const total = toMoney(venta.get('total'));
+            const saldo = toMoney(venta.get('saldo_pendiente'));
+            const cobrado = roundMoney(total - saldo);
+            const clienteNombre = cliente?.get('nombre') || 'Cliente';
+
+            if (cobrado > 0) {
+                const cajaAbierta = await obtenerCajaAbierta(transaction);
+                if (!cajaAbierta) {
+                    await transaction.rollback();
+                    res.status(409).json({ mensaje: 'Debe haber una caja abierta para devolver lo cobrado' });
+                    return;
+                }
+                const ultima = cobranzas.slice().sort((a, b) => Number(a.get('id')) > Number(b.get('id')) ? -1 : 1)[0];
+                await registrarEgresoCaja({
+                    transaction,
+                    idCaja: cajaAbierta.get('id') as number,
+                    idUsuario: usuario.id,
+                    categoria: CATEGORIA_EGRESO.ANULACION_VENTA,
+                    concepto: `Anulación venta #${idVenta} - ${clienteNombre}`,
+                    monto: cobrado,
+                    metodoPago: (ultima?.get('metodo_pago') as string) || 'EFECTIVO',
+                    origen: ORIGEN_MOVIMIENTO.VENTA,
+                    origenId: idVenta
+                });
+            }
+
+            for (const linea of detalles) {
+                const idProducto = linea.get('id_producto') as number | null;
+                if (!idProducto) {
+                    continue;
+                }
+                const stock = await aplicarStock({
+                    transaction,
+                    idProducto,
+                    delta: Number(linea.get('cantidad')),
+                    tipo: TIPO_INVENTARIO.ENTRADA,
+                    origen: 'VENTA',
+                    origenId: idVenta,
+                    idUsuario: usuario.id,
+                    observacion: `Anulación venta #${idVenta}`
+                });
+                if (!stock.ok) {
+                    await transaction.rollback();
+                    res.status(409).json({ mensaje: stock.mensaje });
+                    return;
+                }
+            }
+
+            await venta.update({
+                estado: ESTADO_VENTA.ANULADA,
+                saldo_pendiente: 0,
+                observacion: [venta.get('observacion'), 'Anulada'].filter(Boolean).join(' · ')
+            }, { transaction });
+
+            await transaction.commit();
+            const anulada = await Venta.findByPk(idVenta, { include: includesVenta });
+            res.status(200).json({ mensaje: 'Venta anulada', data: mapVenta(anulada) });
+        } catch (error) {
+            await transaction.rollback();
+            handleError(res, error, 'Error al anular la venta');
         }
     }
 }

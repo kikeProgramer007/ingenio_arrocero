@@ -35,6 +35,7 @@ function mapMovimiento(movimiento: any) {
         fecha: movimiento.fecha,
         tipo,
         origen: movimiento.origen,
+        origen_id: movimiento.origen_id,
         categoria: movimiento.categoria,
         concepto,
         contraparte: sep >= 0 ? concepto.slice(sep + 3) : '-',
@@ -104,7 +105,8 @@ export class DashboardController {
                 [CATEGORIA_EGRESO.PAGO_PROVEEDOR]: 0,
                 [CATEGORIA_EGRESO.GASTO_EMPRESA]: 0,
                 [CATEGORIA_EGRESO.RETIRO_PERSONAL]: 0,
-                [CATEGORIA_EGRESO.OTRO_EGRESO]: 0
+                [CATEGORIA_EGRESO.OTRO_EGRESO]: 0,
+                [CATEGORIA_EGRESO.ANULACION_VENTA]: 0
             };
             for (const movimiento of movimientosHoy) {
                 if (movimiento.get('tipo') !== TIPO_MOVIMIENTO.EGRESO) {
@@ -201,6 +203,9 @@ export class DashboardController {
             const porCobrar = await Venta.sum('saldo_pendiente', {
                 where: { estado: { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] } }
             });
+            const porPagar = await Compra.sum('saldo_pendiente', {
+                where: { estado: { [Op.in]: [ESTADO_COMPRA.PENDIENTE, ESTADO_COMPRA.PARCIAL] } }
+            });
 
             res.status(200).json({
                 fecha_desde: inicio,
@@ -210,6 +215,7 @@ export class DashboardController {
                 saldo_neto: roundMoney(ingresos - egresos),
                 cobrado,
                 por_cobrar: roundMoney(Number(porCobrar || 0)),
+                por_pagar: roundMoney(Number(porPagar || 0)),
                 movimientos: movimientos.map((item: any) => mapMovimiento(item))
             });
         } catch (error) {

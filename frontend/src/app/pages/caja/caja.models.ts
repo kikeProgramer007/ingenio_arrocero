@@ -77,6 +77,7 @@ export interface MovimientoResumen {
     categoria: string;
     concepto: string;
     contraparte?: string;
+    origen_id?: number | null;
     metodo_pago?: string;
     ingreso?: number;
     egreso?: number;
@@ -123,6 +124,7 @@ export interface ControlIngresosEgresos {
     saldo_neto: number;
     cobrado: number;
     por_cobrar: number;
+    por_pagar: number;
     movimientos: MovimientoResumen[];
 }
 

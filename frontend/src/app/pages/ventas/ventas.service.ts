@@ -32,13 +32,19 @@ export class ClientesService {
 export class VentasService {
     constructor(private http: HttpClient) {}
 
-    listar(filtros?: { estado?: string; id_cliente?: number }): Observable<Venta[]> {
+    listar(filtros?: { estado?: string; id_cliente?: number; fecha_desde?: string; fecha_hasta?: string }): Observable<Venta[]> {
         let params = new HttpParams();
         if (filtros?.estado) {
             params = params.set('estado', filtros.estado);
         }
         if (filtros?.id_cliente) {
             params = params.set('id_cliente', String(filtros.id_cliente));
+        }
+        if (filtros?.fecha_desde) {
+            params = params.set('fecha_desde', filtros.fecha_desde);
+        }
+        if (filtros?.fecha_hasta) {
+            params = params.set('fecha_hasta', filtros.fecha_hasta);
         }
         return this.http.get<Venta[]>(apiUrl('/api/ventas'), { params });
     }
@@ -49,6 +55,10 @@ export class VentasService {
 
     crear(payload: CrearVentaPayload): Observable<ApiMensaje<Venta>> {
         return this.http.post<ApiMensaje<Venta>>(apiUrl('/api/ventas'), payload);
+    }
+
+    anular(id: number): Observable<ApiMensaje<Venta>> {
+        return this.http.put<ApiMensaje<Venta>>(apiUrl(`/api/ventas/${id}/anular`), {});
     }
 
     listarCobranzas(filtros?: { id_venta?: number; id_cliente?: number }): Observable<Cobranza[]> {

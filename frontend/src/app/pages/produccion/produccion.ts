@@ -12,11 +12,13 @@ import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { apiUrl } from '../../core/utils/api-url';
 import { formatFecha } from '../caja/caja.utils';
+import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
+import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 
 @Component({
     selector: 'app-produccion',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, SelectModule, TableModule, TextareaModule, ToastModule],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, SelectModule, TableModule, TextareaModule, ToastModule, TablaEsqueletoComponent, AyudaCampoComponent],
     providers: [MessageService],
     template: `
         <p-toast />
@@ -28,7 +30,7 @@ import { formatFecha } from '../caja/caja.utils';
             <p-button label="Nueva producción" icon="pi pi-plus" (onClick)="dialog = true" />
         </div>
         <div class="card">
-            <p-table [value]="items" [loading]="cargando" [paginator]="true" [rows]="10">
+            <p-table [value]="cargando ? [] : items" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10">
                 <ng-template #header>
                     <tr><th>Fecha</th><th>Origen</th><th>Entrada</th><th>Destino</th><th>Salida</th><th>Merma</th></tr>
                 </ng-template>
@@ -42,15 +44,18 @@ import { formatFecha } from '../caja/caja.utils';
                         <td>{{ p.merma }}</td>
                     </tr>
                 </ng-template>
+                <ng-template #loadingbody>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="6" [fila]="f"></tr>
+                </ng-template>
             </p-table>
         </div>
         <p-dialog header="Registrar producción" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }">
             <div class="flex flex-col gap-3">
-                <div><label class="block font-bold mb-2">Producto origen</label><p-select [options]="productos" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_producto_origen" fluid /></div>
-                <div><label class="block font-bold mb-2">Cantidad entrada</label><p-inputNumber [(ngModel)]="form.cantidad_entrada" [min]="0.001" [maxFractionDigits]="3" fluid /></div>
-                <div><label class="block font-bold mb-2">Producto destino</label><p-select [options]="productos" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_producto_destino" fluid /></div>
-                <div><label class="block font-bold mb-2">Cantidad salida</label><p-inputNumber [(ngModel)]="form.cantidad_salida" [min]="0.001" [maxFractionDigits]="3" fluid /></div>
-                <div><label class="block font-bold mb-2">Observación</label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="form.observacion"></textarea></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Producto origen <app-ayuda-campo texto="Materia prima que se consume (ej. chala). Baja del inventario." posicion="right" /></label><p-select [options]="productos" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_producto_origen" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad entrada <app-ayuda-campo texto="Cuánto origen se usa. Debe haber stock." posicion="right" /></label><p-inputNumber [(ngModel)]="form.cantidad_entrada" [min]="0.001" [maxFractionDigits]="3" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Producto destino <app-ayuda-campo texto="Producto que sale del proceso (ej. arroz pilado). Entra al inventario." posicion="right" /></label><p-select [options]="productos" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_producto_destino" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad salida <app-ayuda-campo texto="Cuánto producto terminado se obtiene. Puede ser distinta a la entrada." posicion="right" /></label><p-inputNumber [(ngModel)]="form.cantidad_salida" [min]="0.001" [maxFractionDigits]="3" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Turno, merma, lote, etc." posicion="top" /></label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="form.observacion"></textarea></div>
             </div>
             <ng-template #footer>
                 <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialog = false" />

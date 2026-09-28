@@ -9,13 +9,14 @@ import { DashboardResumen } from '../caja/caja.models';
 import { etiquetaCategoria, formatBs } from '../caja/caja.utils';
 import { APP_ROUTES } from '../../core/constants/app-routes';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
+import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { RecentSalesWidget } from './components/recentsaleswidget';
 import { RevenueStreamWidget } from './components/revenuestreamwidget';
 import { StatsWidget } from './components/statswidget';
 
 @Component({
     selector: 'app-dashboard',
-    imports: [CommonModule, ButtonModule, RouterModule, TableModule, TagModule, StatsWidget, RecentSalesWidget, RevenueStreamWidget, EstadoVacioComponent],
+    imports: [CommonModule, ButtonModule, RouterModule, TableModule, TagModule, StatsWidget, RecentSalesWidget, RevenueStreamWidget, EstadoVacioComponent, TablaEsqueletoComponent],
     template: `
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>
@@ -69,7 +70,7 @@ import { StatsWidget } from './components/statswidget';
                         <div class="font-semibold text-xl">Cuentas pendientes</div>
                         <a [routerLink]="cobranzasRoute" class="text-primary text-sm">Registrar cobranza</a>
                     </div>
-                    <p-table [value]="resumen?.cuentas_pendientes || []" [loading]="loading" responsiveLayout="scroll">
+                    <p-table [value]="loading ? [] : (resumen?.cuentas_pendientes || [])" [loading]="loading" [showLoader]="false" responsiveLayout="scroll">
                         <ng-template #header>
                             <tr><th>Venta</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Estado</th></tr>
                         </ng-template>
@@ -82,6 +83,9 @@ import { StatsWidget } from './components/statswidget';
                                 <td class="font-medium">{{ formatBs(item.pendiente) }}</td>
                                 <td><p-tag [value]="item.estado" [severity]="item.estado === 'PARCIAL' ? 'info' : 'warn'" /></td>
                             </tr>
+                        </ng-template>
+                        <ng-template #loadingbody>
+                            <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="6" [fila]="f"></tr>
                         </ng-template>
                         <ng-template #emptymessage>
                             <tr>

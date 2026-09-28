@@ -2,12 +2,15 @@ import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
+import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
@@ -16,10 +19,15 @@ import { METODOS_PAGO_OPTIONS } from '../caja/caja.constants';
 import { formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Cliente, LineaVenta, Venta } from './ventas.models';
 import { ClientesService, VentasService } from './ventas.service';
+import { ExportarService, FormatoExport } from '../../shared/services/exportar.service';
 import { ProductoLista, ProductosService } from '../inventario/productos.service';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
 import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
+import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
+import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
+import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
     selector: 'app-ventas',
@@ -28,17 +36,23 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
         CommonModule,
         FormsModule,
         ButtonModule,
+        DatePickerModule,
         DialogModule,
         InputNumberModule,
         InputTextModule,
         SelectModule,
+        SelectButtonModule,
         TableModule,
         TagModule,
         TextareaModule,
         ToastModule,
         EstadoVacioComponent,
         KpiGridComponent,
-        DialogCajaCerradaComponent
+        DialogCajaCerradaComponent,
+        BotonesExportarComponent,
+        TablaEsqueletoComponent,
+        AyudaCampoComponent,
+        TooltipModule
     ],
     providers: [MessageService],
     template: `
@@ -56,15 +70,26 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
 
         <div class="card">
             <div class="grid grid-cols-12 gap-3 mb-4">
-                <div class="col-span-12 md:col-span-4">
-                    <label class="block font-bold mb-2">Estado</label>
+                <div class="col-span-12 md:col-span-3">
+                    <label class="flex items-center gap-1 font-bold mb-2">Estado <app-ayuda-campo texto="Pendiente o parcial: aún hay saldo. Pagada: cobrada. Anulada: no suma y se devolvió el stock." posicion="bottom" /></label>
                     <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid />
                 </div>
-                <div class="col-span-12 md:col-span-4 flex items-end gap-2">
+                <div class="col-span-12 md:col-span-3">
+                    <label class="flex items-center gap-1 font-bold mb-2">Cliente <app-ayuda-campo texto="Filtra las ventas de un comprador. Déjalo en Todos para ver todos." posicion="bottom" /></label>
+                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCliente" placeholder="Todos" [filter]="true" [showClear]="true" fluid />
+                </div>
+                <div class="col-span-12 md:col-span-4">
+                    <label class="flex items-center gap-1 font-bold mb-2">Período <app-ayuda-campo texto="Rango de fechas de la venta. La venta siempre se registra con la fecha de hoy." posicion="left" /></label>
+                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" [readonlyInput]="true" placeholder="Fechas" fluid />
+                </div>
+                <div class="col-span-12 md:col-span-2 flex items-end gap-2 flex-wrap">
                     <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
                 </div>
+                <div class="col-span-12 flex justify-end">
+                    <app-botones-exportar tipo="ventas" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" [idCliente]="filtroCliente" [estado]="filtroEstado" />
+                </div>
             </div>
-            <p-table [value]="ventas" [loading]="cargando" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table [value]="cargando ? [] : ventas" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
                 <ng-template #header>
                     <tr>
                         <th>#</th>
@@ -86,8 +111,15 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                         <td>{{ formatBs(venta.pagado) }}</td>
                         <td>{{ formatBs(venta.saldo_pendiente) }}</td>
                         <td><p-tag [value]="venta.estado" [severity]="severidad(venta.estado)" /></td>
-                        <td><p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" (onClick)="ver(venta)" /></td>
+                        <td>
+                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" pTooltip="Ver detalle" tooltipPosition="left" (onClick)="ver(venta)" />
+                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" class="ml-1" pTooltip="Nota de venta (PDF)" tooltipPosition="left" (onClick)="exportarVenta(venta, 'pdf')" [disabled]="venta.estado === 'ANULADA'" />
+                            <p-button *ngIf="venta.estado !== 'ANULADA'" icon="pi pi-times" [rounded]="true" [outlined]="true" severity="danger" class="ml-1" pTooltip="Anular: devuelve stock y descuenta lo cobrado de caja" tooltipPosition="left" (onClick)="pedirAnular(venta)" />
+                        </td>
                     </tr>
+                </ng-template>
+                <ng-template #loadingbody>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
                     <tr>
@@ -106,19 +138,22 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
         <p-dialog header="Nueva venta" [(visible)]="dialogNueva" [modal]="true" [style]="{ width: '56rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
                 <div>
-                    <label class="block font-bold mb-2">Cliente</label>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="flex items-center gap-1 font-bold">Cliente <app-ayuda-campo texto="Quien compra. Si no está en la lista, pulsa Nuevo." posicion="right" /></label>
+                        <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirClienteRapido()" />
+                    </div>
                     <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="idCliente" placeholder="Seleccione cliente" [filter]="true" fluid />
                 </div>
                 <div>
                     <div class="flex justify-between items-center mb-2">
-                        <label class="font-bold">Productos / líneas</label>
+                        <label class="flex items-center gap-1 font-bold">Productos / líneas <app-ayuda-campo texto="Producto del inventario baja stock. Sin producto: escribe un concepto (flete, servicio) en Descripción." posicion="right" /></label>
                         <p-button label="Agregar línea" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="agregarLinea()" />
                     </div>
                     <p class="text-muted-color text-sm mb-3">Si eliges un producto del inventario, baja el stock. Si es un concepto (flete, etc.), déjalo en blanco y escribe la descripción.</p>
                     <div class="flex flex-col gap-3" *ngFor="let linea of lineas; let i = index">
                         <div class="grid grid-cols-12 gap-2 items-end">
                             <div class="col-span-12 md:col-span-5">
-                                <label class="block text-sm mb-1">Producto</label>
+                                <label class="flex items-center gap-1 text-sm mb-1">Producto <app-ayuda-campo texto="Ej.: Arroz pilado. Vacío = línea sin inventario." posicion="bottom" /></label>
                                 <p-select
                                     [options]="productosOpciones"
                                     optionLabel="etiqueta"
@@ -132,15 +167,15 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                                 />
                             </div>
                             <div class="col-span-12" *ngIf="!linea.id_producto">
-                                <label class="block text-sm mb-1">Descripción</label>
+                                <label class="flex items-center gap-1 text-sm mb-1">Descripción <app-ayuda-campo texto="Ej.: Flete Santa Cruz, servicio de entrega." posicion="top" /></label>
                                 <input pInputText class="w-full" placeholder="Ej. flete, servicio" [(ngModel)]="linea.descripcion" />
                             </div>
                             <div class="col-span-4 md:col-span-2">
-                                <label class="block text-sm mb-1">Cantidad</label>
+                                <label class="flex items-center gap-1 text-sm mb-1">Cantidad <app-ayuda-campo texto="Kilos o unidades que salen. Debe haber stock suficiente." posicion="top" /></label>
                                 <p-inputNumber [(ngModel)]="linea.cantidad" [min]="0" [minFractionDigits]="0" [maxFractionDigits]="3" fluid />
                             </div>
                             <div class="col-span-4 md:col-span-3">
-                                <label class="block text-sm mb-1">Precio</label>
+                                <label class="flex items-center gap-1 text-sm mb-1">Precio <app-ayuda-campo texto="Precio unitario en bolivianos. El subtotal es cantidad × precio." posicion="left" /></label>
                                 <p-inputNumber [(ngModel)]="linea.precio_unitario" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                             </div>
                             <div class="col-span-4 md:col-span-2">
@@ -150,25 +185,39 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                         <small class="text-orange-500" *ngIf="avisoStock(linea)">{{ avisoStock(linea) }}</small>
                     </div>
                     <div class="text-right font-semibold mt-3">Total venta: {{ formatBs(totalLineas()) }}</div>
-                    <div class="text-right text-muted-color">Cobrado ahora: {{ formatBs(pagoInicial) }} · Quedará pendiente: {{ formatBs(pendienteEstimado()) }}</div>
+                    <div class="text-right text-muted-color">Se cobra ahora: {{ formatBs(pagoAlRegistrar()) }} · Quedará pendiente: {{ formatBs(pendienteEstimado()) }}</div>
                 </div>
-                <div class="grid grid-cols-12 gap-3">
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de cobro <app-ayuda-campo texto="Contado: el total entra a caja ahora. Crédito: queda por cobrar; puedes abonar una parte." posicion="right" /></label>
+                    <p-selectbutton [options]="modosCobro" optionLabel="label" optionValue="value" [(ngModel)]="modoCobro" [allowEmpty]="false" />
+                    <small class="block text-muted-color mt-2">La fecha de la venta es la de hoy. No se puede registrar con fecha anterior.</small>
+                </div>
+                <div class="grid grid-cols-12 gap-3" *ngIf="modoCobro === 'CREDITO'">
                     <div class="col-span-12 md:col-span-4">
-                        <label class="block font-bold mb-2">Cobro ahora (ingreso)</label>
+                        <label class="flex items-center gap-1 font-bold mb-2">Abono ahora (opcional) <app-ayuda-campo texto="Ej.: total Bs 1.640, abono Bs 500. El resto queda pendiente. 0 = todo a crédito." posicion="top" /></label>
                         <p-inputNumber [(ngModel)]="pagoInicial" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
-                        <small class="text-muted-color">Si es 0, la venta queda pendiente. Requiere caja abierta.</small>
                     </div>
-                    <div class="col-span-12 md:col-span-4">
-                        <label class="block font-bold mb-2">Método</label>
+                    <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
+                        <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo recibió el dinero: efectivo, QR o transferencia." posicion="top" /></label>
                         <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="metodoPago" placeholder="Método" fluid />
                     </div>
-                    <div class="col-span-12 md:col-span-4">
-                        <label class="block font-bold mb-2">Referencia</label>
+                    <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
+                        <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia, nro. de QR o comprobante." posicion="left" /></label>
+                        <input pInputText class="w-full" [(ngModel)]="referencia" />
+                    </div>
+                </div>
+                <div class="grid grid-cols-12 gap-3" *ngIf="modoCobro === 'CONTADO'">
+                    <div class="col-span-12 md:col-span-6">
+                        <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo recibió el dinero: efectivo, QR o transferencia." posicion="top" /></label>
+                        <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="metodoPago" placeholder="Método" fluid />
+                    </div>
+                    <div class="col-span-12 md:col-span-6">
+                        <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia, nro. de QR o comprobante." posicion="left" /></label>
                         <input pInputText class="w-full" [(ngModel)]="referencia" />
                     </div>
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Observación</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Nota interna. No aparece como ingreso; solo queda en la venta." posicion="top" /></label>
                     <textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea>
                 </div>
             </div>
@@ -201,7 +250,84 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                     </ng-template>
                 </p-table>
                 <div class="mt-3 font-medium">Estado financiero de esta venta: cobrado {{ formatBs(detalle.pagado) }} de {{ formatBs(detalle.total) }}</div>
+                <div class="font-semibold mt-4 mb-2">Cobranzas</div>
+                <p-table [value]="detalle.cobranzas || []" *ngIf="detalle.cobranzas?.length">
+                    <ng-template #header>
+                        <tr><th>Fecha</th><th>Monto</th><th>Método</th><th>Usuario</th></tr>
+                    </ng-template>
+                    <ng-template #body let-cob>
+                        <tr>
+                            <td>{{ formatFecha(cob.fecha) }}</td>
+                            <td>{{ formatBs(cob.monto) }}</td>
+                            <td>{{ cob.metodo_pago }}</td>
+                            <td>{{ cob.usuario?.username || '-' }}</td>
+                        </tr>
+                    </ng-template>
+                </p-table>
+                <div class="text-muted-color" *ngIf="!detalle.cobranzas?.length">Aún no hay cobros registrados en esta venta.</div>
             </ng-container>
+            <ng-template #footer>
+                <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogDetalle = false" />
+                <p-button *ngIf="detalle && (detalle.estado === 'PENDIENTE' || detalle.estado === 'PARCIAL')" label="Cobrar" icon="pi pi-wallet" (onClick)="abrirCobroDetalle()" />
+                <p-button *ngIf="detalle && detalle.estado !== 'ANULADA'" label="Anular" icon="pi pi-times" severity="danger" [outlined]="true" (onClick)="pedirAnular(detalle)" />
+                <p-button *ngIf="detalle && detalle.estado !== 'ANULADA'" label="PDF" icon="pi pi-file-pdf" (onClick)="exportarVenta(detalle, 'pdf')" />
+            </ng-template>
+        </p-dialog>
+
+        <p-dialog header="Nuevo cliente" [(visible)]="dialogCliente" [modal]="true" [style]="{ width: '28rem' }" [breakpoints]="{ '960px': '95vw' }">
+            <div class="flex flex-col gap-3">
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Nombre comercial o de la persona. Ej.: Distribuidora Rojas." posicion="right" /></label>
+                    <input pInputText class="w-full" [(ngModel)]="clienteRapido.nombre" />
+                </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">NIT / CI <app-ayuda-campo texto="Documento para la nota de venta. Puede dejarse vacío." posicion="right" /></label>
+                    <input pInputText class="w-full" [(ngModel)]="clienteRapido.nit_ci" />
+                </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Teléfono <app-ayuda-campo texto="Para contactarlo al cobrar. Opcional." posicion="top" /></label>
+                    <input pInputText class="w-full" [(ngModel)]="clienteRapido.telefono" />
+                </div>
+            </div>
+            <ng-template #footer>
+                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogCliente = false" />
+                <p-button label="Guardar" [loading]="guardandoCliente" (onClick)="guardarClienteRapido()" />
+            </ng-template>
+        </p-dialog>
+
+        <p-dialog header="Registrar cobranza" [(visible)]="dialogCobro" [modal]="true" [style]="{ width: '28rem' }" [breakpoints]="{ '960px': '95vw' }">
+            <div class="flex flex-col gap-3" *ngIf="detalle">
+                <div class="text-muted-color">Venta #{{ detalle.id }} · saldo {{ formatBs(detalle.saldo_pendiente) }}</div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="No puede superar el saldo. Puedes cobrar menos y dejar el resto pendiente." posicion="right" /></label>
+                    <p-inputNumber [(ngModel)]="cobroMonto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid />
+                </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo entra a caja este cobro: efectivo, QR o transferencia." posicion="right" /></label>
+                    <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="cobroMetodo" fluid />
+                </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante QR. Opcional en efectivo." posicion="top" /></label>
+                    <input pInputText class="w-full" [(ngModel)]="cobroReferencia" />
+                </div>
+            </div>
+            <ng-template #footer>
+                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogCobro = false" />
+                <p-button label="Cobrar" [loading]="guardando" (onClick)="guardarCobroDetalle()" />
+            </ng-template>
+        </p-dialog>
+
+        <p-dialog header="Anular venta" [(visible)]="dialogAnular" [modal]="true" [style]="{ width: '28rem' }">
+            <p *ngIf="ventaAnular">
+                ¿Anular la venta #{{ ventaAnular.id }} de {{ ventaAnular.cliente?.nombre }}?
+                Se devuelve el stock.
+                <span *ngIf="ventaAnular.pagado > 0"> Lo cobrado ({{ formatBs(ventaAnular.pagado) }}) se descuenta de la caja abierta.</span>
+                <span *ngIf="ventaAnular.pagado <= 0"> Esta venta no había generado ingreso a caja.</span>
+            </p>
+            <ng-template #footer>
+                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogAnular = false" />
+                <p-button label="Anular" severity="danger" [loading]="guardando" (onClick)="confirmarAnular()" />
+            </ng-template>
         </p-dialog>
     `
 })
@@ -214,14 +340,31 @@ export class VentasPage implements OnInit {
     dialogNueva = false;
     dialogDetalle = false;
     dialogCajaCerrada = false;
+    dialogCliente = false;
+    dialogCobro = false;
+    dialogAnular = false;
+    guardandoCliente = false;
+    ventaAnular: Venta | null = null;
+    cobroMonto = 0;
+    cobroMetodo = 'EFECTIVO';
+    cobroReferencia = '';
+    clienteRapido = { nombre: '', nit_ci: '', telefono: '' };
     filtroEstado = '';
+    filtroCliente: number | null = null;
+    rango: Date[] | null = null;
     estados = [
         { label: 'Todas', value: '' },
         { label: 'Pendiente', value: 'PENDIENTE' },
         { label: 'Parcial', value: 'PARCIAL' },
-        { label: 'Pagada', value: 'PAGADA' }
+        { label: 'Pagada', value: 'PAGADA' },
+        { label: 'Anulada', value: 'ANULADA' }
     ];
     metodos = METODOS_PAGO_OPTIONS;
+    modosCobro = [
+        { label: 'Contado', value: 'CONTADO' },
+        { label: 'Crédito', value: 'CREDITO' }
+    ];
+    modoCobro = 'CONTADO';
     idCliente: number | null = null;
     lineas: LineaVenta[] = [this.lineaVacia()];
     pagoInicial = 0;
@@ -233,14 +376,15 @@ export class VentasPage implements OnInit {
     formatFecha = formatFecha;
 
     get kpis(): KpiItem[] {
-        const total = this.ventas.reduce((acc, v) => acc + Number(v.total || 0), 0);
-        const cobrado = this.ventas.reduce((acc, v) => acc + Number(v.pagado || 0), 0);
-        const pendiente = this.ventas.reduce((acc, v) => acc + Number(v.saldo_pendiente || 0), 0);
+        const vigentes = this.ventas.filter((v) => v.estado !== 'ANULADA');
+        const total = vigentes.reduce((acc, v) => acc + Number(v.total || 0), 0);
+        const cobrado = vigentes.reduce((acc, v) => acc + Number(v.pagado || 0), 0);
+        const pendiente = vigentes.reduce((acc, v) => acc + Number(v.saldo_pendiente || 0), 0);
         return [
             { label: 'Ventas', value: formatBs(total), icon: 'pi pi-shopping-cart', tone: 'neutral' },
             { label: 'Cobrado', value: formatBs(cobrado), icon: 'pi pi-money-bill', tone: 'success' },
             { label: 'Pendiente', value: formatBs(pendiente), icon: 'pi pi-clock', tone: 'warn' },
-            { label: 'Documentos', value: String(this.ventas.length), icon: 'pi pi-file', tone: 'info' }
+            { label: 'Documentos', value: String(vigentes.length), icon: 'pi pi-file', tone: 'info' }
         ];
     }
 
@@ -248,13 +392,36 @@ export class VentasPage implements OnInit {
         private ventasService: VentasService,
         private clientesService: ClientesService,
         private productosService: ProductosService,
-        private messageService: MessageService
+        private messageService: MessageService,
+        private exportarService: ExportarService,
+        private route: ActivatedRoute
     ) {}
+
+    get fechaDesde(): string | undefined {
+        return this.rango?.[0] ? this.ymd(this.rango[0]) : undefined;
+    }
+
+    get fechaHasta(): string | undefined {
+        const hasta = this.rango?.[1] || this.rango?.[0];
+        return hasta ? this.ymd(hasta) : undefined;
+    }
+
+    exportarVenta(venta: Venta, formato: FormatoExport): void {
+        this.exportarService.descargar({ tipo: 'venta', formato, id: venta.id }).subscribe({
+            error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de la venta' })
+        });
+    }
 
     ngOnInit(): void {
         this.cargar();
         this.cargarProductos();
         this.clientesService.listar().subscribe({ next: (data) => (this.clientes = data) });
+        this.route.queryParamMap.subscribe((params) => {
+            const id = Number(params.get('id'));
+            if (id) {
+                this.ver({ id } as Venta);
+            }
+        });
     }
 
     get productosOpciones() {
@@ -266,7 +433,12 @@ export class VentasPage implements OnInit {
 
     cargar(): void {
         this.cargando = true;
-        this.ventasService.listar({ estado: this.filtroEstado || undefined }).subscribe({
+        this.ventasService.listar({
+            estado: this.filtroEstado || undefined,
+            id_cliente: this.filtroCliente || undefined,
+            fecha_desde: this.rango?.[0] ? this.ymd(this.rango[0]) : undefined,
+            fecha_hasta: this.rango?.[1] || this.rango?.[0] ? this.ymd(this.rango[1] || this.rango[0]) : undefined
+        }).subscribe({
             next: (data) => {
                 this.ventas = data;
                 this.cargando = false;
@@ -282,6 +454,7 @@ export class VentasPage implements OnInit {
         this.idCliente = null;
         this.lineas = [this.lineaVacia()];
         this.pagoInicial = 0;
+        this.modoCobro = 'CONTADO';
         this.metodoPago = 'EFECTIVO';
         this.referencia = '';
         this.observacion = '';
@@ -301,8 +474,17 @@ export class VentasPage implements OnInit {
     }
 
     pendienteEstimado(): number {
-        const pendiente = this.totalLineas() - Number(this.pagoInicial || 0);
+        const pendiente = this.totalLineas() - this.pagoAlRegistrar();
         return pendiente > 0 ? pendiente : 0;
+    }
+
+    pagoAlRegistrar(): number {
+        if (this.modoCobro === 'CONTADO') {
+            return this.totalLineas();
+        }
+        const abono = Number(this.pagoInicial || 0);
+        const total = this.totalLineas();
+        return abono > total ? total : abono;
     }
 
     guardar(): void {
@@ -315,6 +497,7 @@ export class VentasPage implements OnInit {
             this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Agregue al menos un producto o una descripción' });
             return;
         }
+        const cobro = this.pagoAlRegistrar();
         this.guardando = true;
         this.ventasService.crear({
             id_cliente: this.idCliente,
@@ -325,9 +508,9 @@ export class VentasPage implements OnInit {
                 precio_unitario: Number(l.precio_unitario),
                 id_producto: l.id_producto || undefined
             })),
-            pago_inicial: this.pagoInicial || 0,
-            metodo_pago: this.pagoInicial > 0 ? this.metodoPago : undefined,
-            referencia: this.referencia || undefined
+            pago_inicial: cobro,
+            metodo_pago: cobro > 0 ? this.metodoPago : undefined,
+            referencia: cobro > 0 ? this.referencia || undefined : undefined
         }).subscribe({
             next: (res) => {
                 this.guardando = false;
@@ -354,6 +537,107 @@ export class VentasPage implements OnInit {
                 this.dialogDetalle = true;
             },
             error: (err) => this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo cargar el detalle') })
+        });
+    }
+
+    abrirClienteRapido(): void {
+        this.clienteRapido = { nombre: '', nit_ci: '', telefono: '' };
+        this.dialogCliente = true;
+    }
+
+    guardarClienteRapido(): void {
+        if (!this.clienteRapido.nombre.trim()) {
+            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'El nombre es obligatorio' });
+            return;
+        }
+        this.guardandoCliente = true;
+        this.clientesService.crear({
+            nombre: this.clienteRapido.nombre.trim(),
+            nit_ci: this.clienteRapido.nit_ci.trim() || undefined,
+            telefono: this.clienteRapido.telefono.trim() || undefined,
+            activo: true
+        }).subscribe({
+            next: (res) => {
+                this.guardandoCliente = false;
+                this.dialogCliente = false;
+                this.clientes = [...this.clientes, res.data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+                this.idCliente = res.data.id;
+                this.messageService.add({ severity: 'success', summary: 'Cliente', detail: res.mensaje });
+            },
+            error: (err) => {
+                this.guardandoCliente = false;
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo crear el cliente') });
+            }
+        });
+    }
+
+    abrirCobroDetalle(): void {
+        if (!this.detalle) {
+            return;
+        }
+        this.cobroMonto = Number(this.detalle.saldo_pendiente || 0);
+        this.cobroMetodo = 'EFECTIVO';
+        this.cobroReferencia = '';
+        this.dialogCobro = true;
+    }
+
+    guardarCobroDetalle(): void {
+        if (!this.detalle || !this.cobroMonto) {
+            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Indique el monto a cobrar' });
+            return;
+        }
+        this.guardando = true;
+        this.ventasService.crearCobranza({
+            id_venta: this.detalle.id,
+            monto: this.cobroMonto,
+            metodo_pago: this.cobroMetodo,
+            referencia: this.cobroReferencia || undefined
+        }).subscribe({
+            next: (res) => {
+                this.guardando = false;
+                this.dialogCobro = false;
+                this.messageService.add({ severity: 'success', summary: 'Cobranza', detail: res.mensaje });
+                this.cargar();
+                this.ver(this.detalle!);
+            },
+            error: (err) => {
+                this.guardando = false;
+                if (esErrorCajaCerrada(err)) {
+                    this.dialogCajaCerrada = true;
+                    return;
+                }
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo registrar la cobranza') });
+            }
+        });
+    }
+
+    pedirAnular(venta: Venta): void {
+        this.ventaAnular = venta;
+        this.dialogAnular = true;
+    }
+
+    confirmarAnular(): void {
+        if (!this.ventaAnular) {
+            return;
+        }
+        this.guardando = true;
+        this.ventasService.anular(this.ventaAnular.id).subscribe({
+            next: (res) => {
+                this.guardando = false;
+                this.dialogAnular = false;
+                this.dialogDetalle = false;
+                this.messageService.add({ severity: 'success', summary: 'Venta', detail: res.mensaje });
+                this.cargar();
+                this.cargarProductos();
+            },
+            error: (err) => {
+                this.guardando = false;
+                if (esErrorCajaCerrada(err)) {
+                    this.dialogCajaCerrada = true;
+                    return;
+                }
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo anular la venta') });
+            }
         });
     }
 
@@ -390,6 +674,13 @@ export class VentasPage implements OnInit {
 
     private cargarProductos(): void {
         this.productosService.listar().subscribe({ next: (data) => (this.productos = data) });
+    }
+
+    private ymd(fecha: Date): string {
+        const y = fecha.getFullYear();
+        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+        const d = String(fecha.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
     }
 
     private nombreProducto(id?: number | null): string {

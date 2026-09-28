@@ -16,11 +16,14 @@ import { apiUrl } from '../../core/utils/api-url';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 import { formatBs } from '../caja/caja.utils';
 import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
+import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
+import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
+import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 
 @Component({
     selector: 'app-inventario',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, ImagenCampoComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent],
     providers: [MessageService],
     template: `
         <p-toast />
@@ -32,7 +35,10 @@ import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
             <p-button label="Nuevo producto" icon="pi pi-plus" (onClick)="abrirNuevo()" />
         </div>
         <div class="card">
-            <p-table [value]="productos" [loading]="cargando" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <div class="flex justify-end mb-3">
+                <app-botones-exportar tipo="inventario" />
+            </div>
+            <p-table [value]="cargando ? [] : productos" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
                 <ng-template #header>
                     <tr><th></th><th>Producto</th><th>Categoría</th><th>Unidad</th><th>Stock</th><th>Mínimo</th><th>P. venta</th><th></th></tr>
                 </ng-template>
@@ -52,6 +58,9 @@ import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
                         </td>
                     </tr>
                 </ng-template>
+                <ng-template #loadingbody>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f" [conAvatar]="true"></tr>
+                </ng-template>
                 <ng-template #emptymessage>
                     <tr><td colspan="8"><div class="text-center py-8 text-muted-color">No hay productos.</div></td></tr>
                 </ng-template>
@@ -61,17 +70,17 @@ import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
         <p-dialog [header]="form.id ? 'Editar producto' : 'Nuevo producto'" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }">
             <div class="flex flex-col gap-3">
                 <div>
-                    <label class="block font-bold mb-2">Imagen</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Imagen <app-ayuda-campo texto="Foto del producto. Opcional." posicion="right" /></label>
                     <app-imagen-campo tipo="producto" [path]="form.path_imagen" (pathChange)="form.path_imagen = $event" />
                 </div>
-                <div><label class="block font-bold mb-2">Nombre</label><input pInputText class="w-full" [(ngModel)]="form.nombre" /></div>
-                <div><label class="block font-bold mb-2">Categoría</label><p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_categoria" fluid /></div>
-                <div><label class="block font-bold mb-2">Unidad</label><input pInputText class="w-full" [(ngModel)]="form.unidad_medida" /></div>
-                <div><label class="block font-bold mb-2">Precio venta</label><p-inputNumber [(ngModel)]="form.precio_venta" mode="decimal" [min]="0" prefix="Bs " fluid /></div>
-                <div><label class="block font-bold mb-2">Precio compra</label><p-inputNumber [(ngModel)]="form.precio_compra" mode="decimal" [min]="0" prefix="Bs " fluid /></div>
-                <div *ngIf="!form.id"><label class="block font-bold mb-2">Stock inicial</label><p-inputNumber [(ngModel)]="form.stock" [min]="0" [maxFractionDigits]="3" fluid /></div>
-                <div><label class="block font-bold mb-2">Stock mínimo</label><p-inputNumber [(ngModel)]="form.stock_minimo" [min]="0" [maxFractionDigits]="3" fluid /></div>
-                <div><label class="block font-bold mb-2">Descripción</label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="form.descripcion"></textarea></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Ej.: Arroz pilado, Arroz en chala." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="form.nombre" /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Agrupa el producto (materia prima, terminado, etc.)." posicion="right" /></label><p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_categoria" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Unidad <app-ayuda-campo texto="Ej.: kg, qq, unidad." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="form.unidad_medida" /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Precio venta <app-ayuda-campo texto="Precio sugerido al vender. Se puede cambiar en cada venta." posicion="right" /></label><p-inputNumber [(ngModel)]="form.precio_venta" mode="decimal" [min]="0" prefix="Bs " fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Precio compra <app-ayuda-campo texto="Costo de referencia. Se puede cambiar en cada compra." posicion="right" /></label><p-inputNumber [(ngModel)]="form.precio_compra" mode="decimal" [min]="0" prefix="Bs " fluid /></div>
+                <div *ngIf="!form.id"><label class="flex items-center gap-1 font-bold mb-2">Stock inicial <app-ayuda-campo texto="Cantidad con la que arranca el inventario. Solo al crear." posicion="right" /></label><p-inputNumber [(ngModel)]="form.stock" [min]="0" [maxFractionDigits]="3" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Stock mínimo <app-ayuda-campo texto="Alerta cuando el stock baje de este valor." posicion="right" /></label><p-inputNumber [(ngModel)]="form.stock_minimo" [min]="0" [maxFractionDigits]="3" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Descripción <app-ayuda-campo texto="Detalle interno del producto." posicion="top" /></label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="form.descripcion"></textarea></div>
             </div>
             <ng-template #footer>
                 <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialog = false" />
@@ -81,9 +90,9 @@ import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 
         <p-dialog header="Ajuste de stock" [(visible)]="dialogAjuste" [modal]="true" [style]="{ width: '28rem' }">
             <p class="mb-3" *ngIf="ajusteProducto">{{ ajusteProducto.nombre }} · stock {{ ajusteProducto.stock }}</p>
-            <label class="block font-bold mb-2">Cantidad (+ entra / − sale)</label>
+            <label class="flex items-center gap-1 font-bold mb-2">Cantidad (+ entra / − sale) <app-ayuda-campo texto="Positivo entra al almacén. Negativo sale (merma, ajuste). No uses esto para ventas o compras." posicion="right" /></label>
             <p-inputNumber [(ngModel)]="ajusteCantidad" [maxFractionDigits]="3" fluid />
-            <label class="block font-bold mb-2 mt-3">Observación</label>
+            <label class="flex items-center gap-1 font-bold mb-2 mt-3">Observación <app-ayuda-campo texto="Motivo del ajuste. Ej.: merma, conteo físico." posicion="top" /></label>
             <textarea pTextarea class="w-full" rows="2" [(ngModel)]="ajusteObs"></textarea>
             <ng-template #footer>
                 <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogAjuste = false" />

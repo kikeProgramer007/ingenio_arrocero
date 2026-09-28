@@ -9,6 +9,7 @@ import { ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { CrearGastoDTO } from '../dtos/gasto.dto';
 
 function mapGasto(item: any) {
+    const descontar = Boolean(item.descontar_caja) && item.id_caja != null;
     return {
         id: item.id,
         tipo: item.tipo,
@@ -16,6 +17,7 @@ function mapGasto(item: any) {
         categoria: item.categoria || 'Otros',
         monto: toMoney(item.monto),
         metodo_pago: item.metodo_pago,
+        descontar_caja: descontar,
         referencia: item.referencia,
         observacion: item.observacion,
         id_caja: item.id_caja,
@@ -54,20 +56,28 @@ export class GastoController {
         }
         const transaction = await sequelize.transaction();
         try {
-            const caja = await obtenerCajaAbierta(transaction);
-            if (!caja) {
-                await transaction.rollback();
-                res.status(409).json({ mensaje: 'Debe haber una caja abierta para registrar este movimiento' });
-                return;
+            const descontarCaja = datos.tipo === 'GASTO_EMPRESA' ? true : datos.descontar_caja !== false;
+            let idCaja: number | null = null;
+
+            if (descontarCaja) {
+                const caja = await obtenerCajaAbierta(transaction);
+                if (!caja) {
+                    await transaction.rollback();
+                    res.status(409).json({ mensaje: 'Debe haber una caja abierta para descontar de caja' });
+                    return;
+                }
+                idCaja = caja.get('id') as number;
             }
-            const idCaja = caja.get('id') as number;
+
             const monto = toMoney(datos.monto);
+            const metodoPago = datos.metodo_pago || 'OTRO';
             const gasto = await Gasto.create({
                 tipo: datos.tipo,
                 concepto: datos.concepto.trim(),
                 categoria: datos.categoria || (datos.tipo === 'GASTO_EMPRESA' ? 'Otros' : null),
                 monto,
-                metodo_pago: datos.metodo_pago,
+                metodo_pago: metodoPago,
+                descontar_caja: descontarCaja,
                 referencia: datos.referencia || null,
                 observacion: datos.observacion || null,
                 id_caja: idCaja,
@@ -75,19 +85,21 @@ export class GastoController {
                 id_usuario: usuario.id
             }, { transaction });
 
-            await registrarEgresoCaja({
-                transaction,
-                idCaja,
-                idUsuario: usuario.id,
-                categoria: datos.tipo,
-                concepto: datos.concepto.trim(),
-                monto,
-                metodoPago: datos.metodo_pago,
-                referencia: datos.referencia || null,
-                observacion: datos.observacion || null,
-                origen: ORIGEN_MOVIMIENTO.GASTO,
-                origenId: gasto.get('id') as number
-            });
+            if (descontarCaja && idCaja != null) {
+                await registrarEgresoCaja({
+                    transaction,
+                    idCaja,
+                    idUsuario: usuario.id,
+                    categoria: datos.tipo,
+                    concepto: datos.concepto.trim(),
+                    monto,
+                    metodoPago,
+                    referencia: datos.referencia || null,
+                    observacion: datos.observacion || null,
+                    origen: ORIGEN_MOVIMIENTO.GASTO,
+                    origenId: gasto.get('id') as number
+                });
+            }
 
             await transaction.commit();
             const creado = await Gasto.findByPk(gasto.get('id') as number, {

@@ -71,6 +71,7 @@ export function etiquetaCategoria(categoria: string): string {
         PAGO_PROVEEDOR: 'Pago a proveedor',
         GASTO_EMPRESA: 'Gasto de empresa',
         RETIRO_PERSONAL: 'Retiro personal',
+        ANULACION_VENTA: 'Anulación de venta',
         OTRO_EGRESO: 'Otro egreso'
     };
     return map[categoria] || categoria;

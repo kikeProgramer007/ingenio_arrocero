@@ -1,20 +1,20 @@
 import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
-import { TooltipModule } from 'primeng/tooltip';
+import { AyudaCampoComponent } from './ayuda-campo';
 import { CajaDetalle } from '../../pages/caja/caja.models';
 import { formatBs } from '../../pages/caja/caja.utils';
 
 @Component({
     selector: 'app-cuadre-caja',
     standalone: true,
-    imports: [CommonModule, TooltipModule],
+    imports: [CommonModule, AyudaCampoComponent],
     template: `
         <div class="grid grid-cols-12 gap-4" *ngIf="caja">
             <div class="col-span-12 xl:col-span-7">
                 <div class="font-semibold text-lg mb-1">Cuadre de caja</div>
                 <p class="text-muted-color text-sm mb-4">
                     Solo entra lo que suma o resta dinero en caja.
-                    <i class="pi pi-info-circle ml-1" pTooltip="El saldo inicial no es un ingreso del día. Las ventas sin cobro no entran aquí."></i>
+                    <app-ayuda-campo texto="El saldo inicial no es un ingreso del día. Las ventas sin cobro no entran aquí." posicion="right" />
                 </p>
                 <div class="flex flex-col gap-2 text-sm">
                     <div class="flex justify-between py-2 border-b border-surface">

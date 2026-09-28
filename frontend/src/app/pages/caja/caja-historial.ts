@@ -7,7 +7,6 @@ import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
-import { SkeletonModule } from 'primeng/skeleton';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
@@ -16,6 +15,9 @@ import { CajaDetalle } from './caja.models';
 import { CajaService } from './caja.service';
 import { etiquetaCategoria, etiquetaMetodo, formatBs, formatFecha, formatHora } from './caja.utils';
 import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
+import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
+import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
+import { ExportarService, FormatoExport } from '../../shared/services/exportar.service';
 
 @Component({
     selector: 'app-caja-historial',
@@ -27,11 +29,12 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
         DatePickerModule,
         DialogModule,
         SelectModule,
-        SkeletonModule,
         TableModule,
         TagModule,
         ToastModule,
-        CuadreCajaComponent
+        CuadreCajaComponent,
+        BotonesExportarComponent,
+        TablaEsqueletoComponent
     ],
     providers: [MessageService],
     template: `
@@ -57,7 +60,7 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
                 </div>
             </div>
 
-            <p-table [value]="cajas" [loading]="cargando" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table [value]="cargando ? [] : cajas" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
@@ -89,10 +92,15 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
                         <td>
                             <p-tag [value]="caja.estado" [severity]="caja.estado === 'ABIERTA' ? 'success' : 'secondary'" />
                         </td>
-                        <td>
+                        <td class="flex gap-1">
                             <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" (onClick)="verDetalle(caja)" />
+                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" (onClick)="exportarCaja(caja, 'pdf')" />
+                            <p-button icon="pi pi-file-excel" [rounded]="true" [outlined]="true" (onClick)="exportarCaja(caja, 'xlsx')" />
                         </td>
                     </tr>
+                </ng-template>
+                <ng-template #loadingbody>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="10" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
                     <tr>
@@ -120,6 +128,9 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
                     <div class="col-span-6 md:col-span-3 font-medium">{{ detalle.saldo_contado == null ? '-' : formatBs(detalle.saldo_contado) }}</div>
                 </div>
                 <p-tag *ngIf="detalle.resultado_arqueo" [value]="detalle.resultado_arqueo" [severity]="severidadArqueo(detalle.resultado_arqueo)" styleClass="mb-4" />
+                <div class="mb-4">
+                    <app-botones-exportar tipo="caja" [idCaja]="detalle.id" />
+                </div>
                 <app-cuadre-caja [caja]="detalle" />
                 <p-table [value]="detalle.movimientos || []" responsiveLayout="scroll" styleClass="mt-4">
                     <ng-template #header>
@@ -173,6 +184,7 @@ export class CajaHistorial implements OnInit {
 
     constructor(
         private cajaService: CajaService,
+        private exportarService: ExportarService,
         private messageService: MessageService
     ) {}
 
@@ -213,6 +225,12 @@ export class CajaHistorial implements OnInit {
         this.rangoFechas = null;
         this.estado = '';
         this.cargar();
+    }
+
+    exportarCaja(caja: CajaDetalle, formato: FormatoExport): void {
+        this.exportarService.descargar({ tipo: 'caja', formato, id_caja: caja.id }).subscribe({
+            error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el archivo' })
+        });
     }
 
     verDetalle(caja: CajaDetalle): void {

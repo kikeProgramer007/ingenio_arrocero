@@ -15,7 +15,7 @@ export interface KpiItem {
     standalone: true,
     imports: [CommonModule, SkeletonModule],
     template: `
-        <div class="grid grid-cols-12 gap-4 w-full">
+        <div class="grid grid-cols-12 gap-8 w-full mb-6">
         <ng-container *ngIf="loading">
             <div [class]="colClass" *ngFor="let i of placeholders">
                 <div class="card mb-0">

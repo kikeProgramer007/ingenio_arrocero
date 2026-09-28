@@ -18,6 +18,9 @@ import { ComprasService } from './compras.service';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
 import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
+import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
+import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
+import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 
 @Component({
     selector: 'app-pagos',
@@ -35,7 +38,10 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
         ToastModule,
         EstadoVacioComponent,
         KpiGridComponent,
-        DialogCajaCerradaComponent
+        DialogCajaCerradaComponent,
+        BotonesExportarComponent,
+        TablaEsqueletoComponent,
+        AyudaCampoComponent
     ],
     providers: [MessageService],
     template: `
@@ -52,7 +58,10 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" />
 
         <div class="card">
-            <p-table [value]="pagos" [loading]="cargando" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <div class="flex justify-end mb-3">
+                <app-botones-exportar tipo="pagos" />
+            </div>
+            <p-table [value]="cargando ? [] : pagos" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
@@ -77,6 +86,9 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                         <td>{{ item.usuario?.username || '-' }}</td>
                     </tr>
                 </ng-template>
+                <ng-template #loadingbody>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
+                </ng-template>
                 <ng-template #emptymessage>
                     <tr>
                         <td colspan="8">
@@ -94,7 +106,7 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
         <p-dialog header="Registrar pago" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
                 <div>
-                    <label class="block font-bold mb-2">Compra pendiente</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Compra pendiente <app-ayuda-campo texto="Solo compras con saldo. El pago sale de caja; la compra no es egreso hasta pagar." posicion="right" /></label>
                     <p-select [options]="pendientes" [(ngModel)]="idCompra" optionValue="id" placeholder="Seleccione compra" [filter]="true" fluid (onChange)="onCompra()">
                         <ng-template #selectedItem let-sel>
                             <span *ngIf="sel">#{{ sel.id }} · {{ sel.proveedor?.nombre }} · saldo {{ formatBs(sel.saldo_pendiente) }}</span>
@@ -105,19 +117,19 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                     </p-select>
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Monto</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="No puede superar el saldo. Puedes pagar una parte." posicion="right" /></label>
                     <p-inputNumber [(ngModel)]="monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Método</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo sale el dinero de caja: efectivo, QR o transferencia." posicion="right" /></label>
                     <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="metodoPago" fluid />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Referencia</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante. Opcional en efectivo." posicion="top" /></label>
                     <input pInputText class="w-full" [(ngModel)]="referencia" />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Observación</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Nota interna del pago." posicion="top" /></label>
                     <textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea>
                 </div>
             </div>

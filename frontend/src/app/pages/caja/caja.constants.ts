@@ -47,6 +47,15 @@ export const TIPOS_MOVIMIENTO_OPTIONS = [
     { label: 'Egreso', value: TIPO_MOVIMIENTO.EGRESO }
 ];
 
+export const ORIGEN_MOVIMIENTO_OPTIONS = [
+    { label: 'Manual', value: 'MANUAL' },
+    { label: 'Venta', value: 'VENTA' },
+    { label: 'Cobranza', value: 'COBRANZA' },
+    { label: 'Compra', value: 'COMPRA' },
+    { label: 'Gasto / retiro', value: 'GASTO' },
+    { label: 'Pago a proveedor', value: 'PAGO_PROVEEDOR' }
+];
+
 export const METODOS_PAGO_OPTIONS = [
     { label: 'Efectivo', value: METODO_PAGO.EFECTIVO },
     { label: 'QR', value: METODO_PAGO.QR },

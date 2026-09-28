@@ -6,6 +6,7 @@ const router = Router();
 
 router.get('/', validateToken, VentaController.listar);
 router.post('/', validateToken, VentaController.crear);
+router.put('/:id/anular', validateToken, VentaController.anular);
 router.get('/:id', validateToken, VentaController.obtener);
 
 export default router;

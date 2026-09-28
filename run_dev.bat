@@ -1,95 +1,174 @@
 @echo off
-title Project Launcher
+setlocal EnableExtensions EnableDelayedExpansion
+title Ingenio Arrozero - Desarrollo
 color 0A
 
-set BACKEND_PATH=backend
-set FRONTEND_PATH=frontend
-
-:init
-cls
-echo **********************************************
-echo          LEVANTANDO PROYECTO FULLSTACK
-echo **********************************************
-echo.
-echo [1] Primera ejecucion (despues de clonar)
-echo [2] Ejecucion normal (desarrollo)
-echo [3] Build de produccion
-echo [4] Salir
-echo.
-set /p choice="Selecciona una opcion (1-4) y presiona Enter: "
-
-if "%choice%"=="1" goto first_run
-if "%choice%"=="2" goto normal_run
-if "%choice%"=="3" goto production_build
-if "%choice%"=="4" exit
-
-echo Opcion invalida: %choice%
-echo Por favor selecciona una opcion valida (1-4)
-timeout /t 2 >nul
-goto init
-
-:first_run
-echo.
-echo === VERIFICANDO DEPENDENCIAS DEL BACKEND ===
-cd %BACKEND_PATH%
-if not exist "node_modules" (
-    echo Instalando dependencias del backend...
-    npm install
-) else (
-    echo Dependencias del backend ya instaladas. Saltando instalacion...
+cd /d "%~dp0"
+if errorlevel 1 (
+    echo [ERROR] No se pudo entrar a la carpeta del script.
+    goto halt
 )
-cd ..
+
+set "ROOT=%cd%"
+set "BACKEND=%ROOT%\backend"
+set "FRONTEND=%ROOT%\frontend"
+set "HAD_WARNINGS=0"
+
+if /i "%~1"=="build" goto production_build
 
 echo.
-echo === COMPILACION INICIAL DEL BACKEND ===
-cd %BACKEND_PATH%
-npx tsc
-cd ..
-
+echo **********************************************
+echo    INGENIO ARROZERO - DESARROLLO LOCAL
+echo **********************************************
+echo Carpeta: %ROOT%
 echo.
-echo === VERIFICANDO DEPENDENCIAS DEL FRONTEND ===
-cd %FRONTEND_PATH%
-if not exist "node_modules" (
-    echo Instalando dependencias del frontend...
-    npm install
-) else (
-    echo Dependencias del frontend ya instaladas. Saltando instalacion...
+
+where node >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Node.js no esta en el PATH.
+    echo Instala Node y vuelve a abrir esta ventana.
+    goto halt
 )
-cd ..
-goto normal_run
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] npm no esta en el PATH.
+    echo Reinstala Node.js, incluye npm.
+    goto halt
+)
 
-:normal_run
+if not exist "%BACKEND%\package.json" (
+    echo [ERROR] No se encontro backend\package.json
+    goto halt
+)
+if not exist "%FRONTEND%\package.json" (
+    echo [ERROR] No se encontro frontend\package.json
+    goto halt
+)
+if not exist "%BACKEND%\src\index.ts" (
+    echo [ERROR] No se encontro el codigo fuente del backend.
+    goto halt
+)
+if not exist "%BACKEND%\.env" (
+    echo [ERROR] Falta backend\.env con la conexion a la base de datos.
+    goto halt
+)
+
+if not exist "%BACKEND%\certs\isrgrootx1.pem" (
+    echo [ADVERTENCIA] Falta backend\certs\isrgrootx1.pem. TiDB Cloud puede fallar por SSL.
+    set "HAD_WARNINGS=1"
+)
+
+findstr /i /c:"DB_NAME=sys" "%BACKEND%\.env" >nul 2>&1
+if not errorlevel 1 (
+    echo [ADVERTENCIA] DB_NAME=sys es un esquema de sistema. Conviene una base propia: db_empresas o test.
+    set "HAD_WARNINGS=1"
+)
+
+echo [OK] Node y npm disponibles
+for /f "tokens=*" %%v in ('node -v') do echo      Node %%v
+for /f "tokens=*" %%v in ('npm -v') do echo      npm  %%v
 echo.
-echo === INICIANDO BACKEND (con recarga en caliente) ===
-start "Backend TS Watcher" cmd /k "cd %BACKEND_PATH% && npm run typescript"
+
+call :ensure_npm "%BACKEND%" backend
+if errorlevel 1 goto halt
+call :ensure_npm "%FRONTEND%" frontend
+if errorlevel 1 goto halt
+
+echo === Compilando backend: npx tsc ===
+pushd "%BACKEND%"
+call npx tsc
+set "TSC_ERR=!errorlevel!"
+popd
+if not "!TSC_ERR!"=="0" (
+    echo [ERROR] Fallo la compilacion TypeScript del backend.
+    goto halt
+)
+if not exist "%BACKEND%\dist\index.js" (
+    echo [ERROR] No se genero backend\dist\index.js. No se puede arrancar el servidor.
+    goto halt
+)
+echo [OK] Backend compilado
+echo.
+
+call :check_port 3001 backend
+call :check_port 4200 frontend
+
+echo === Levantando procesos ===
+start "Backend TS Watcher" /D "%BACKEND%" cmd /k "echo Compilacion en caliente tsc --watch && npm run typescript"
+start "Backend Server" /D "%BACKEND%" cmd /k "echo API: http://localhost:3001 && npm run dev"
+start "Frontend Server" /D "%FRONTEND%" cmd /k "echo App: http://localhost:4200 && npx ng serve -o --port 4200"
 
 echo.
-echo === INICIANDO SERVIDOR BACKEND ===
-start "Backend Server" cmd /k "cd %BACKEND_PATH% && npm run dev"
-
+echo **********************************************
+echo    LISTO PARA DESARROLLAR
+echo **********************************************
+echo  Backend : http://localhost:3001
+echo  Frontend: http://localhost:4200
 echo.
-echo === INICIANDO FRONTEND ===
-start "Frontend Server" cmd /k "cd %FRONTEND_PATH% && ng serve --o"
-
+echo  Se abrieron 3 ventanas. Cierra esas ventanas para detener los servidores.
+if "!HAD_WARNINGS!"=="1" echo.
+if "!HAD_WARNINGS!"=="1" echo  Hubo advertencias. El sistema se levanto igual. Revisa el texto de arriba.
 echo.
-echo Proyectos iniciados correctamente!
-echo - Backend: http://localhost:3001
-echo - Frontend: http://localhost:4200
-echo.
-echo Los servidores se estan ejecutando en ventanas independientes.
-echo.
-echo Presiona cualquier tecla para cerrar ESTA ventana...
-pause >nul
-exit
+pause
+exit /b 0
 
 :production_build
 echo.
-echo === BUILD DE PRODUCCION ===
-cd %FRONTEND_PATH%
-ng build --configuration production
-cd ..
-echo Build de produccion completado en frontend/dist/
+echo === BUILD DE PRODUCCION frontend ===
+if not exist "%FRONTEND%\package.json" (
+    echo [ERROR] No se encontro frontend\package.json
+    goto halt
+)
+call :ensure_npm "%FRONTEND%" frontend
+if errorlevel 1 goto halt
+pushd "%FRONTEND%"
+call npx ng build --configuration production
+set "BUILD_ERR=!errorlevel!"
+popd
+if not "!BUILD_ERR!"=="0" (
+    echo [ERROR] Fallo el build de produccion del frontend.
+    goto halt
+)
+echo [OK] Build en frontend\dist\
 echo.
-echo Presiona cualquier tecla para cerrar esta ventana...
-pause >nul
-exit
+pause
+exit /b 0
+
+:ensure_npm
+set "DIR=%~1"
+set "LABEL=%~2"
+if exist "%DIR%\node_modules\" (
+    echo [OK] Dependencias de %LABEL% ya instaladas
+    exit /b 0
+)
+echo === Instalando dependencias de %LABEL% ===
+pushd "%DIR%"
+call npm install
+set "NPM_ERR=!errorlevel!"
+popd
+if not "!NPM_ERR!"=="0" (
+    echo [ERROR] npm install fallo en %LABEL%.
+    exit /b 1
+)
+if not exist "%DIR%\node_modules\" (
+    echo [ERROR] npm install termino pero no existe %LABEL%\node_modules
+    exit /b 1
+)
+echo [OK] Dependencias de %LABEL% instaladas
+echo.
+exit /b 0
+
+:check_port
+netstat -ano 2>nul | findstr /R /C:":%~1 .*LISTENING" >nul
+if not errorlevel 1 (
+    echo [ADVERTENCIA] El puerto %~1 ya esta en uso - %~2. Cierra el proceso anterior si hace falta.
+    set "HAD_WARNINGS=1"
+)
+exit /b 0
+
+:halt
+echo.
+echo El arranque se DETUVO. Corrige el error y vuelve a ejecutar run_dev.bat
+echo.
+pause
+exit /b 1

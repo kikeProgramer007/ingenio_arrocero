@@ -18,6 +18,10 @@ import { Compra, LineaCompra, Proveedor } from './compras.models';
 import { ComprasService, ProveedoresService } from './compras.service';
 import { ProductoLista, ProductosService } from '../inventario/productos.service';
 import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
+import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
+import { ExportarService, FormatoExport } from '../../shared/services/exportar.service';
+import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
+import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 
 @Component({
     selector: 'app-compras',
@@ -34,7 +38,10 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
         TagModule,
         TextareaModule,
         ToastModule,
-        DialogCajaCerradaComponent
+        DialogCajaCerradaComponent,
+        BotonesExportarComponent,
+        TablaEsqueletoComponent,
+        AyudaCampoComponent
     ],
     providers: [MessageService],
     template: `
@@ -54,11 +61,12 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                     <label class="block font-bold mb-2">Estado</label>
                     <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid />
                 </div>
-                <div class="col-span-12 md:col-span-4 flex items-end">
+                <div class="col-span-12 md:col-span-8 flex items-end gap-2 flex-wrap">
                     <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                    <app-botones-exportar tipo="compras" [estado]="filtroEstado" />
                 </div>
             </div>
-            <p-table [value]="compras" [loading]="cargando" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table [value]="cargando ? [] : compras" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
                 <ng-template #header>
                     <tr>
                         <th>#</th>
@@ -80,8 +88,14 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                         <td>{{ formatBs(compra.pagado) }}</td>
                         <td>{{ formatBs(compra.saldo_pendiente) }}</td>
                         <td><p-tag [value]="compra.estado" [severity]="severidad(compra.estado)" /></td>
-                        <td><p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" (onClick)="ver(compra)" /></td>
+                        <td>
+                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" (onClick)="ver(compra)" />
+                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" class="ml-1" (onClick)="exportarCompra(compra, 'pdf')" />
+                        </td>
                     </tr>
+                </ng-template>
+                <ng-template #loadingbody>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
                     <tr>
@@ -99,19 +113,19 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
         <p-dialog header="Nueva compra" [(visible)]="dialogNueva" [modal]="true" [style]="{ width: '56rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
                 <div>
-                    <label class="block font-bold mb-2">Proveedor</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Proveedor <app-ayuda-campo texto="De quién compras la chala u otro insumo." posicion="right" /></label>
                     <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProveedor" placeholder="Seleccione proveedor" [filter]="true" fluid />
                 </div>
                 <div>
                     <div class="flex justify-between items-center mb-2">
-                        <label class="font-bold">Productos / líneas</label>
+                        <label class="flex items-center gap-1 font-bold">Productos / líneas <app-ayuda-campo texto="Producto del inventario entra al stock. Sin producto: escribe un concepto (flete)." posicion="right" /></label>
                         <p-button label="Agregar línea" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="agregarLinea()" />
                     </div>
                     <p class="text-muted-color text-sm mb-3">Si eliges un producto (chala), entra al inventario. Si es un concepto, déjalo vacío y escribe la descripción.</p>
                     <div class="flex flex-col gap-3" *ngFor="let linea of lineas; let i = index">
                         <div class="grid grid-cols-12 gap-2 items-end">
                             <div class="col-span-12 md:col-span-5">
-                                <label class="block text-sm mb-1">Producto</label>
+                                <label class="flex items-center gap-1 text-sm mb-1">Producto <app-ayuda-campo texto="Ej.: Arroz en chala. Vacío = línea sin inventario." posicion="bottom" /></label>
                                 <p-select
                                     [options]="productosOpciones"
                                     optionLabel="etiqueta"
@@ -125,15 +139,15 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                                 />
                             </div>
                             <div class="col-span-12" *ngIf="!linea.id_producto">
-                                <label class="block text-sm mb-1">Descripción</label>
+                                <label class="flex items-center gap-1 text-sm mb-1">Descripción <app-ayuda-campo texto="Ej.: Flete, comisión, servicio." posicion="top" /></label>
                                 <input pInputText class="w-full" placeholder="Ej. flete, servicio" [(ngModel)]="linea.descripcion" />
                             </div>
                             <div class="col-span-4 md:col-span-2">
-                                <label class="block text-sm mb-1">Cantidad</label>
+                                <label class="flex items-center gap-1 text-sm mb-1">Cantidad <app-ayuda-campo texto="Kilos o unidades que entran al inventario." posicion="top" /></label>
                                 <p-inputNumber [(ngModel)]="linea.cantidad" [min]="0" [minFractionDigits]="0" [maxFractionDigits]="3" fluid />
                             </div>
                             <div class="col-span-4 md:col-span-3">
-                                <label class="block text-sm mb-1">Precio</label>
+                                <label class="flex items-center gap-1 text-sm mb-1">Precio <app-ayuda-campo texto="Costo unitario en bolivianos." posicion="left" /></label>
                                 <p-inputNumber [(ngModel)]="linea.precio_unitario" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                             </div>
                             <div class="col-span-4 md:col-span-2">
@@ -145,20 +159,20 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                 </div>
                 <div class="grid grid-cols-12 gap-3">
                     <div class="col-span-12 md:col-span-4">
-                        <label class="block font-bold mb-2">Pago inicial</label>
+                        <label class="flex items-center gap-1 font-bold mb-2">Pago inicial <app-ayuda-campo texto="Lo que pagas ahora sale de caja. 0 = toda la compra queda por pagar." posicion="top" /></label>
                         <p-inputNumber [(ngModel)]="pagoInicial" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                     </div>
                     <div class="col-span-12 md:col-span-4">
-                        <label class="block font-bold mb-2">Método</label>
+                        <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Cómo pagas ahora: efectivo, QR o transferencia." posicion="top" /></label>
                         <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="metodoPago" placeholder="Método" fluid />
                     </div>
                     <div class="col-span-12 md:col-span-4">
-                        <label class="block font-bold mb-2">Referencia</label>
+                        <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante." posicion="left" /></label>
                         <input pInputText class="w-full" [(ngModel)]="referencia" />
                     </div>
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Observación</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Nota interna de la compra." posicion="top" /></label>
                     <textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea>
                 </div>
             </div>
@@ -187,6 +201,10 @@ import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-
                 </p-table>
                 <div class="mt-3 font-medium">Total {{ formatBs(detalle.total) }} · Saldo {{ formatBs(detalle.saldo_pendiente) }}</div>
             </ng-container>
+            <ng-template #footer>
+                <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogDetalle = false" />
+                <p-button *ngIf="detalle" label="PDF" icon="pi pi-file-pdf" (onClick)="exportarCompra(detalle, 'pdf')" />
+            </ng-template>
         </p-dialog>
     `
 })
@@ -221,8 +239,15 @@ export class ComprasPage implements OnInit {
         private comprasService: ComprasService,
         private proveedoresService: ProveedoresService,
         private productosService: ProductosService,
-        private messageService: MessageService
+        private messageService: MessageService,
+        private exportarService: ExportarService
     ) {}
+
+    exportarCompra(compra: Compra, formato: FormatoExport): void {
+        this.exportarService.descargar({ tipo: 'compra', formato, id: compra.id }).subscribe({
+            error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de la compra' })
+        });
+    }
 
     ngOnInit(): void {
         this.cargar();

@@ -18,6 +18,7 @@ import { seedProgramasCaja } from '../seed/programas-caja.seed';
 import { seedInventarioBase } from '../seed/inventario.seed';
 import { sequelize } from '../models';
 import { shouldAlterSchema } from '../utils/db-sync';
+import { asegurarEsquemaGastos } from '../utils/ensure-schema';
 import { asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
 
 class Server {
@@ -59,7 +60,7 @@ class Server {
 
     midlewares() {
         this.app.use(express.json());
-        this.app.use(cors());
+        this.app.use(cors({ exposedHeaders: ['Content-Disposition'] }));
         asegurarDirectoriosImagen();
         this.app.use('/uploads', express.static(uploadsRoot()));
     }
@@ -67,7 +68,12 @@ class Server {
     async dbConnect() {
         try {
             const alter = shouldAlterSchema();
-            await sequelize.sync({ force: false, alter });
+            try {
+                await sequelize.sync({ force: false, alter });
+            } catch (syncError) {
+                console.error('Sequelize sync incompleto (TiDB puede rechazar ALTER de UNIQUE):', syncError);
+            }
+            await asegurarEsquemaGastos();
             await seedProgramasCaja();
             await seedInventarioBase();
             console.log(`Base de datos sincronizada (alter=${alter})`);

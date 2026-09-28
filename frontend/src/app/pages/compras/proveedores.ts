@@ -14,6 +14,8 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { Proveedor } from './compras.models';
 import { ProveedoresService } from './compras.service';
 import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
+import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
+import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 
 @Component({
@@ -30,7 +32,9 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
         TextareaModule,
         ToastModule,
         ToggleSwitchModule,
-        ImagenCampoComponent
+        ImagenCampoComponent,
+        TablaEsqueletoComponent,
+        AyudaCampoComponent
     ],
     providers: [MessageService],
     template: `
@@ -48,7 +52,7 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
                 <input pInputText [(ngModel)]="busqueda" placeholder="Buscar por nombre o NIT/CI" class="w-full md:w-80" (keyup.enter)="cargar()" />
                 <p-button label="Buscar" icon="pi pi-search" (onClick)="cargar()" [loading]="cargando" />
             </div>
-            <p-table [value]="proveedores" [loading]="cargando" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table [value]="cargando ? [] : proveedores" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
                 <ng-template #header>
                     <tr>
                         <th></th>
@@ -71,6 +75,9 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
                         <td><p-button icon="pi pi-pencil" [rounded]="true" [outlined]="true" (onClick)="editar(item)" /></td>
                     </tr>
                 </ng-template>
+                <ng-template #loadingbody>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="7" [fila]="f" [conAvatar]="true"></tr>
+                </ng-template>
                 <ng-template #emptymessage>
                     <tr>
                         <td colspan="7">
@@ -87,27 +94,27 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
         <p-dialog [header]="form.id ? 'Editar proveedor' : 'Nuevo proveedor'" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
                 <div>
-                    <label class="block font-bold mb-2">Imagen</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Imagen <app-ayuda-campo texto="Logo o foto del proveedor. Opcional." posicion="right" /></label>
                     <app-imagen-campo tipo="proveedor" [path]="form.path_imagen" (pathChange)="form.path_imagen = $event" />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Nombre</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Nombre comercial. Ej.: Cooperativa Norte." posicion="right" /></label>
                     <input pInputText class="w-full" [(ngModel)]="form.nombre" />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">NIT / CI</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">NIT / CI <app-ayuda-campo texto="Documento fiscal. Puede dejarse vacío." posicion="right" /></label>
                     <input pInputText class="w-full" [(ngModel)]="form.nit_ci" />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Teléfono</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Teléfono <app-ayuda-campo texto="Para coordinar acopio o pagos. Opcional." posicion="right" /></label>
                     <input pInputText class="w-full" [(ngModel)]="form.telefono" />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Dirección</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Dirección <app-ayuda-campo texto="Dónde recoger o entregar. Opcional." posicion="right" /></label>
                     <input pInputText class="w-full" [(ngModel)]="form.direccion" />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Observación</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Nota interna: condiciones, zona, etc." posicion="top" /></label>
                     <textarea pTextarea class="w-full" rows="2" [(ngModel)]="form.observacion"></textarea>
                 </div>
                 <div class="flex items-center gap-2" *ngIf="form.id">

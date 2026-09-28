@@ -44,9 +44,14 @@ export const Gasto = sequelize.define('gasto', {
         type: DataTypes.TEXT,
         allowNull: true
     },
+    descontar_caja: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true
+    },
     id_caja: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
         references: { model: 'cajas', key: 'id' },
         onUpdate: 'CASCADE',
         onDelete: 'RESTRICT'

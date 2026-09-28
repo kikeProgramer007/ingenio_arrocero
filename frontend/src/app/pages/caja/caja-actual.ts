@@ -27,6 +27,9 @@ import { AuthService } from '../../core/services/auth.service';
 import { CajaService } from './caja.service';
 import { etiquetaCategoria, etiquetaMetodo, formatBs, formatHora } from './caja.utils';
 import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
+import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
+import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
+import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 
 @Component({
     selector: 'app-caja-actual',
@@ -45,7 +48,10 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
         TextareaModule,
         ToastModule,
         TooltipModule,
-        CuadreCajaComponent
+        CuadreCajaComponent,
+        BotonesExportarComponent,
+        TablaEsqueletoComponent,
+        AyudaCampoComponent
     ],
     providers: [MessageService],
     template: `
@@ -54,9 +60,10 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Caja actual</div>
-                <div class="text-muted-color">Cuánto debería haber según los movimientos, y el arqueo al cerrar</div>
+                <div class="text-muted-color">En esta versión se opera una sola caja. Cuánto debería haber según los movimientos, y el arqueo al cerrar</div>
             </div>
-            <div class="flex gap-2" *ngIf="caja">
+            <div class="flex gap-2 flex-wrap" *ngIf="caja">
+                <app-botones-exportar tipo="caja" [idCaja]="caja.id" />
                 <p-button label="+ Nuevo movimiento" icon="pi pi-plus" (onClick)="abrirDialogMovimiento()" [disabled]="guardando" />
                 <p-button label="Cerrar caja" icon="pi pi-lock" severity="warn" (onClick)="abrirDialogCierre()" [disabled]="guardando" />
             </div>
@@ -86,17 +93,17 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
                     </div>
                     <div>
                         <div class="font-semibold text-xl">Abrir caja</div>
-                        <div class="text-muted-color">No hay una caja abierta. Ingresa el saldo inicial para comenzar.</div>
+                <div class="text-muted-color">En esta versión se opera una sola caja. Ingresa el saldo inicial para comenzar.</div>
                     </div>
                 </div>
 
                 <div class="flex flex-col gap-5">
                     <div>
-                        <label class="block font-bold mb-2">Saldo inicial</label>
+                        <label class="flex items-center gap-1 font-bold mb-2">Saldo inicial <app-ayuda-campo texto="Efectivo con el que abres el cajón. No es un ingreso del día; solo el punto de partida." posicion="right" /></label>
                         <p-inputnumber [(ngModel)]="saldoInicial" mode="decimal" [min]="0" [minFractionDigits]="2" [maxFractionDigits]="2" locale="es-BO" prefix="Bs " fluid />
                     </div>
                     <div>
-                        <label class="block font-bold mb-2">Observación (opcional)</label>
+                        <label class="flex items-center gap-1 font-bold mb-2">Observación (opcional) <app-ayuda-campo texto="Ej.: turno mañana, billetes de 200, etc." posicion="top" /></label>
                         <textarea pTextarea [(ngModel)]="observacionApertura" rows="3" fluid></textarea>
                     </div>
                     <div class="text-muted-color text-sm">
@@ -111,7 +118,7 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
         </ng-container>
 
         <ng-container *ngIf="!cargando && !error && caja">
-            <div class="grid grid-cols-12 gap-4 mb-6">
+            <div class="grid grid-cols-12 gap-8 mb-6">
                 <div class="col-span-12 sm:col-span-6 xl:col-span-3" *ngFor="let card of cardsResumen()">
                     <div class="card mb-0">
                         <div class="flex justify-between mb-3">
@@ -134,7 +141,7 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
 
             <div class="card">
                 <div class="font-semibold text-xl mb-4">Movimientos de caja</div>
-                <p-table [value]="caja.movimientos || []" [loading]="cargandoTabla" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+                <p-table [value]="cargandoTabla ? [] : (caja.movimientos || [])" [loading]="cargandoTabla" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
                     <ng-template #header>
                         <tr>
                             <th>Hora</th>
@@ -161,6 +168,9 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
                             <td>{{ mov.usuario?.username || '-' }}</td>
                         </tr>
                     </ng-template>
+                    <ng-template #loadingbody>
+                        <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
+                    </ng-template>
                     <ng-template #emptymessage>
                         <tr>
                             <td colspan="8">
@@ -178,31 +188,31 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
         <p-dialog header="Nuevo movimiento" [(visible)]="dialogMovimiento" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '90vw' }">
             <div class="flex flex-col gap-4">
                 <div>
-                    <label class="block font-bold mb-2">Tipo</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Tipo <app-ayuda-campo texto="Ingreso suma a caja. Egreso resta. No uses esto para ventas: esas se cobran en Ventas." posicion="right" /></label>
                     <p-select [options]="tipos" optionLabel="label" optionValue="value" [(ngModel)]="movimiento.tipo" (onChange)="onCambioTipo()" placeholder="Selecciona" fluid />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Categoría</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Clasifica el movimiento. Las anulaciones de venta se generan solas; no aparecen aquí." posicion="right" /></label>
                     <p-select [options]="categorias" optionLabel="label" optionValue="value" [(ngModel)]="movimiento.categoria" placeholder="Selecciona" fluid />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Concepto</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Concepto <app-ayuda-campo texto="Ej.: Ajuste de caja, préstamo recibido, pago suelto." posicion="right" /></label>
                     <input pInputText [(ngModel)]="movimiento.concepto" fluid />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Monto</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Importe que entra o sale ahora de la caja abierta." posicion="right" /></label>
                     <p-inputnumber [(ngModel)]="movimiento.monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" [maxFractionDigits]="2" locale="es-BO" prefix="Bs " fluid />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Método de pago</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Método de pago <app-ayuda-campo texto="Efectivo, QR, transferencia u otro." posicion="right" /></label>
                     <p-select [options]="metodos" optionLabel="label" optionValue="value" [(ngModel)]="movimiento.metodo_pago" placeholder="Selecciona" fluid />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Referencia (opcional)</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Referencia (opcional) <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante." posicion="top" /></label>
                     <input pInputText [(ngModel)]="movimiento.referencia" fluid />
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Observación (opcional)</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Observación (opcional) <app-ayuda-campo texto="Nota interna del movimiento." posicion="top" /></label>
                     <textarea pTextarea [(ngModel)]="movimiento.observacion" rows="2" fluid></textarea>
                 </div>
             </div>
@@ -220,7 +230,7 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
                     <span>{{ formatBs(caja.saldo_esperado) }}</span>
                 </div>
                 <div>
-                    <label class="block font-bold mb-2">Saldo contado físicamente</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Saldo contado físicamente <app-ayuda-campo texto="Cuenta el dinero del cajón. El sistema compara con el saldo esperado." posicion="top" /></label>
                     <p-inputnumber [(ngModel)]="saldoContado" mode="decimal" [min]="0" [minFractionDigits]="2" [maxFractionDigits]="2" locale="es-BO" prefix="Bs " fluid />
                 </div>
                 <div class="flex items-center justify-between">
@@ -230,7 +240,7 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
                 <p-tag [value]="etiquetaArqueo" [severity]="severidadArqueo" />
                 <p class="text-muted-color text-sm m-0">Compara lo contado con lo que el sistema espera según los movimientos.</p>
                 <div>
-                    <label class="block font-bold mb-2">Observación (opcional)</label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Observación (opcional) <app-ayuda-campo texto="Explica un faltante o sobrante, si lo hay." posicion="top" /></label>
                     <textarea pTextarea [(ngModel)]="observacionCierre" rows="2" fluid></textarea>
                 </div>
             </div>
