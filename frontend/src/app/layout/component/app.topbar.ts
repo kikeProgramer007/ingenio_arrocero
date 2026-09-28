@@ -9,6 +9,7 @@ import { MenuModule } from 'primeng/menu';
 import { AuthService } from '../../core/services/auth.service';
 import { APP_ROUTES } from '../../core/constants/app-routes';
 import { EMPRESA } from '../../core/constants/empresa';
+import { ConfirmarService } from '../../shared/services/confirmar.service';
 
 @Component({
     selector: 'app-topbar',
@@ -70,7 +71,8 @@ export class AppTopbar {
     constructor(
         public layoutService: LayoutService,
         private router: Router,
-        private authService: AuthService
+        private authService: AuthService,
+        private confirmar: ConfirmarService
     ) {}
 
     get usuario(): string {
@@ -82,9 +84,20 @@ export class AppTopbar {
     }
 
     logout() {
-        if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
-            this.authService.clearSession();
-            this.router.navigateByUrl(APP_ROUTES.login);
-        }
+        this.confirmar
+            .pedir({
+                titulo: 'Cerrar sesión',
+                mensaje: '¿Estás seguro de que deseas cerrar sesión?',
+                icono: 'pi pi-sign-out',
+                aceptar: 'Cerrar sesión',
+                peligro: true
+            })
+            .then((ok) => {
+                if (!ok) {
+                    return;
+                }
+                this.authService.clearSession();
+                this.router.navigateByUrl(APP_ROUTES.login);
+            });
     }
 }

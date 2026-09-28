@@ -22,6 +22,7 @@ import { ExportarService, FormatoExport } from '../../shared/services/exportar.s
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
     selector: 'app-compras',
@@ -42,7 +43,8 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
         BotonesExportarComponent,
         TablaEsqueletoComponent,
         AyudaCampoComponent,
-        MetodoPagoComponent
+        MetodoPagoComponent,
+        TooltipModule
     ],
     providers: [MessageService],
     template: `
@@ -90,8 +92,8 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
                         <td>{{ formatBs(compra.saldo_pendiente) }}</td>
                         <td><p-tag [value]="compra.estado" [severity]="severidad(compra.estado)" /></td>
                         <td>
-                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" (onClick)="ver(compra)" />
-                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" class="ml-1" (onClick)="exportarCompra(compra, 'pdf')" />
+                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" severity="info" pTooltip="Ver detalle" tooltipPosition="left" (onClick)="ver(compra)" />
+                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" class="ml-1" pTooltip="Ver PDF" tooltipPosition="left" (onClick)="exportarCompra(compra, 'pdf')" />
                         </td>
                     </tr>
                 </ng-template>
@@ -152,7 +154,7 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
                                 <p-inputNumber [(ngModel)]="linea.precio_unitario" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                             </div>
                             <div class="col-span-4 md:col-span-2">
-                                <p-button icon="pi pi-trash" severity="danger" [outlined]="true" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1" />
+                                <p-button icon="pi pi-trash" severity="danger" [outlined]="true" pTooltip="Quitar línea" tooltipPosition="top" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1" />
                             </div>
                         </div>
                     </div>
@@ -204,7 +206,7 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
             </ng-container>
             <ng-template #footer>
                 <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogDetalle = false" />
-                <p-button *ngIf="detalle" label="PDF" icon="pi pi-file-pdf" (onClick)="exportarCompra(detalle, 'pdf')" />
+                <p-button *ngIf="detalle" label="PDF" icon="pi pi-file-pdf" severity="danger" [outlined]="true" pTooltip="Ver PDF" tooltipPosition="top" (onClick)="exportarCompra(detalle, 'pdf')" />
             </ng-template>
         </p-dialog>
     `

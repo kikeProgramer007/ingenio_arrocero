@@ -18,6 +18,7 @@ import { CuadreCajaComponent } from '../../shared/components/cuadre-caja';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { ExportarService, FormatoExport } from '../../shared/services/exportar.service';
+import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
     selector: 'app-caja-historial',
@@ -34,7 +35,8 @@ import { ExportarService, FormatoExport } from '../../shared/services/exportar.s
         ToastModule,
         CuadreCajaComponent,
         BotonesExportarComponent,
-        TablaEsqueletoComponent
+        TablaEsqueletoComponent,
+        TooltipModule
     ],
     providers: [MessageService],
     template: `
@@ -93,9 +95,9 @@ import { ExportarService, FormatoExport } from '../../shared/services/exportar.s
                             <p-tag [value]="caja.estado" [severity]="caja.estado === 'ABIERTA' ? 'success' : 'secondary'" />
                         </td>
                         <td class="flex gap-1">
-                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" (onClick)="verDetalle(caja)" />
-                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" (onClick)="exportarCaja(caja, 'pdf')" />
-                            <p-button icon="pi pi-file-excel" [rounded]="true" [outlined]="true" (onClick)="exportarCaja(caja, 'xlsx')" />
+                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" severity="info" pTooltip="Ver detalle" tooltipPosition="left" (onClick)="verDetalle(caja)" />
+                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" pTooltip="Ver PDF" tooltipPosition="left" (onClick)="exportarCaja(caja, 'pdf')" />
+                            <p-button icon="pi pi-file-excel" [rounded]="true" [outlined]="true" severity="success" pTooltip="Descargar Excel" tooltipPosition="left" (onClick)="exportarCaja(caja, 'xlsx')" />
                         </td>
                     </tr>
                 </ng-template>

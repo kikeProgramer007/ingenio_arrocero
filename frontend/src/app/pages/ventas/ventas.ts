@@ -19,6 +19,7 @@ import { formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Cliente, LineaVenta, Venta } from './ventas.models';
 import { ClientesService, VentasService } from './ventas.service';
 import { ExportarService, FormatoExport } from '../../shared/services/exportar.service';
+import { ConfirmarService } from '../../shared/services/confirmar.service';
 import { ProductoLista, ProductosService } from '../inventario/productos.service';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
@@ -64,7 +65,7 @@ import { TooltipModule } from 'primeng/tooltip';
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Ventas</div>
                 <div class="text-muted-color">Elige el producto (arroz pelado) para bajar inventario. El dinero entra con el cobro.</div>
             </div>
-            <p-button label="Nueva venta" icon="pi pi-plus" (onClick)="abrirNueva()" />
+            <p-button label="Nueva venta" icon="pi pi-plus" pTooltip="Registrar una venta" tooltipPosition="left" (onClick)="abrirNueva()" />
         </div>
 
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="4" />
@@ -84,7 +85,7 @@ import { TooltipModule } from 'primeng/tooltip';
                     <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" [readonlyInput]="true" placeholder="Fechas" fluid />
                 </div>
                 <div class="col-span-12 md:col-span-2 flex items-end gap-2 flex-wrap">
-                    <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                    <p-button label="Filtrar" icon="pi pi-filter" pTooltip="Aplicar filtros" tooltipPosition="top" (onClick)="cargar()" [loading]="cargando" />
                 </div>
                 <div class="col-span-12 flex justify-end">
                     <app-botones-exportar tipo="ventas" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" [idCliente]="filtroCliente" [estado]="filtroEstado" />
@@ -113,9 +114,9 @@ import { TooltipModule } from 'primeng/tooltip';
                         <td>{{ formatBs(venta.saldo_pendiente) }}</td>
                         <td><p-tag [value]="venta.estado" [severity]="severidad(venta.estado)" /></td>
                         <td>
-                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" pTooltip="Ver detalle" tooltipPosition="left" (onClick)="ver(venta)" />
-                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" class="ml-1" pTooltip="Nota de venta (PDF)" tooltipPosition="left" (onClick)="exportarVenta(venta, 'pdf')" [disabled]="venta.estado === 'ANULADA'" />
-                            <p-button *ngIf="venta.estado !== 'ANULADA'" icon="pi pi-times" [rounded]="true" [outlined]="true" severity="danger" class="ml-1" pTooltip="Anular: devuelve stock y descuenta lo cobrado de caja" tooltipPosition="left" (onClick)="pedirAnular(venta)" />
+                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" severity="info" pTooltip="Ver detalle" tooltipPosition="left" (onClick)="ver(venta)" />
+                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" class="ml-1" pTooltip="Ver PDF" tooltipPosition="left" (onClick)="exportarVenta(venta, 'pdf')" [disabled]="venta.estado === 'ANULADA'" />
+                            <p-button *ngIf="venta.estado !== 'ANULADA'" icon="pi pi-times" [rounded]="true" [outlined]="true" severity="danger" class="ml-1" pTooltip="Anular o eliminar" tooltipPosition="left" (onClick)="pedirAnular(venta)" />
                         </td>
                     </tr>
                 </ng-template>
@@ -180,7 +181,7 @@ import { TooltipModule } from 'primeng/tooltip';
                                 <p-inputNumber [(ngModel)]="linea.precio_unitario" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                             </div>
                             <div class="col-span-4 md:col-span-2">
-                                <p-button icon="pi pi-trash" severity="danger" [outlined]="true" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1" />
+                                <p-button icon="pi pi-trash" severity="danger" [outlined]="true" pTooltip="Quitar línea" tooltipPosition="top" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1" />
                             </div>
                         </div>
                         <small class="text-orange-500" *ngIf="avisoStock(linea)">{{ avisoStock(linea) }}</small>
@@ -269,9 +270,9 @@ import { TooltipModule } from 'primeng/tooltip';
             </ng-container>
             <ng-template #footer>
                 <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogDetalle = false" />
-                <p-button *ngIf="detalle && (detalle.estado === 'PENDIENTE' || detalle.estado === 'PARCIAL')" label="Cobrar" icon="pi pi-wallet" (onClick)="abrirCobroDetalle()" />
-                <p-button *ngIf="detalle && detalle.estado !== 'ANULADA'" label="Anular" icon="pi pi-times" severity="danger" [outlined]="true" (onClick)="pedirAnular(detalle)" />
-                <p-button *ngIf="detalle && detalle.estado !== 'ANULADA'" label="PDF" icon="pi pi-file-pdf" (onClick)="exportarVenta(detalle, 'pdf')" />
+                <p-button *ngIf="detalle && (detalle.estado === 'PENDIENTE' || detalle.estado === 'PARCIAL')" label="Cobrar" icon="pi pi-wallet" pTooltip="Registrar un cobro de esta venta" tooltipPosition="top" (onClick)="abrirCobroDetalle()" />
+                <p-button *ngIf="detalle && detalle.estado !== 'ANULADA'" label="Anular" icon="pi pi-times" severity="danger" [outlined]="true" pTooltip="Anular o eliminar" tooltipPosition="top" (onClick)="pedirAnular(detalle)" />
+                <p-button *ngIf="detalle && detalle.estado !== 'ANULADA'" label="PDF" icon="pi pi-file-pdf" severity="danger" [outlined]="true" pTooltip="Ver PDF" tooltipPosition="top" (onClick)="exportarVenta(detalle, 'pdf')" />
             </ng-template>
         </p-dialog>
 
@@ -318,18 +319,6 @@ import { TooltipModule } from 'primeng/tooltip';
             </ng-template>
         </p-dialog>
 
-        <p-dialog header="Anular venta" [(visible)]="dialogAnular" [modal]="true" [style]="{ width: '28rem' }">
-            <p *ngIf="ventaAnular">
-                ¿Anular la venta #{{ ventaAnular.id }} de {{ ventaAnular.cliente?.nombre }}?
-                Se devuelve el stock.
-                <span *ngIf="ventaAnular.pagado > 0"> Lo cobrado ({{ formatBs(ventaAnular.pagado) }}) se descuenta de la caja abierta.</span>
-                <span *ngIf="ventaAnular.pagado <= 0"> Esta venta no había generado ingreso a caja.</span>
-            </p>
-            <ng-template #footer>
-                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogAnular = false" />
-                <p-button label="Anular" severity="danger" [loading]="guardando" (onClick)="confirmarAnular()" />
-            </ng-template>
-        </p-dialog>
     `
 })
 export class VentasPage implements OnInit {
@@ -343,7 +332,6 @@ export class VentasPage implements OnInit {
     dialogCajaCerrada = false;
     dialogCliente = false;
     dialogCobro = false;
-    dialogAnular = false;
     guardandoCliente = false;
     ventaAnular: Venta | null = null;
     cobroMonto = 0;
@@ -394,6 +382,7 @@ export class VentasPage implements OnInit {
         private productosService: ProductosService,
         private messageService: MessageService,
         private exportarService: ExportarService,
+        private confirmar: ConfirmarService,
         private route: ActivatedRoute
     ) {}
 
@@ -629,8 +618,23 @@ export class VentasPage implements OnInit {
     }
 
     pedirAnular(venta: Venta): void {
-        this.ventaAnular = venta;
-        this.dialogAnular = true;
+        const extra =
+            venta.pagado > 0
+                ? ` Lo cobrado (${this.formatBs(venta.pagado)}) se descuenta de la caja abierta.`
+                : ' Esta venta no había generado ingreso a caja.';
+        this.confirmar
+            .pedir({
+                titulo: 'Anular venta',
+                mensaje: `¿Anular la venta #${venta.id} de ${venta.cliente?.nombre || 'cliente'}? Se devuelve el stock.${extra}`,
+                aceptar: 'Anular',
+                peligro: true
+            })
+            .then((ok) => {
+                if (ok) {
+                    this.ventaAnular = venta;
+                    this.confirmarAnular();
+                }
+            });
     }
 
     confirmarAnular(): void {
@@ -641,7 +645,6 @@ export class VentasPage implements OnInit {
         this.ventasService.anular(this.ventaAnular.id).subscribe({
             next: (res) => {
                 this.guardando = false;
-                this.dialogAnular = false;
                 this.dialogDetalle = false;
                 this.messageService.add({ severity: 'success', summary: 'Venta', detail: res.mensaje });
                 this.cargar();

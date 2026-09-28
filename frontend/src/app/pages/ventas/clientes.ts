@@ -77,8 +77,8 @@ import { ClientesService, VentasService } from './ventas.service';
                         <td>{{ cli.direccion || '-' }}</td>
                         <td><p-tag [value]="cli.activo ? 'Activo' : 'Inactivo'" [severity]="cli.activo ? 'success' : 'secondary'" /></td>
                         <td>
-                            <p-button icon="pi pi-book" [rounded]="true" [outlined]="true" pTooltip="Cuenta del cliente" tooltipPosition="left" (onClick)="verExtracto(cli)" />
-                            <p-button icon="pi pi-pencil" [rounded]="true" [outlined]="true" class="ml-1" pTooltip="Editar" tooltipPosition="left" (onClick)="editar(cli)" />
+                            <p-button icon="pi pi-book" [rounded]="true" [outlined]="true" severity="info" pTooltip="Cuenta del cliente" tooltipPosition="left" (onClick)="verExtracto(cli)" />
+                            <p-button icon="pi pi-pencil" [rounded]="true" [outlined]="true" severity="warn" class="ml-1" pTooltip="Editar" tooltipPosition="left" (onClick)="editar(cli)" />
                         </td>
                     </tr>
                 </ng-template>

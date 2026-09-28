@@ -16,6 +16,7 @@ import { ProveedoresService } from './compras.service';
 import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { TooltipModule } from 'primeng/tooltip';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 
 @Component({
@@ -34,7 +35,8 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
         ToggleSwitchModule,
         ImagenCampoComponent,
         TablaEsqueletoComponent,
-        AyudaCampoComponent
+        AyudaCampoComponent,
+        TooltipModule
     ],
     providers: [MessageService],
     template: `
@@ -72,7 +74,7 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
                         <td>{{ item.telefono || '-' }}</td>
                         <td>{{ item.direccion || '-' }}</td>
                         <td><p-tag [value]="item.activo ? 'Activo' : 'Inactivo'" [severity]="item.activo ? 'success' : 'secondary'" /></td>
-                        <td><p-button icon="pi pi-pencil" [rounded]="true" [outlined]="true" (onClick)="editar(item)" /></td>
+                        <td><p-button icon="pi pi-pencil" [rounded]="true" [outlined]="true" severity="warn" pTooltip="Editar" tooltipPosition="left" (onClick)="editar(item)" /></td>
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>

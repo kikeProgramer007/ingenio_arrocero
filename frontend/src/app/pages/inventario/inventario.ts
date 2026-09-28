@@ -19,11 +19,12 @@ import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
     selector: 'app-inventario',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, TooltipModule],
     providers: [MessageService],
     template: `
         <p-toast />
@@ -52,9 +53,9 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
                         <td>{{ p.stock_minimo }}</td>
                         <td>{{ formatBs(p.precio_venta) }}</td>
                         <td class="flex gap-1">
-                            <p-button icon="pi pi-pencil" [rounded]="true" [outlined]="true" (onClick)="editar(p)" />
-                            <p-button icon="pi pi-sliders-h" [rounded]="true" [outlined]="true" (onClick)="abrirAjuste(p)" />
-                            <p-button icon="pi pi-list" [rounded]="true" [outlined]="true" (onClick)="verKardex(p)" />
+                            <p-button icon="pi pi-pencil" [rounded]="true" [outlined]="true" severity="warn" pTooltip="Editar" tooltipPosition="left" (onClick)="editar(p)" />
+                            <p-button icon="pi pi-sliders-h" [rounded]="true" [outlined]="true" severity="info" pTooltip="Ajustar stock" tooltipPosition="left" (onClick)="abrirAjuste(p)" />
+                            <p-button icon="pi pi-list" [rounded]="true" [outlined]="true" pTooltip="Ver kardex" tooltipPosition="left" (onClick)="verKardex(p)" />
                         </td>
                     </tr>
                 </ng-template>

@@ -2,16 +2,37 @@ import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
+import { TooltipModule } from 'primeng/tooltip';
 import { ExportarService, FormatoExport, ParamsExport, TipoExport } from '../services/exportar.service';
 
 @Component({
     selector: 'app-botones-exportar',
     standalone: true,
-    imports: [CommonModule, ButtonModule],
+    imports: [CommonModule, ButtonModule, TooltipModule],
     template: `
         <div class="flex gap-2">
-            <p-button label="PDF" icon="pi pi-file-pdf" [outlined]="true" [loading]="cargando === 'pdf'" (onClick)="bajar('pdf')" [disabled]="disabled" />
-            <p-button label="Excel" icon="pi pi-file-excel" [outlined]="true" [loading]="cargando === 'xlsx'" (onClick)="bajar('xlsx')" [disabled]="disabled" />
+            <p-button
+                label="PDF"
+                icon="pi pi-file-pdf"
+                [outlined]="true"
+                severity="danger"
+                pTooltip="Exportar a PDF"
+                tooltipPosition="top"
+                [loading]="cargando === 'pdf'"
+                (onClick)="bajar('pdf')"
+                [disabled]="disabled"
+            />
+            <p-button
+                label="Excel"
+                icon="pi pi-file-excel"
+                [outlined]="true"
+                severity="success"
+                pTooltip="Exportar a Excel"
+                tooltipPosition="top"
+                [loading]="cargando === 'xlsx'"
+                (onClick)="bajar('xlsx')"
+                [disabled]="disabled"
+            />
         </div>
     `
 })

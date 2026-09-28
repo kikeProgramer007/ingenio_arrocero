@@ -66,8 +66,8 @@ import { ExportarService } from '../../shared/services/exportar.service';
             </div>
             <div class="flex gap-2 flex-wrap" *ngIf="caja">
                 <app-botones-exportar tipo="caja" [idCaja]="caja.id" />
-                <p-button label="Nuevo movimiento" icon="pi pi-plus" (onClick)="abrirDialogMovimiento()" [disabled]="guardando" />
-                <p-button label="Cerrar caja" icon="pi pi-lock" severity="warn" (onClick)="abrirDialogCierre()" [disabled]="guardando" />
+                <p-button label="Nuevo movimiento" icon="pi pi-plus" pTooltip="Registrar ingreso o egreso manual" tooltipPosition="bottom" (onClick)="abrirDialogMovimiento()" [disabled]="guardando" />
+                <p-button label="Cerrar caja" icon="pi pi-lock" severity="warn" pTooltip="Arquear y cerrar la caja" tooltipPosition="bottom" (onClick)="abrirDialogCierre()" [disabled]="guardando" />
             </div>
         </div>
 
