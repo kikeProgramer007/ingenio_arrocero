@@ -6,9 +6,9 @@ import { formatBs, toMoney } from '../utils/money';
 import { InputNumeroComponent } from './input-numero';
 
 const OPCIONES = [
-    { label: 'QR', value: METODO_PAGO.QR, icono: 'pi pi-qrcode', tono: 'qr' },
-    { label: 'Efectivo', value: METODO_PAGO.EFECTIVO, icono: 'pi pi-wallet', tono: 'efectivo' },
-    { label: 'Mixto', value: METODO_PAGO.MIXTO, icono: 'pi pi-th-large', tono: 'mixto' }
+    { label: 'QR', value: METODO_PAGO.QR, icono: 'pi pi-qrcode' },
+    { label: 'Efectivo', value: METODO_PAGO.EFECTIVO, icono: 'pi pi-wallet' },
+    { label: 'Mixto', value: METODO_PAGO.MIXTO, icono: 'pi pi-th-large' }
 ];
 
 @Component({
@@ -28,7 +28,6 @@ const OPCIONES = [
                 type="button"
                 class="metodo-pago-card"
                 *ngFor="let op of opciones"
-                [ngClass]="'metodo-pago-tono-' + op.tono"
                 [class.metodo-pago-card-activo]="valor === op.value"
                 [disabled]="deshabilitado"
                 role="radio"
@@ -77,29 +76,20 @@ const OPCIONES = [
             min-height: 3.85rem;
             padding: 0.5rem 0.3rem 0.4rem;
             box-sizing: border-box;
-            border: 2px solid var(--surface-border);
+            border: 1px solid var(--surface-border);
             border-radius: 0.6rem;
             background: var(--surface-card);
-            color: var(--mp-color, var(--text-color));
+            color: var(--text-color);
             cursor: pointer;
             transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
         }
-        .metodo-pago-tono-qr {
-            --mp-color: var(--p-sky-600, #0284c7);
-        }
-        .metodo-pago-tono-efectivo {
-            --mp-color: var(--p-green-600, #16a34a);
-        }
-        .metodo-pago-tono-mixto {
-            --mp-color: var(--p-cyan-600, #0891b2);
-        }
         .metodo-pago-card:hover:not(:disabled) {
-            border-color: color-mix(in srgb, var(--mp-color) 50%, var(--surface-border));
+            border-color: color-mix(in srgb, var(--primary-color) 45%, var(--surface-border));
         }
         .metodo-pago-card-activo {
-            border-color: var(--mp-color);
-            background: color-mix(in srgb, var(--mp-color) 14%, var(--surface-card));
-            box-shadow: 0 0 0 2px color-mix(in srgb, var(--mp-color) 40%, transparent);
+            border-color: var(--primary-color);
+            background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-card));
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 25%, transparent);
         }
         .metodo-pago-card:disabled {
             opacity: 0.55;
@@ -112,24 +102,27 @@ const OPCIONES = [
             width: 0.75rem;
             height: 0.75rem;
             border-radius: 50%;
-            border: 2px solid color-mix(in srgb, var(--mp-color) 45%, var(--text-color-secondary));
+            border: 2px solid var(--text-color-secondary);
             background: transparent;
         }
         .metodo-pago-radio-on {
-            border-color: var(--mp-color);
+            border-color: var(--primary-color);
             box-shadow: inset 0 0 0 2px var(--surface-card);
-            background: var(--mp-color);
+            background: var(--primary-color);
         }
         .metodo-pago-icono {
             font-size: 1.15rem;
-            color: var(--mp-color);
+            color: var(--text-color-secondary);
+        }
+        .metodo-pago-card-activo .metodo-pago-icono,
+        .metodo-pago-card-activo .metodo-pago-texto {
+            color: var(--primary-color);
         }
         .metodo-pago-texto {
             font-size: 0.68rem;
             font-weight: 700;
             letter-spacing: 0.04em;
             text-transform: uppercase;
-            color: var(--mp-color);
         }
         .metodo-pago-desglose {
             margin-top: 0.75rem;
