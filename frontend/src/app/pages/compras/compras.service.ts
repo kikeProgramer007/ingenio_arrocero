@@ -62,7 +62,7 @@ export class ComprasService {
         return this.http.get<PagoProveedor[]>(apiUrl('/api/pagos'), { params });
     }
 
-    crearPago(payload: { id_compra: number; monto: number; metodo_pago: string; referencia?: string; observacion?: string }): Observable<ApiMensaje<PagoProveedor>> {
+    crearPago(payload: { id_compra: number; monto: number; metodo_pago: string; monto_efectivo?: number; monto_qr?: number; referencia?: string; observacion?: string }): Observable<ApiMensaje<PagoProveedor>> {
         return this.http.post<ApiMensaje<PagoProveedor>>(apiUrl('/api/pagos'), payload);
     }
 }

@@ -52,4 +52,16 @@ export class CrearGastoDTO {
     @IsOptional()
     @IsString()
     observacion?: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber({}, { message: 'El monto en efectivo debe ser numérico' })
+    @Min(0, { message: 'El monto en efectivo no puede ser negativo' })
+    monto_efectivo?: number;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber({}, { message: 'El monto QR debe ser numérico' })
+    @Min(0, { message: 'El monto QR no puede ser negativo' })
+    monto_qr?: number;
 }

@@ -1,15 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { forkJoin } from 'rxjs';
 import { Cliente, Cobranza, Venta } from './ventas.models';
@@ -18,7 +16,7 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { TooltipModule } from 'primeng/tooltip';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
-import { formatBs, formatFecha } from '../caja/caja.utils';
+import { etiquetaPago, formatBs, formatFecha } from '../caja/caja.utils';
 import { ClientesService, VentasService } from './ventas.service';
 
 @Component({
@@ -33,16 +31,13 @@ import { ClientesService, VentasService } from './ventas.service';
         TableModule,
         TagModule,
         TextareaModule,
-        ToastModule,
         ToggleSwitchModule,
         ImagenCampoComponent,
         TablaEsqueletoComponent,
         AyudaCampoComponent,
         TooltipModule
     ],
-    providers: [MessageService],
     template: `
-        <p-toast />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Clientes</div>
@@ -179,7 +174,7 @@ import { ClientesService, VentasService } from './ventas.service';
                         <td>{{ formatFecha(c.fecha) }}</td>
                         <td>#{{ c.id_venta }}</td>
                         <td>{{ formatBs(c.monto) }}</td>
-                        <td>{{ c.metodo_pago }}</td>
+                        <td>{{ etiquetaPago(c) }}</td>
                     </tr>
                 </ng-template>
                 <ng-template #emptymessage>
@@ -205,8 +200,9 @@ export class ClientesPage implements OnInit {
     extractoCobranzas: Cobranza[] = [];
     formatBs = formatBs;
     formatFecha = formatFecha;
+    etiquetaPago = etiquetaPago;
 
-    constructor(private clientesService: ClientesService, private ventasService: VentasService, private messageService: MessageService) {}
+    constructor(private clientesService: ClientesService, private ventasService: VentasService, private aviso: AvisoService) {}
 
     ngOnInit(): void {
         this.cargar();
@@ -221,7 +217,7 @@ export class ClientesPage implements OnInit {
             },
             error: (err) => {
                 this.cargando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo cargar clientes') });
+                this.aviso.error(err, 'No se pudo cargar clientes');
             }
         });
     }
@@ -267,7 +263,7 @@ export class ClientesPage implements OnInit {
 
     guardar(): void {
         if (!this.form.nombre?.trim()) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'El nombre es obligatorio' });
+            this.aviso.aviso('Validación', 'El nombre es obligatorio');
             return;
         }
         this.guardando = true;
@@ -287,12 +283,12 @@ export class ClientesPage implements OnInit {
             next: (res) => {
                 this.guardando = false;
                 this.dialog = false;
-                this.messageService.add({ severity: 'success', summary: 'Listo', detail: res.mensaje });
+                this.aviso.ok('Listo', res.mensaje);
                 this.cargar();
             },
             error: (err) => {
                 this.guardando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo guardar') });
+                this.aviso.error(err, 'No se pudo guardar');
             }
         });
     }
@@ -303,9 +299,5 @@ export class ClientesPage implements OnInit {
 
     foto(path?: string | null): string {
         return mediaUrl(path, 'cliente');
-    }
-
-    private msg(err: HttpErrorResponse, fallback: string): string {
-        return err?.error?.mensaje || fallback;
     }
 }

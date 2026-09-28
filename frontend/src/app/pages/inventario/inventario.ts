@@ -1,8 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -11,7 +11,6 @@ import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
 import { apiUrl } from '../../core/utils/api-url';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 import { formatBs } from '../caja/caja.utils';
@@ -24,10 +23,8 @@ import { TooltipModule } from 'primeng/tooltip';
 @Component({
     selector: 'app-inventario',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, TooltipModule],
-    providers: [MessageService],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, TooltipModule],
     template: `
-        <p-toast />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Inventario</div>
@@ -126,7 +123,7 @@ export class InventarioPage implements OnInit {
     ajusteObs = '';
     formatBs = formatBs;
 
-    constructor(private http: HttpClient, private messageService: MessageService) {}
+    constructor(private http: HttpClient, private aviso: AvisoService) {}
 
     ngOnInit(): void {
         this.http.get<any[]>(apiUrl('/api/productos/categorias')).subscribe({ next: (d) => (this.categorias = d) });
@@ -137,7 +134,7 @@ export class InventarioPage implements OnInit {
         this.cargando = true;
         this.http.get<any[]>(apiUrl('/api/productos')).subscribe({
             next: (d) => { this.productos = d; this.cargando = false; },
-            error: (e) => { this.cargando = false; this.err(e, 'No se pudo cargar inventario'); }
+            error: (e) => { this.cargando = false; this.aviso.error(e, 'No se pudo cargar inventario'); }
         });
     }
 
@@ -153,7 +150,7 @@ export class InventarioPage implements OnInit {
 
     guardar(): void {
         if (!this.form.nombre?.trim()) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'El nombre es obligatorio' });
+            this.aviso.aviso('Validación', 'El nombre es obligatorio');
             return;
         }
         this.guardando = true;
@@ -172,8 +169,8 @@ export class InventarioPage implements OnInit {
             ? this.http.put<{ mensaje: string }>(apiUrl(`/api/productos/${this.form.id}`), payload)
             : this.http.post<{ mensaje: string }>(apiUrl('/api/productos'), payload);
         req.subscribe({
-            next: (res) => { this.guardando = false; this.dialog = false; this.messageService.add({ severity: 'success', summary: 'Listo', detail: res.mensaje }); this.cargar(); },
-            error: (e) => { this.guardando = false; this.err(e, 'No se pudo guardar'); }
+            next: (res) => { this.guardando = false; this.dialog = false; this.aviso.ok('Listo', res.mensaje); this.cargar(); },
+            error: (e) => { this.guardando = false; this.aviso.error(e, 'No se pudo guardar'); }
         });
     }
 
@@ -191,15 +188,15 @@ export class InventarioPage implements OnInit {
             cantidad: this.ajusteCantidad,
             observacion: this.ajusteObs || undefined
         }).subscribe({
-            next: (res) => { this.guardando = false; this.dialogAjuste = false; this.messageService.add({ severity: 'success', summary: 'Listo', detail: res.mensaje }); this.cargar(); },
-            error: (e) => { this.guardando = false; this.err(e, 'No se pudo ajustar'); }
+            next: (res) => { this.guardando = false; this.dialogAjuste = false; this.aviso.ok('Listo', res.mensaje); this.cargar(); },
+            error: (e) => { this.guardando = false; this.aviso.error(e, 'No se pudo ajustar'); }
         });
     }
 
     verKardex(p: any): void {
         this.http.get<any[]>(apiUrl(`/api/productos/kardex/${p.id}`)).subscribe({
             next: (d) => { this.kardex = d; this.dialogKardex = true; },
-            error: (e) => this.err(e, 'No se pudo cargar kardex')
+            error: (e) => this.aviso.error(e, 'No se pudo cargar kardex')
         });
     }
 
@@ -209,9 +206,5 @@ export class InventarioPage implements OnInit {
 
     foto(path: string): string {
         return mediaUrl(path, 'producto');
-    }
-
-    private err(e: HttpErrorResponse, fallback: string) {
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: e?.error?.mensaje || e?.error?.errores?.[0] || fallback });
     }
 }

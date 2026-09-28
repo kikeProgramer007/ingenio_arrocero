@@ -139,11 +139,19 @@ export class ExportarService {
         if (err instanceof HttpErrorResponse && err.error instanceof Blob) {
             return from(err.error.text()).pipe(
                 switchMap((text) => {
+                    let cuerpo: unknown = text;
                     try {
-                        return throwError(() => ({ ...err, error: JSON.parse(text) }));
+                        cuerpo = JSON.parse(text);
                     } catch {
-                        return throwError(() => err);
+                        cuerpo = text;
                     }
+                    return throwError(() => new HttpErrorResponse({
+                        error: cuerpo,
+                        headers: err.headers,
+                        status: err.status,
+                        statusText: err.statusText,
+                        url: err.url || undefined
+                    }));
                 })
             );
         }

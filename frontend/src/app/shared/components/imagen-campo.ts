@@ -4,6 +4,7 @@ import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core
 import { ButtonModule } from 'primeng/button';
 import { apiUrl } from '../../core/utils/api-url';
 import { imagenDefault, mediaUrl, TipoImagen } from '../../core/utils/media-url';
+import { AvisoService } from '../services/aviso.service';
 
 @Component({
     selector: 'app-imagen-campo',
@@ -30,7 +31,7 @@ export class ImagenCampoComponent implements OnChanges {
     error = '';
     defaultPath = imagenDefault('producto');
 
-    constructor(private http: HttpClient) {}
+    constructor(private http: HttpClient, private aviso: AvisoService) {}
 
     ngOnChanges(): void {
         this.defaultPath = imagenDefault(this.tipo);
@@ -52,7 +53,7 @@ export class ImagenCampoComponent implements OnChanges {
                 this.vista = mediaUrl(res.url, this.tipo);
             },
             error: (err) => {
-                this.error = err?.error?.mensaje || err?.error?.message || 'No se pudo subir la imagen';
+                this.error = this.aviso.error(err, 'No se pudo subir la imagen').resumen;
                 this.usarDefault();
             }
         });

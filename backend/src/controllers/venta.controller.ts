@@ -6,11 +6,12 @@ import { parseFechaLocal } from '../utils/fecha';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
-import { obtenerCajaAbierta, registrarEgresoCaja, registrarIngresoCaja } from '../utils/caja-ingreso';
+import { obtenerCajaAbierta, registrarEgresoCaja, registrarIngresosPartidos } from '../utils/caja-ingreso';
 import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
 import { CATEGORIA_EGRESO, CATEGORIA_INGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { cobradoVenta, ESTADO_VENTA, estadoVentaPorSaldo } from '../constants/venta.constants';
 import { CrearCobranzaDTO, CrearVentaDTO } from '../dtos/venta.dto';
+import { camposPagoDocumento, conceptoPorCanal, partesDesdeDocumento } from '../utils/metodo-pago';
 
 const usuarioAtributos = ['id', 'username'];
 
@@ -52,6 +53,8 @@ function mapCobranza(item: any) {
         id_caja: item.id_caja,
         monto: toMoney(item.monto),
         metodo_pago: item.metodo_pago,
+        monto_efectivo: toMoney(item.monto_efectivo),
+        monto_qr: toMoney(item.monto_qr),
         referencia: item.referencia,
         observacion: item.observacion,
         fecha: item.fecha,
@@ -210,13 +213,21 @@ export class VentaController {
             }
 
             if (pagoInicial > 0 && cajaAbierta) {
+                const pagoDoc = camposPagoDocumento(datos, pagoInicial);
+                if (!pagoDoc.ok) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: pagoDoc.mensaje });
+                    return;
+                }
                 const idCaja = cajaAbierta.get('id') as number;
                 const cobranza = await Cobranza.create({
                     id_venta: idVenta,
                     id_cliente: datos.id_cliente,
                     id_caja: idCaja,
-                    monto: pagoInicial,
-                    metodo_pago: datos.metodo_pago,
+                    monto: pagoDoc.monto,
+                    metodo_pago: pagoDoc.metodo_pago,
+                    monto_efectivo: pagoDoc.monto_efectivo,
+                    monto_qr: pagoDoc.monto_qr,
                     referencia: datos.referencia || null,
                     observacion: 'Pago al registrar la venta',
                     fecha: new Date(),
@@ -224,7 +235,7 @@ export class VentaController {
                 }, { transaction });
 
                 const categoria = pagoInicial === total ? CATEGORIA_INGRESO.VENTA : CATEGORIA_INGRESO.COBRANZA;
-                await registrarIngresoCaja({
+                const ingreso = await registrarIngresosPartidos({
                     transaction,
                     idCaja,
                     idUsuario: usuario.id,
@@ -232,10 +243,17 @@ export class VentaController {
                     concepto: `Venta #${idVenta} - ${cliente.get('nombre')}`,
                     monto: pagoInicial,
                     metodoPago: datos.metodo_pago!,
+                    montoEfectivo: datos.monto_efectivo,
+                    montoQr: datos.monto_qr,
                     referencia: datos.referencia || null,
                     origen: ORIGEN_MOVIMIENTO.VENTA,
-                    origenId: idVenta
+                    origenId: cobranza.get('id') as number
                 });
+                if (!ingreso.ok) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: ingreso.mensaje });
+                    return;
+                }
             }
 
             await transaction.commit();
@@ -288,18 +306,42 @@ export class VentaController {
                     res.status(409).json({ mensaje: 'Debe haber una caja abierta para devolver lo cobrado' });
                     return;
                 }
-                const ultima = cobranzas.slice().sort((a, b) => Number(a.get('id')) > Number(b.get('id')) ? -1 : 1)[0];
-                await registrarEgresoCaja({
-                    transaction,
-                    idCaja: cajaAbierta.get('id') as number,
-                    idUsuario: usuario.id,
-                    categoria: CATEGORIA_EGRESO.ANULACION_VENTA,
-                    concepto: `Anulación venta #${idVenta} - ${clienteNombre}`,
-                    monto: cobrado,
-                    metodoPago: (ultima?.get('metodo_pago') as string) || 'EFECTIVO',
-                    origen: ORIGEN_MOVIMIENTO.VENTA,
-                    origenId: idVenta
-                });
+                const idCaja = cajaAbierta.get('id') as number;
+                if (cobranzas.length) {
+                    for (const cob of cobranzas) {
+                        const partes = partesDesdeDocumento({
+                            metodo_pago: cob.get('metodo_pago') as string,
+                            monto: cob.get('monto'),
+                            monto_efectivo: cob.get('monto_efectivo'),
+                            monto_qr: cob.get('monto_qr')
+                        });
+                        for (const parte of partes) {
+                            await registrarEgresoCaja({
+                                transaction,
+                                idCaja,
+                                idUsuario: usuario.id,
+                                categoria: CATEGORIA_EGRESO.ANULACION_VENTA,
+                                concepto: conceptoPorCanal(`Anulación venta #${idVenta} - ${clienteNombre}`, parte, partes.length),
+                                monto: parte.monto,
+                                metodoPago: parte.metodo,
+                                origen: ORIGEN_MOVIMIENTO.VENTA,
+                                origenId: idVenta
+                            });
+                        }
+                    }
+                } else {
+                    await registrarEgresoCaja({
+                        transaction,
+                        idCaja,
+                        idUsuario: usuario.id,
+                        categoria: CATEGORIA_EGRESO.ANULACION_VENTA,
+                        concepto: `Anulación venta #${idVenta} - ${clienteNombre}`,
+                        monto: cobrado,
+                        metodoPago: 'EFECTIVO',
+                        origen: ORIGEN_MOVIMIENTO.VENTA,
+                        origenId: idVenta
+                    });
+                }
             }
 
             for (const linea of detalles) {
@@ -418,12 +460,20 @@ export class CobranzaController {
 
             const idCaja = cajaAbierta.get('id') as number;
             const idCliente = venta.get('id_cliente') as number;
+            const pagoDoc = camposPagoDocumento(datos, monto);
+            if (!pagoDoc.ok) {
+                await transaction.rollback();
+                res.status(400).json({ mensaje: pagoDoc.mensaje });
+                return;
+            }
             const cobranza = await Cobranza.create({
                 id_venta: datos.id_venta,
                 id_cliente: idCliente,
                 id_caja: idCaja,
-                monto,
-                metodo_pago: datos.metodo_pago,
+                monto: pagoDoc.monto,
+                metodo_pago: pagoDoc.metodo_pago,
+                monto_efectivo: pagoDoc.monto_efectivo,
+                monto_qr: pagoDoc.monto_qr,
                 referencia: datos.referencia || null,
                 observacion: datos.observacion || null,
                 fecha: new Date(),
@@ -431,7 +481,7 @@ export class CobranzaController {
             }, { transaction });
 
             const clienteNombre = (venta as any).cliente?.nombre || 'Cliente';
-            await registrarIngresoCaja({
+            const ingreso = await registrarIngresosPartidos({
                 transaction,
                 idCaja,
                 idUsuario: usuario.id,
@@ -439,11 +489,18 @@ export class CobranzaController {
                 concepto: `Cobranza venta #${datos.id_venta} - ${clienteNombre}`,
                 monto,
                 metodoPago: datos.metodo_pago,
+                montoEfectivo: datos.monto_efectivo,
+                montoQr: datos.monto_qr,
                 referencia: datos.referencia || null,
                 observacion: datos.observacion || null,
                 origen: ORIGEN_MOVIMIENTO.COBRANZA,
                 origenId: cobranza.get('id') as number
             });
+            if (!ingreso.ok) {
+                await transaction.rollback();
+                res.status(400).json({ mensaje: ingreso.mensaje });
+                return;
+            }
 
             await transaction.commit();
             const creada = await Cobranza.findByPk(cobranza.get('id') as number, {

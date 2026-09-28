@@ -40,9 +40,15 @@ export interface CajaDetalle {
         retiros: number;
         anulaciones_venta: number;
         otros_egresos: number;
+        efectivo_ingresos?: number;
+        efectivo_egresos?: number;
+        qr_ingresos?: number;
+        qr_egresos?: number;
     };
     por_cobrar?: number;
     por_pagar?: number;
+    efectivo_esperado?: number;
+    qr_esperado?: number;
     saldo_contado: number | null;
     diferencia: number | null;
     resultado_arqueo: 'CUADRE' | 'FALTANTE' | 'SOBRANTE' | null;
@@ -67,6 +73,8 @@ export interface CrearMovimientoRequest {
     concepto: string;
     monto: number;
     metodo_pago: string;
+    monto_efectivo: number;
+    monto_qr: number;
     referencia?: string;
     observacion?: string;
 }
@@ -99,6 +107,8 @@ export interface DashboardResumen {
     saldo_neto: number;
     saldo_inicial: number;
     saldo_esperado: number;
+    efectivo_esperado?: number;
+    qr_esperado?: number;
     egresos_por_tipo: Record<string, number>;
     caja: {
         id: number | null;

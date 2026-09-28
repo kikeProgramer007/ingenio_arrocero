@@ -6,6 +6,7 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { CajaService } from '../caja/caja.service';
 import { DashboardResumen } from '../caja/caja.models';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { etiquetaCategoria, formatBs } from '../caja/caja.utils';
 import { APP_ROUTES } from '../../core/constants/app-routes';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
@@ -114,7 +115,7 @@ export class Dashboard implements OnInit {
     cajaRoute = APP_ROUTES.caja;
     empresa = EMPRESA;
 
-    constructor(private cajaService: CajaService) {}
+    constructor(private cajaService: CajaService, private aviso: AvisoService) {}
 
     ngOnInit(): void {
         this.cargar();
@@ -138,7 +139,7 @@ export class Dashboard implements OnInit {
             },
             error: (err) => {
                 this.loading = false;
-                this.error = err?.error?.mensaje || 'No se pudo cargar el dashboard';
+                this.error = this.aviso.error(err, 'No se pudo cargar el dashboard').resumen;
             }
         });
     }

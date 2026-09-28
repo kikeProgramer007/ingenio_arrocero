@@ -1,15 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
-import { ToastModule } from 'primeng/toast';
 import { ESTADOS_CAJA_OPTIONS } from './caja.constants';
 import { CajaDetalle } from './caja.models';
 import { CajaService } from './caja.service';
@@ -32,15 +30,12 @@ import { TooltipModule } from 'primeng/tooltip';
         SelectModule,
         TableModule,
         TagModule,
-        ToastModule,
         CuadreCajaComponent,
         BotonesExportarComponent,
         TablaEsqueletoComponent,
         TooltipModule
     ],
-    providers: [MessageService],
     template: `
-        <p-toast />
         <div class="mb-6">
             <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Historial de cajas</div>
             <div class="text-muted-color">Consulta aperturas, cierres y diferencias de arqueo</div>
@@ -187,7 +182,7 @@ export class CajaHistorial implements OnInit {
     constructor(
         private cajaService: CajaService,
         private exportarService: ExportarService,
-        private messageService: MessageService
+        private aviso: AvisoService
     ) {}
 
     ngOnInit(): void {
@@ -212,13 +207,9 @@ export class CajaHistorial implements OnInit {
                 this.cajas = data;
                 this.cargando = false;
             },
-            error: (err: HttpErrorResponse) => {
+            error: (err) => {
                 this.cargando = false;
-                this.messageService.add({
-                    severity: 'error',
-                    summary: 'Error',
-                    detail: err?.error?.mensaje || 'No se pudo cargar el historial'
-                });
+                this.aviso.error(err, 'No se pudo cargar el historial');
             }
         });
     }
@@ -232,13 +223,13 @@ export class CajaHistorial implements OnInit {
     exportarCaja(caja: CajaDetalle, formato: FormatoExport): void {
         if (formato !== 'pdf') {
             this.exportarService.descargar({ tipo: 'caja', formato, id_caja: caja.id }).subscribe({
-                error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el archivo' })
+                error: (err) => this.aviso.error(err, 'No se pudo generar el archivo')
             });
             return;
         }
         const visor = this.exportarService.abrirVentanaEspera('Generando arqueo de caja...');
         this.exportarService.mostrarPdf({ tipo: 'caja', formato: 'pdf', id_caja: caja.id }, visor).subscribe({
-            error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de caja' })
+            error: (err) => this.aviso.error(err, 'No se pudo generar el PDF de caja')
         });
     }
 
@@ -248,13 +239,7 @@ export class CajaHistorial implements OnInit {
                 this.detalle = detalle;
                 this.dialogDetalle = true;
             },
-            error: (err: HttpErrorResponse) => {
-                this.messageService.add({
-                    severity: 'error',
-                    summary: 'Error',
-                    detail: err?.error?.mensaje || 'No se pudo cargar el detalle'
-                });
-            }
+            error: (err) => this.aviso.error(err, 'No se pudo cargar el detalle')
         });
     }
 

@@ -100,6 +100,8 @@ export class DashboardController {
 
             let saldoInicial = 0;
             let saldoEsperado = 0;
+            let efectivoEsperado = 0;
+            let qrEsperado = 0;
             if (cajaAbierta) {
                 saldoInicial = toMoney(cajaAbierta.get('saldo_inicial'));
                 const movimientosCaja = await MovimientoCaja.findAll({
@@ -107,6 +109,8 @@ export class DashboardController {
                 });
                 const cajaTotales = resumirMovimientos(movimientosCaja);
                 saldoEsperado = roundMoney(saldoInicial + cajaTotales.ingresos - cajaTotales.egresos);
+                efectivoEsperado = roundMoney(saldoInicial + cajaTotales.efectivo_ingresos - cajaTotales.efectivo_egresos);
+                qrEsperado = roundMoney(cajaTotales.qr_ingresos - cajaTotales.qr_egresos);
             }
 
             const ingresosRecientes = movimientosHoy
@@ -130,6 +134,8 @@ export class DashboardController {
                 saldo_neto: roundMoney(ingresosHoy - egresosHoy),
                 saldo_inicial: saldoInicial,
                 saldo_esperado: saldoEsperado,
+                efectivo_esperado: efectivoEsperado,
+                qr_esperado: qrEsperado,
                 egresos_por_tipo: egresosPorTipo,
                 periodo: { inicio: inicioDia, fin: finDia, mes_inicio: inicioMes, mes_fin: finMes },
                 caja: cajaAbierta

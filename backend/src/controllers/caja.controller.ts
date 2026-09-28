@@ -13,6 +13,7 @@ import {
 import { ESTADO_VENTA } from '../constants/venta.constants';
 import { ESTADO_COMPRA } from '../constants/compra.constants';
 import { resumirMovimientos } from '../utils/caja-resumen';
+import { registrarEgresosPartidos, registrarIngresosPartidos } from '../utils/caja-ingreso';
 import {
     AbrirCajaDTO,
     CerrarCajaDTO,
@@ -184,7 +185,7 @@ export class CajaController {
 
             const totales = await CajaController.calcularTotales(caja.get('id') as number, transaction);
             const saldoContado = toMoney(datos.saldo_contado);
-            const diferencia = roundMoney(saldoContado - totales.saldoEsperado);
+            const diferencia = roundMoney(saldoContado - totales.efectivoEsperado);
 
             await caja.update({
                 fecha_cierre: new Date(),
@@ -248,42 +249,51 @@ export class CajaController {
             return;
         }
 
+        const transaction = await sequelize.transaction();
         try {
-            const caja = await Caja.findByPk(req.params.id);
+            const caja = await Caja.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
             if (!caja) {
+                await transaction.rollback();
                 res.status(404).json({ mensaje: `No se encontró la caja con ID ${req.params.id}` });
                 return;
             }
 
             if (caja.get('estado') !== ESTADO_CAJA.ABIERTA) {
+                await transaction.rollback();
                 res.status(409).json({ mensaje: 'No se pueden registrar movimientos en una caja cerrada' });
                 return;
             }
 
-            const movimiento = await MovimientoCaja.create({
-                id_caja: caja.get('id'),
-                tipo: datos.tipo,
+            const fn = datos.tipo === TIPO_MOVIMIENTO.INGRESO ? registrarIngresosPartidos : registrarEgresosPartidos;
+            const resultado = await fn({
+                transaction,
+                idCaja: caja.get('id') as number,
+                idUsuario: usuario.id,
                 categoria: datos.categoria,
                 concepto: datos.concepto.trim(),
                 monto: toMoney(datos.monto),
-                metodo_pago: datos.metodo_pago,
+                metodoPago: datos.metodo_pago,
+                montoEfectivo: datos.monto_efectivo,
+                montoQr: datos.monto_qr,
                 referencia: datos.referencia || null,
                 observacion: datos.observacion || null,
                 origen: ORIGEN_MOVIMIENTO.MANUAL,
-                origen_id: null,
-                id_usuario: usuario.id,
-                fecha: new Date()
+                origenId: null
             });
+            if (!resultado.ok) {
+                await transaction.rollback();
+                res.status(400).json({ mensaje: resultado.mensaje });
+                return;
+            }
 
-            const creado = await MovimientoCaja.findByPk(movimiento.get('id') as number, {
-                include: [{ model: User, as: 'usuario', attributes: usuarioAtributos }]
-            });
-
+            await transaction.commit();
+            const detalle = await CajaController.toDetalle(caja);
             res.status(201).json({
                 mensaje: 'Movimiento registrado correctamente',
-                data: CajaController.mapMovimiento(creado!)
+                data: detalle.movimientos?.[0] || null
             });
         } catch (error) {
+            await transaction.rollback();
             handleError(res, error, 'Error al registrar el movimiento');
         }
     }
@@ -311,12 +321,16 @@ export class CajaController {
         const caja = await Caja.findByPk(idCaja, { transaction });
         const saldoInicial = toMoney(caja?.get('saldo_inicial'));
         const saldoEsperado = roundMoney(saldoInicial + flujo.ingresos - flujo.egresos);
+        const efectivoEsperado = roundMoney(saldoInicial + flujo.efectivo_ingresos - flujo.efectivo_egresos);
+        const qrEsperado = roundMoney(flujo.qr_ingresos - flujo.qr_egresos);
 
         return {
             saldoInicial,
             ingresos: flujo.ingresos,
             egresos: flujo.egresos,
             saldoEsperado,
+            efectivoEsperado,
+            qrEsperado,
             movimientos,
             desglose: {
                 cobrado_clientes: flujo.cobros_clientes,
@@ -326,7 +340,11 @@ export class CajaController {
                 gastos_empresa: flujo.gastos_empresa,
                 retiros: flujo.retiros,
                 anulaciones_venta: flujo.anulaciones_venta,
-                otros_egresos: flujo.otros_egresos
+                otros_egresos: flujo.otros_egresos,
+                efectivo_ingresos: flujo.efectivo_ingresos,
+                efectivo_egresos: flujo.efectivo_egresos,
+                qr_ingresos: flujo.qr_ingresos,
+                qr_egresos: flujo.qr_egresos
             }
         };
     }
@@ -336,7 +354,7 @@ export class CajaController {
         const saldoContado = caja.saldo_contado != null ? toMoney(caja.saldo_contado) : null;
         const diferencia = caja.diferencia != null
             ? toMoney(caja.diferencia)
-            : (saldoContado != null ? roundMoney(saldoContado - totales.saldoEsperado) : null);
+            : (saldoContado != null ? roundMoney(saldoContado - totales.efectivoEsperado) : null);
 
         return {
             id: caja.id,
@@ -348,6 +366,8 @@ export class CajaController {
             ingresos: totales.ingresos,
             egresos: totales.egresos,
             saldo_esperado: totales.saldoEsperado,
+            efectivo_esperado: totales.efectivoEsperado,
+            qr_esperado: totales.qrEsperado,
             desglose: totales.desglose,
             saldo_contado: saldoContado,
             diferencia,

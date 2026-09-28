@@ -81,8 +81,22 @@ export function etiquetaMetodo(metodo: string): string {
     const map: Record<string, string> = {
         EFECTIVO: 'Efectivo',
         QR: 'QR',
-        TRANSFERENCIA: 'Transferencia',
-        OTRO: 'Otro'
+        MIXTO: 'Mixto',
+        TRANSFERENCIA: 'QR',
+        OTRO: 'QR'
     };
-    return map[metodo] || metodo;
+    return map[metodo] || metodo || '-';
+}
+
+export function etiquetaPago(item: { metodo_pago?: string | null; monto_efectivo?: number | null; monto_qr?: number | null } | string | null | undefined): string {
+    if (!item) {
+        return '-';
+    }
+    if (typeof item === 'string') {
+        return etiquetaMetodo(item);
+    }
+    if (item.metodo_pago === 'MIXTO') {
+        return `Mixto · Ef ${formatBs(item.monto_efectivo)} + QR ${formatBs(item.monto_qr)}`;
+    }
+    return etiquetaMetodo(item.metodo_pago || '');
 }

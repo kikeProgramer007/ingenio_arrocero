@@ -77,10 +77,18 @@ function etiquetaMetodo(metodo: string): string {
     const map: Record<string, string> = {
         EFECTIVO: 'Efectivo',
         QR: 'QR',
-        TRANSFERENCIA: 'Transferencia',
-        OTRO: 'Otro'
+        MIXTO: 'Mixto',
+        TRANSFERENCIA: 'QR',
+        OTRO: 'QR'
     };
     return map[metodo] || metodo || '-';
+}
+
+function etiquetaMetodoDocumento(item: { metodo_pago?: string; monto_efectivo?: unknown; monto_qr?: unknown }): string {
+    if (item.metodo_pago === 'MIXTO') {
+        return `Mixto (efectivo ${toMoney(item.monto_efectivo).toFixed(2)} + QR ${toMoney(item.monto_qr).toFixed(2)})`;
+    }
+    return etiquetaMetodo(String(item.metodo_pago || ''));
 }
 
 function etiquetaOrigen(origen: string): string {
@@ -365,7 +373,7 @@ export class ReporteController {
             g.concepto || '',
             toMoney(g.monto),
             g.descontar_caja && g.id_caja ? 'Sí' : 'No',
-            etiquetaMetodo(g.metodo_pago),
+            etiquetaMetodoDocumento(g),
             g.usuario?.username || '-'
         ]);
         const total = roundMoney(filas.reduce((acc, f) => acc + Number(f[4]), 0));
@@ -432,24 +440,28 @@ export class ReporteController {
         });
         const saldoInicial = toMoney(caja.get('saldo_inicial'));
         const saldoEsperado = roundMoney(saldoInicial + ingresos - egresos);
+        const efectivoEsperado = roundMoney(saldoInicial + flujo.efectivo_ingresos - flujo.efectivo_egresos);
+        const qrEsperado = roundMoney(flujo.qr_ingresos - flujo.qr_egresos);
         const saldoContado = caja.get('saldo_contado') != null ? toMoney(caja.get('saldo_contado')) : null;
         const diferencia = caja.get('diferencia') != null
             ? toMoney(caja.get('diferencia'))
-            : (saldoContado != null ? roundMoney(saldoContado - saldoEsperado) : null);
+            : (saldoContado != null ? roundMoney(saldoContado - efectivoEsperado) : null);
         return [{
             nombre: 'Caja',
             titulo: `Caja #${caja.get('id')} — ${caja.get('estado')}`,
             subtitulo: `Apertura ${fmtFecha(caja.get('fecha_apertura') as Date)} · Cierre ${fmtFecha(caja.get('fecha_cierre') as Date | null)}`,
             resumen: [
-                { label: 'Saldo inicial', valor: saldoInicial },
+                { label: 'Saldo inicial (efectivo)', valor: saldoInicial },
                 { label: 'Ingresos', valor: ingresos },
                 { label: 'Egresos', valor: egresos },
+                { label: 'Efectivo en caja', valor: efectivoEsperado },
+                { label: 'Saldo QR / banco', valor: qrEsperado },
                 { label: 'Cobros de clientes', valor: flujo.cobros_clientes },
                 { label: 'Anulaciones / devoluciones', valor: flujo.anulaciones_venta },
                 { label: 'Cobrado neto', valor: flujo.cobrado_neto },
-                { label: 'Saldo esperado', valor: saldoEsperado },
-                { label: 'Saldo contado', valor: saldoContado == null ? '-' : formatBs(saldoContado) },
-                { label: 'Diferencia', valor: diferencia == null ? '-' : formatBs(diferencia) },
+                { label: 'Total esperado', valor: saldoEsperado },
+                { label: 'Efectivo contado', valor: saldoContado == null ? '-' : formatBs(saldoContado) },
+                { label: 'Diferencia (cajón)', valor: diferencia == null ? '-' : formatBs(diferencia) },
                 { label: 'Arqueo', valor: diferencia == null ? '-' : clasificarDiferencia(diferencia) },
                 { label: 'Usuario apertura', valor: (caja as any).usuarioApertura?.username || '-' }
             ],
@@ -486,7 +498,7 @@ export class ReporteController {
         const cobros = (venta.cobranzas || []).map((c: any) => [
             fmtFecha(c.fecha),
             toMoney(c.monto),
-            etiquetaMetodo(c.metodo_pago),
+            etiquetaMetodoDocumento(c),
             c.referencia || '-'
         ]);
         const hojas: HojaExport[] = [{
@@ -594,7 +606,7 @@ export class ReporteController {
         const pagos = (compra.pagos || []).map((p: any) => [
             fmtFecha(p.fecha),
             toMoney(p.monto),
-            etiquetaMetodo(p.metodo_pago),
+            etiquetaMetodoDocumento(p),
             p.referencia || '-'
         ]);
         if (pagos.length) {
@@ -623,7 +635,7 @@ export class ReporteController {
             c.id_venta,
             c.cliente?.nombre || '-',
             toMoney(c.monto),
-            etiquetaMetodo(c.metodo_pago),
+            etiquetaMetodoDocumento(c),
             c.referencia || '-',
             c.usuario?.username || '-'
         ]);
@@ -656,7 +668,7 @@ export class ReporteController {
             p.id_compra,
             p.proveedor?.nombre || '-',
             toMoney(p.monto),
-            etiquetaMetodo(p.metodo_pago),
+            etiquetaMetodoDocumento(p),
             p.referencia || '-',
             p.usuario?.username || '-'
         ]);

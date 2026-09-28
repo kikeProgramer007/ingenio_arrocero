@@ -1,9 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
@@ -14,8 +12,7 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
-import { formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
+import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Cliente, LineaVenta, Venta } from './ventas.models';
 import { ClientesService, VentasService } from './ventas.service';
 import { ExportarService, FormatoExport } from '../../shared/services/exportar.service';
@@ -28,7 +25,9 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { TooltipModule } from 'primeng/tooltip';
+import { AvisoService } from '../../shared/services/aviso.service';
 
 @Component({
     selector: 'app-ventas',
@@ -46,7 +45,6 @@ import { TooltipModule } from 'primeng/tooltip';
         TableModule,
         TagModule,
         TextareaModule,
-        ToastModule,
         EstadoVacioComponent,
         KpiGridComponent,
         DialogCajaCerradaComponent,
@@ -56,9 +54,7 @@ import { TooltipModule } from 'primeng/tooltip';
         MetodoPagoComponent,
         TooltipModule
     ],
-    providers: [MessageService],
     template: `
-        <p-toast />
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -200,8 +196,8 @@ import { TooltipModule } from 'primeng/tooltip';
                         <p-inputNumber [(ngModel)]="pagoInicial" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                     </div>
                     <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
-                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Más rápido que el desplegable." posicion="top" /></label>
-                        <app-metodo-pago [(ngModel)]="metodoPago" />
+                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto permite partir el cobro." posicion="top" /></label>
+                        <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="pagoInicial" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
                     </div>
                     <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
                         <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia, nro. de QR o comprobante." posicion="left" /></label>
@@ -210,8 +206,8 @@ import { TooltipModule } from 'primeng/tooltip';
                 </div>
                 <div class="grid grid-cols-12 gap-3" *ngIf="modoCobro === 'CONTADO'">
                     <div class="col-span-12 md:col-span-6">
-                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Más rápido que el desplegable." posicion="top" /></label>
-                        <app-metodo-pago [(ngModel)]="metodoPago" />
+                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto: parte QR y parte efectivo." posicion="top" /></label>
+                        <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="pagoAlRegistrar()" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
                     </div>
                     <div class="col-span-12 md:col-span-6">
                         <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia, nro. de QR o comprobante." posicion="left" /></label>
@@ -261,7 +257,7 @@ import { TooltipModule } from 'primeng/tooltip';
                         <tr>
                             <td>{{ formatFecha(cob.fecha) }}</td>
                             <td>{{ formatBs(cob.monto) }}</td>
-                            <td>{{ cob.metodo_pago }}</td>
+                            <td>{{ etiquetaPago(cob) }}</td>
                             <td>{{ cob.usuario?.username || '-' }}</td>
                         </tr>
                     </ng-template>
@@ -305,8 +301,8 @@ import { TooltipModule } from 'primeng/tooltip';
                     <p-inputNumber [(ngModel)]="cobroMonto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Cómo entra a caja este cobro: efectivo, QR o transferencia." posicion="right" /></label>
-                    <app-metodo-pago [(ngModel)]="cobroMetodo" />
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto parte el cobro." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="cobroMetodo" [montoTotal]="cobroMonto" [(montoEfectivo)]="cobroEfectivo" [(montoQr)]="cobroQr" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante QR. Opcional en efectivo." posicion="top" /></label>
@@ -336,6 +332,8 @@ export class VentasPage implements OnInit {
     ventaAnular: Venta | null = null;
     cobroMonto = 0;
     cobroMetodo = 'EFECTIVO';
+    cobroEfectivo = 0;
+    cobroQr = 0;
     cobroReferencia = '';
     clienteRapido = { nombre: '', nit_ci: '', telefono: '' };
     filtroEstado = '';
@@ -357,11 +355,14 @@ export class VentasPage implements OnInit {
     lineas: LineaVenta[] = [this.lineaVacia()];
     pagoInicial = 0;
     metodoPago = 'EFECTIVO';
+    montoEfectivo = 0;
+    montoQr = 0;
     referencia = '';
     observacion = '';
     detalle: Venta | null = null;
     formatBs = formatBs;
     formatFecha = formatFecha;
+    etiquetaPago = etiquetaPago;
 
     get kpis(): KpiItem[] {
         const vigentes = this.ventas.filter((v) => v.estado !== 'ANULADA');
@@ -380,7 +381,7 @@ export class VentasPage implements OnInit {
         private ventasService: VentasService,
         private clientesService: ClientesService,
         private productosService: ProductosService,
-        private messageService: MessageService,
+        private aviso: AvisoService,
         private exportarService: ExportarService,
         private confirmar: ConfirmarService,
         private route: ActivatedRoute
@@ -398,13 +399,13 @@ export class VentasPage implements OnInit {
     exportarVenta(venta: Venta, formato: FormatoExport = 'pdf', visor?: Window | null): void {
         if (formato === 'xlsx') {
             this.exportarService.descargar({ tipo: 'venta', formato, id: venta.id }).subscribe({
-                error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el Excel de la venta' })
+                error: (err) => this.aviso.error(err, 'No se pudo generar el Excel de la venta')
             });
             return;
         }
         const ventana = visor ?? this.exportarService.abrirVentanaEspera('Generando nota de venta...');
         this.exportarService.mostrarPdf({ tipo: 'venta', formato: 'pdf', id: venta.id }, ventana).subscribe({
-            error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de la venta' })
+            error: (err) => this.aviso.error(err, 'No se pudo generar el PDF de la venta')
         });
     }
 
@@ -441,7 +442,7 @@ export class VentasPage implements OnInit {
             },
             error: (err) => {
                 this.cargando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo cargar ventas') });
+                this.aviso.error(err, 'No se pudo cargar ventas');
             }
         });
     }
@@ -452,6 +453,8 @@ export class VentasPage implements OnInit {
         this.pagoInicial = 0;
         this.modoCobro = 'CONTADO';
         this.metodoPago = 'EFECTIVO';
+        this.montoEfectivo = 0;
+        this.montoQr = 0;
         this.referencia = '';
         this.observacion = '';
         this.dialogNueva = true;
@@ -485,15 +488,20 @@ export class VentasPage implements OnInit {
 
     guardar(): void {
         if (!this.idCliente) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Seleccione un cliente' });
+            this.aviso.aviso('Validación', 'Seleccione un cliente');
             return;
         }
         const lineas = this.lineas.filter((l) => Number(l.cantidad) > 0 && (l.id_producto || l.descripcion?.trim()));
         if (!lineas.length) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Agregue al menos un producto o una descripción' });
+            this.aviso.aviso('Validación', 'Agregue al menos un producto o una descripción');
             return;
         }
         const cobro = this.pagoAlRegistrar();
+        const mixto = mensajePagoMixto(this.metodoPago, cobro, this.montoEfectivo, this.montoQr);
+        if (mixto) {
+            this.aviso.aviso('Validación', mixto);
+            return;
+        }
         const visor = this.exportarService.abrirVentanaEspera('Generando nota de venta...');
         this.guardando = true;
         this.ventasService.crear({
@@ -507,12 +515,13 @@ export class VentasPage implements OnInit {
             })),
             pago_inicial: cobro,
             metodo_pago: cobro > 0 ? this.metodoPago : undefined,
-            referencia: cobro > 0 ? this.referencia || undefined : undefined
+            referencia: cobro > 0 ? this.referencia || undefined : undefined,
+            ...(cobro > 0 ? extrasPagoMixto(this.metodoPago, this.montoEfectivo, this.montoQr) : {})
         }).subscribe({
             next: (res) => {
                 this.guardando = false;
                 this.dialogNueva = false;
-                this.messageService.add({ severity: 'success', summary: 'Venta', detail: 'Venta registrada. Se abre la nota de venta.' });
+                this.aviso.ok('Venta', 'Venta registrada. Se abre la nota de venta.');
                 this.cargar();
                 this.cargarProductos();
                 if (res.data?.id) {
@@ -528,7 +537,7 @@ export class VentasPage implements OnInit {
                     this.dialogCajaCerrada = true;
                     return;
                 }
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo registrar la venta') });
+                this.aviso.error(err, 'No se pudo registrar la venta');
             }
         });
     }
@@ -539,7 +548,7 @@ export class VentasPage implements OnInit {
                 this.detalle = data;
                 this.dialogDetalle = true;
             },
-            error: (err) => this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo cargar el detalle') })
+            error: (err) => this.aviso.error(err, 'No se pudo cargar el detalle')
         });
     }
 
@@ -550,7 +559,7 @@ export class VentasPage implements OnInit {
 
     guardarClienteRapido(): void {
         if (!this.clienteRapido.nombre.trim()) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'El nombre es obligatorio' });
+            this.aviso.aviso('Validación', 'El nombre es obligatorio');
             return;
         }
         this.guardandoCliente = true;
@@ -565,11 +574,11 @@ export class VentasPage implements OnInit {
                 this.dialogCliente = false;
                 this.clientes = [...this.clientes, res.data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
                 this.idCliente = res.data.id;
-                this.messageService.add({ severity: 'success', summary: 'Cliente', detail: res.mensaje });
+                this.aviso.ok('Cliente', res.mensaje);
             },
             error: (err) => {
                 this.guardandoCliente = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo crear el cliente') });
+                this.aviso.error(err, 'No se pudo crear el cliente');
             }
         });
     }
@@ -580,13 +589,20 @@ export class VentasPage implements OnInit {
         }
         this.cobroMonto = Number(this.detalle.saldo_pendiente || 0);
         this.cobroMetodo = 'EFECTIVO';
+        this.cobroEfectivo = 0;
+        this.cobroQr = 0;
         this.cobroReferencia = '';
         this.dialogCobro = true;
     }
 
     guardarCobroDetalle(): void {
         if (!this.detalle || !this.cobroMonto) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Indique el monto a cobrar' });
+            this.aviso.aviso('Validación', 'Indique el monto a cobrar');
+            return;
+        }
+        const mixto = mensajePagoMixto(this.cobroMetodo, this.cobroMonto, this.cobroEfectivo, this.cobroQr);
+        if (mixto) {
+            this.aviso.aviso('Validación', mixto);
             return;
         }
         this.guardando = true;
@@ -595,12 +611,13 @@ export class VentasPage implements OnInit {
             id_venta: this.detalle.id,
             monto: this.cobroMonto,
             metodo_pago: this.cobroMetodo,
-            referencia: this.cobroReferencia || undefined
+            referencia: this.cobroReferencia || undefined,
+            ...extrasPagoMixto(this.cobroMetodo, this.cobroEfectivo, this.cobroQr)
         }).subscribe({
             next: () => {
                 this.guardando = false;
                 this.dialogCobro = false;
-                this.messageService.add({ severity: 'success', summary: 'Cobranza', detail: 'Cobro registrado. Se abre la nota de venta actualizada.' });
+                this.aviso.ok('Cobranza', 'Cobro registrado. Se abre la nota de venta actualizada.');
                 this.cargar();
                 this.ver(this.detalle!);
                 this.exportarVenta(this.detalle!, 'pdf', visor);
@@ -612,7 +629,7 @@ export class VentasPage implements OnInit {
                     this.dialogCajaCerrada = true;
                     return;
                 }
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo registrar la cobranza') });
+                this.aviso.error(err, 'No se pudo registrar la cobranza');
             }
         });
     }
@@ -646,7 +663,7 @@ export class VentasPage implements OnInit {
             next: (res) => {
                 this.guardando = false;
                 this.dialogDetalle = false;
-                this.messageService.add({ severity: 'success', summary: 'Venta', detail: res.mensaje });
+                this.aviso.ok('Venta', res.mensaje);
                 this.cargar();
                 this.cargarProductos();
             },
@@ -656,7 +673,7 @@ export class VentasPage implements OnInit {
                     this.dialogCajaCerrada = true;
                     return;
                 }
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo anular la venta') });
+                this.aviso.error(err, 'No se pudo anular la venta');
             }
         });
     }
@@ -709,9 +726,5 @@ export class VentasPage implements OnInit {
 
     private lineaVacia(): LineaVenta {
         return { descripcion: '', id_producto: null, cantidad: 1, precio_unitario: 0, subtotal: 0 };
-    }
-
-    private msg(err: HttpErrorResponse, fallback: string): string {
-        return err?.error?.mensaje || err?.error?.errores?.[0] || fallback;
     }
 }

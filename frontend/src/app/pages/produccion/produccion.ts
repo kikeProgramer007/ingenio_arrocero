@@ -1,15 +1,14 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
 import { apiUrl } from '../../core/utils/api-url';
 import { formatFecha } from '../caja/caja.utils';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
@@ -18,10 +17,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 @Component({
     selector: 'app-produccion',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, SelectModule, TableModule, TextareaModule, ToastModule, TablaEsqueletoComponent, AyudaCampoComponent],
-    providers: [MessageService],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, SelectModule, TableModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent],
     template: `
-        <p-toast />
         <div class="mb-6 flex flex-wrap justify-between gap-3">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Producción</div>
@@ -73,7 +70,7 @@ export class ProduccionPage implements OnInit {
     form: any = {};
     formatFecha = formatFecha;
 
-    constructor(private http: HttpClient, private messageService: MessageService) {}
+    constructor(private http: HttpClient, private aviso: AvisoService) {}
 
     ngOnInit(): void {
         this.http.get<any[]>(apiUrl('/api/productos')).subscribe({ next: (d) => (this.productos = d) });
@@ -84,19 +81,15 @@ export class ProduccionPage implements OnInit {
         this.cargando = true;
         this.http.get<any[]>(apiUrl('/api/producciones')).subscribe({
             next: (d) => { this.items = d; this.cargando = false; },
-            error: (e) => { this.cargando = false; this.err(e); }
+            error: (e) => { this.cargando = false; this.aviso.error(e, 'No se pudo completar la operación'); }
         });
     }
 
     guardar(): void {
         this.guardando = true;
         this.http.post<{ mensaje: string }>(apiUrl('/api/producciones'), this.form).subscribe({
-            next: (res) => { this.guardando = false; this.dialog = false; this.messageService.add({ severity: 'success', summary: 'Listo', detail: res.mensaje }); this.cargar(); },
-            error: (e) => { this.guardando = false; this.err(e); }
+            next: (res) => { this.guardando = false; this.dialog = false; this.aviso.ok('Listo', res.mensaje); this.cargar(); },
+            error: (e) => { this.guardando = false; this.aviso.error(e, 'No se pudo registrar la producción'); }
         });
-    }
-
-    private err(e: HttpErrorResponse) {
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: e?.error?.mensaje || e?.error?.errores?.[0] || 'Error' });
     }
 }

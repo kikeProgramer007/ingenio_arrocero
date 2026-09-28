@@ -1,9 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { ChartModule } from 'primeng/chart';
 import { CheckboxModule } from 'primeng/checkbox';
@@ -14,8 +14,7 @@ import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
-import { etiquetaMetodo, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
+import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { apiUrl } from '../../core/utils/api-url';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
@@ -24,16 +23,15 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 
 const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'Repuestos', 'Servicios', 'Alimentación', 'Otros'];
 
 @Component({
     selector: 'app-gastos',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent],
-    providers: [MessageService],
+    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent],
     template: `
-        <p-toast />
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -75,7 +73,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                                 <td>{{ item.categoria || 'Otros' }}</td>
                                 <td>{{ item.concepto }}</td>
                                 <td>{{ formatBs(item.monto) }}</td>
-                                <td>{{ etiquetaMetodo(item.metodo_pago) }}</td>
+                                <td>{{ etiquetaPago(item) }}</td>
                                 <td>{{ item.usuario?.username || '-' }}</td>
                             </tr>
                         </ng-template>
@@ -109,7 +107,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                         <td>{{ item.concepto }}</td>
                         <td>{{ formatBs(item.monto) }}</td>
                         <td><p-tag [value]="item.descontar_caja ? 'Descontado' : 'Sin descontar'" [severity]="item.descontar_caja ? 'danger' : 'secondary'" /></td>
-                        <td>{{ etiquetaMetodo(item.metodo_pago) }}</td>
+                        <td>{{ etiquetaPago(item) }}</td>
                         <td>{{ item.usuario?.username || '-' }}</td>
                     </tr>
                 </ng-template>
@@ -136,8 +134,8 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                 </div>
                 <small class="text-muted-color" *ngIf="esRetiro && !descontarCaja">Se registra el retiro, pero no sale dinero de caja.</small>
                 <div *ngIf="!esRetiro || descontarCaja">
-                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Cómo salió el dinero." posicion="right" /></label>
-                    <app-metodo-pago [(ngModel)]="metodo" />
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR sale del banco. Efectivo del cajón. Mixto parte el egreso." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="metodo" [montoTotal]="monto" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
                 </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o factura. Opcional." posicion="top" /></label><input pInputText class="w-full" [(ngModel)]="referencia" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Detalle interno del gasto o retiro." posicion="top" /></label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea></div>
@@ -168,6 +166,8 @@ export class GastosPage implements OnInit {
     categoria = 'Otros';
     monto = 0;
     metodo = 'EFECTIVO';
+    montoEfectivo = 0;
+    montoQr = 0;
     descontarCaja = true;
     referencia = '';
     observacion = '';
@@ -176,9 +176,9 @@ export class GastosPage implements OnInit {
     chartOptions: any = { plugins: { legend: { position: 'bottom' } } };
     formatBs = formatBs;
     formatFecha = formatFecha;
-    etiquetaMetodo = etiquetaMetodo;
+    etiquetaPago = etiquetaPago;
 
-    constructor(private route: ActivatedRoute, private http: HttpClient, private messageService: MessageService) {}
+    constructor(private route: ActivatedRoute, private http: HttpClient, private aviso: AvisoService) {}
 
     ngOnInit(): void {
         this.tipo = this.route.snapshot.data['tipo'] || 'GASTO_EMPRESA';
@@ -253,6 +253,8 @@ export class GastosPage implements OnInit {
         this.categoria = 'Otros';
         this.monto = 0;
         this.metodo = 'EFECTIVO';
+        this.montoEfectivo = 0;
+        this.montoQr = 0;
         this.descontarCaja = true;
         this.referencia = '';
         this.observacion = '';
@@ -271,13 +273,19 @@ export class GastosPage implements OnInit {
                 this.cargando = false;
                 this.armarChart();
             },
-            error: (err) => { this.cargando = false; this.toast(err, 'No se pudo cargar'); }
+            error: (err) => { this.cargando = false; this.aviso.error(err, 'No se pudo cargar'); }
         });
     }
 
     guardar(): void {
         if (!this.concepto.trim() || !this.monto) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Concepto y monto son obligatorios' });
+            this.aviso.aviso('Validación', 'Concepto y monto son obligatorios');
+            return;
+        }
+        const descuenta = this.esEmpresa || this.descontarCaja;
+        const mixto = descuenta ? mensajePagoMixto(this.metodo, this.monto, this.montoEfectivo, this.montoQr) : null;
+        if (mixto) {
+            this.aviso.aviso('Validación', mixto);
             return;
         }
         this.guardando = true;
@@ -287,17 +295,25 @@ export class GastosPage implements OnInit {
             categoria: this.esEmpresa ? this.categoria : undefined,
             monto: this.monto,
             descontar_caja: this.esEmpresa ? true : this.descontarCaja,
-            metodo_pago: this.esEmpresa || this.descontarCaja ? this.metodo : undefined,
+            metodo_pago: descuenta ? this.metodo : undefined,
             referencia: this.referencia || undefined,
-            observacion: this.observacion || undefined
+            observacion: this.observacion || undefined,
+            ...(descuenta ? extrasPagoMixto(this.metodo, this.montoEfectivo, this.montoQr) : {})
         }).subscribe({
             next: (res) => {
                 this.guardando = false;
                 this.dialog = false;
-                this.messageService.add({ severity: 'success', summary: 'Listo', detail: res.mensaje });
+                this.aviso.ok('Listo', res.mensaje);
                 this.cargar();
             },
-            error: (err) => { this.guardando = false; this.toast(err, 'No se pudo guardar'); }
+            error: (err) => {
+                this.guardando = false;
+                if (esErrorCajaCerrada(err)) {
+                    this.dialogCajaCerrada = true;
+                    return;
+                }
+                this.aviso.error(err, 'No se pudo guardar');
+            }
         });
     }
 
@@ -324,13 +340,5 @@ export class GastosPage implements OnInit {
             labels: Object.keys(acc),
             datasets: [{ data: Object.values(acc), backgroundColor: ['#4ade80', '#f87171', '#fb923c', '#60a5fa', '#a78bfa', '#fbbf24', '#34d399', '#94a3b8'] }]
         };
-    }
-
-    private toast(err: HttpErrorResponse, fallback: string): void {
-        if (esErrorCajaCerrada(err)) {
-            this.dialogCajaCerrada = true;
-            return;
-        }
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: err?.error?.mensaje || err?.error?.errores?.[0] || fallback });
     }
 }

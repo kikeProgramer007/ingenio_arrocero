@@ -64,6 +64,18 @@ export class CrearMovimientoCajaDTO {
     @IsString({ message: 'La observación debe ser texto' })
     @MaxLength(500, { message: 'La observación no puede superar 500 caracteres' })
     observacion?: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber({}, { message: 'El monto en efectivo debe ser numérico' })
+    @Min(0, { message: 'El monto en efectivo no puede ser negativo' })
+    monto_efectivo?: number;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber({}, { message: 'El monto QR debe ser numérico' })
+    @Min(0, { message: 'El monto QR no puede ser negativo' })
+    monto_qr?: number;
 }
 
 export class FiltroHistorialCajaDTO {

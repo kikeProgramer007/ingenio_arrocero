@@ -1,15 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { Proveedor } from './compras.models';
 import { ProveedoresService } from './compras.service';
@@ -31,16 +29,13 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
         TableModule,
         TagModule,
         TextareaModule,
-        ToastModule,
         ToggleSwitchModule,
         ImagenCampoComponent,
         TablaEsqueletoComponent,
         AyudaCampoComponent,
         TooltipModule
     ],
-    providers: [MessageService],
     template: `
-        <p-toast />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Proveedores</div>
@@ -139,7 +134,7 @@ export class ProveedoresPage implements OnInit {
     busqueda = '';
     form: Proveedor = this.vacio();
 
-    constructor(private proveedoresService: ProveedoresService, private messageService: MessageService) {}
+    constructor(private proveedoresService: ProveedoresService, private aviso: AvisoService) {}
 
     ngOnInit(): void {
         this.cargar();
@@ -154,7 +149,7 @@ export class ProveedoresPage implements OnInit {
             },
             error: (err) => {
                 this.cargando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo cargar proveedores') });
+                this.aviso.error(err, 'No se pudo cargar proveedores');
             }
         });
     }
@@ -171,7 +166,7 @@ export class ProveedoresPage implements OnInit {
 
     guardar(): void {
         if (!this.form.nombre?.trim()) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'El nombre es obligatorio' });
+            this.aviso.aviso('Validación', 'El nombre es obligatorio');
             return;
         }
         this.guardando = true;
@@ -191,12 +186,12 @@ export class ProveedoresPage implements OnInit {
             next: (res) => {
                 this.guardando = false;
                 this.dialog = false;
-                this.messageService.add({ severity: 'success', summary: 'Listo', detail: res.mensaje });
+                this.aviso.ok('Listo', res.mensaje);
                 this.cargar();
             },
             error: (err) => {
                 this.guardando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo guardar') });
+                this.aviso.error(err, 'No se pudo guardar');
             }
         });
     }
@@ -207,9 +202,5 @@ export class ProveedoresPage implements OnInit {
 
     foto(path?: string | null): string {
         return mediaUrl(path, 'proveedor');
-    }
-
-    private msg(err: HttpErrorResponse, fallback: string): string {
-        return err?.error?.mensaje || err?.error?.errores?.[0] || fallback;
     }
 }

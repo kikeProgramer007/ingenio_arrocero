@@ -5,10 +5,11 @@ import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
-import { obtenerCajaAbierta, registrarEgresoCaja } from '../utils/caja-ingreso';
+import { obtenerCajaAbierta, registrarEgresosPartidos } from '../utils/caja-ingreso';
 import { aplicarStock, TIPO_INVENTARIO, toQty } from '../utils/inventario';
 import { CATEGORIA_EGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { CrearAcopioDTO, CrearCampanaDTO } from '../dtos/campana.dto';
+import { camposPagoDocumento } from '../utils/metodo-pago';
 
 function mapAcopio(item: any) {
     return {
@@ -20,6 +21,8 @@ function mapAcopio(item: any) {
         total: toMoney(item.total),
         pago: toMoney(item.pago),
         metodo_pago: item.metodo_pago,
+        monto_efectivo: toMoney(item.monto_efectivo),
+        monto_qr: toMoney(item.monto_qr),
         fecha: item.fecha,
         observacion: item.observacion,
         proveedor: item.proveedor ? { id: item.proveedor.id, nombre: item.proveedor.nombre } : null,
@@ -144,11 +147,18 @@ export class CampanaController {
             }
 
             let caja = null;
+            let pagoDoc: ReturnType<typeof camposPagoDocumento> | null = null;
             if (pago > 0) {
                 caja = await obtenerCajaAbierta(transaction);
                 if (!caja) {
                     await transaction.rollback();
                     res.status(409).json({ mensaje: 'Debe haber una caja abierta para registrar un pago' });
+                    return;
+                }
+                pagoDoc = camposPagoDocumento(datos, pago);
+                if (!pagoDoc.ok) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: pagoDoc.mensaje });
                     return;
                 }
             }
@@ -162,7 +172,9 @@ export class CampanaController {
                 precio_unitario: toMoney(datos.precio_unitario),
                 total,
                 pago,
-                metodo_pago: datos.metodo_pago || null,
+                metodo_pago: pagoDoc && pagoDoc.ok ? pagoDoc.metodo_pago : (datos.metodo_pago || null),
+                monto_efectivo: pagoDoc && pagoDoc.ok ? pagoDoc.monto_efectivo : null,
+                monto_qr: pagoDoc && pagoDoc.ok ? pagoDoc.monto_qr : null,
                 id_caja: caja ? caja.get('id') : null,
                 observacion: datos.observacion || null,
                 fecha: new Date(),
@@ -170,7 +182,7 @@ export class CampanaController {
             }, { transaction });
 
             if (pago > 0 && caja) {
-                await registrarEgresoCaja({
+                const egreso = await registrarEgresosPartidos({
                     transaction,
                     idCaja: caja.get('id') as number,
                     idUsuario: usuario.id,
@@ -178,9 +190,16 @@ export class CampanaController {
                     concepto: `Acopio campaña ${campana.get('nombre')} - ${proveedor.get('nombre')}`,
                     monto: pago,
                     metodoPago: datos.metodo_pago!,
+                    montoEfectivo: datos.monto_efectivo,
+                    montoQr: datos.monto_qr,
                     origen: ORIGEN_MOVIMIENTO.COMPRA,
                     origenId: acopio.get('id') as number
                 });
+                if (!egreso.ok) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: egreso.mensaje });
+                    return;
+                }
             }
 
             if (datos.id_producto) {

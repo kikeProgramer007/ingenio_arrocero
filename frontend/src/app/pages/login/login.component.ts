@@ -10,6 +10,7 @@ import { RippleModule } from 'primeng/ripple';
 import { AppFloatingConfigurator } from '../../layout/component/app.floatingconfigurator';
 import { AuthService } from '../../core/services/auth.service';
 import { APP_ROUTES } from '../../core/constants/app-routes';
+import { mapearErrorHttp } from '../../shared/utils/error-http';
 
 @Component({
     selector: 'app-login',
@@ -39,7 +40,7 @@ export class LoginComponent {
             },
             error: (error) => {
                 this.loading = false;
-                this.errorMensaje = error?.error?.mensaje || 'No se pudo iniciar sesión';
+                this.errorMensaje = mapearErrorHttp(error, 'No se pudo iniciar sesión').resumen;
             }
         });
     }

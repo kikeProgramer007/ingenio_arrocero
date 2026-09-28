@@ -1,9 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
-import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import { ExportarService, FormatoExport, ParamsExport, TipoExport } from '../services/exportar.service';
+import { AvisoService } from '../services/aviso.service';
 
 @Component({
     selector: 'app-botones-exportar',
@@ -51,7 +51,7 @@ export class BotonesExportarComponent {
 
     constructor(
         private exportarService: ExportarService,
-        private messageService: MessageService
+        private aviso: AvisoService
     ) {}
 
     bajar(formato: FormatoExport): void {
@@ -71,9 +71,9 @@ export class BotonesExportarComponent {
             next: () => {
                 this.cargando = null;
             },
-            error: () => {
+            error: (err) => {
                 this.cargando = null;
-                this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el archivo' });
+                this.aviso.error(err, 'No se pudo generar el archivo');
             }
         });
     }

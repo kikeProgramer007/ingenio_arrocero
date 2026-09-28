@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -12,9 +12,7 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
-import { HttpErrorResponse } from '@angular/common/http';
 import {
     CATEGORIAS_POR_TIPO,
     TIPOS_MOVIMIENTO_OPTIONS,
@@ -30,6 +28,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { ExportarService } from '../../shared/services/exportar.service';
 
 @Component({
@@ -47,7 +46,6 @@ import { ExportarService } from '../../shared/services/exportar.service';
         TableModule,
         TagModule,
         TextareaModule,
-        ToastModule,
         TooltipModule,
         CuadreCajaComponent,
         BotonesExportarComponent,
@@ -55,10 +53,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
         AyudaCampoComponent,
         MetodoPagoComponent
     ],
-    providers: [MessageService],
     template: `
-        <p-toast />
-
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Caja actual</div>
@@ -74,7 +69,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
         <div class="card" *ngIf="cargando">
             <p-skeleton width="40%" height="1.5rem" styleClass="mb-4" />
             <div class="grid grid-cols-12 gap-4">
-                <div class="col-span-12 md:col-span-3" *ngFor="let i of [1,2,3,4]">
+                <div class="col-span-12 md:col-span-2" *ngFor="let i of [1,2,3,4,5,6]">
                     <p-skeleton height="6rem" />
                 </div>
             </div>
@@ -121,7 +116,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
 
         <ng-container *ngIf="!cargando && !error && caja">
             <div class="grid grid-cols-12 gap-8 mb-6">
-                <div class="col-span-12 sm:col-span-6 xl:col-span-3" *ngFor="let card of cardsResumen()">
+                <div class="col-span-12 sm:col-span-6 xl:col-span-2" *ngFor="let card of cardsResumen()">
                     <div class="card mb-0">
                         <div class="flex justify-between mb-3">
                             <div>
@@ -206,8 +201,8 @@ import { ExportarService } from '../../shared/services/exportar.service';
                     <p-inputnumber [(ngModel)]="movimiento.monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" [maxFractionDigits]="2" locale="es-BO" prefix="Bs " fluid />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR, transferencia u otro." posicion="right" /></label>
-                    <app-metodo-pago [(ngModel)]="movimiento.metodo_pago" />
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto parte el movimiento." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="movimiento.metodo_pago" [montoTotal]="movimiento.monto" [(montoEfectivo)]="movimiento.monto_efectivo" [(montoQr)]="movimiento.monto_qr" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Referencia (opcional) <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante." posicion="top" /></label>
@@ -228,11 +223,15 @@ import { ExportarService } from '../../shared/services/exportar.service';
             <div class="flex flex-col gap-4" *ngIf="caja">
                 <app-cuadre-caja [caja]="caja" />
                 <div class="flex justify-between font-semibold border-t border-surface pt-3">
-                    <span>Total en sistema (esperado)</span>
-                    <span>{{ formatBs(caja.saldo_esperado) }}</span>
+                    <span>Efectivo esperado en cajón</span>
+                    <span>{{ formatBs(caja.efectivo_esperado ?? caja.saldo_esperado) }}</span>
+                </div>
+                <div class="flex justify-between text-muted-color">
+                    <span>Saldo QR / banco</span>
+                    <span>{{ formatBs(caja.qr_esperado) }}</span>
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Saldo contado físicamente <app-ayuda-campo texto="Cuenta el dinero del cajón. El sistema compara con el saldo esperado." posicion="top" /></label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Efectivo contado en el cajón <app-ayuda-campo texto="Cuenta solo el dinero físico. El QR no está en el cajón: se compara con el efectivo esperado." posicion="top" /></label>
                     <p-inputnumber [(ngModel)]="saldoContado" mode="decimal" [min]="0" [minFractionDigits]="2" [maxFractionDigits]="2" locale="es-BO" prefix="Bs " fluid />
                 </div>
                 <div class="flex items-center justify-between">
@@ -240,7 +239,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
                     <span class="font-semibold">{{ formatBs(diferenciaCierre) }}</span>
                 </div>
                 <p-tag [value]="etiquetaArqueo" [severity]="severidadArqueo" />
-                <p class="text-muted-color text-sm m-0">Compara lo contado con lo que el sistema espera según los movimientos.</p>
+                <p class="text-muted-color text-sm m-0">El arqueo compara lo contado con el efectivo del cajón. El QR queda en el banco.</p>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Observación (opcional) <app-ayuda-campo texto="Explica un faltante o sobrante, si lo hay." posicion="top" /></label>
                     <textarea pTextarea [(ngModel)]="observacionCierre" rows="2" fluid></textarea>
@@ -278,10 +277,10 @@ export class CajaActual implements OnInit {
 
     constructor(
         private cajaService: CajaService,
-        private messageService: MessageService,
         private router: Router,
         private authService: AuthService,
-        private exportarService: ExportarService
+        private exportarService: ExportarService,
+        private aviso: AvisoService
     ) {}
 
     ngOnInit(): void {
@@ -297,7 +296,9 @@ export class CajaActual implements OnInit {
             { label: 'Saldo inicial', value: formatBs(this.caja.saldo_inicial), icon: 'pi pi-inbox text-blue-500 !text-xl', iconBg: 'bg-blue-100 dark:bg-blue-400/10', tag: '', severity: 'info' as const },
             { label: 'Ingresos', value: formatBs(this.caja.ingresos), icon: 'pi pi-arrow-down-left text-green-500 !text-xl', iconBg: 'bg-green-100 dark:bg-green-400/10', tag: '', severity: 'success' as const },
             { label: 'Egresos', value: formatBs(this.caja.egresos), icon: 'pi pi-arrow-up-right text-red-500 !text-xl', iconBg: 'bg-red-100 dark:bg-red-400/10', tag: '', severity: 'danger' as const },
-            { label: 'Saldo esperado', value: formatBs(this.caja.saldo_esperado), icon: 'pi pi-wallet text-primary !text-xl', iconBg: 'bg-primary-100 dark:bg-primary-400/10', tag: this.caja.estado, severity: 'success' as const }
+            { label: 'Efectivo en caja', value: formatBs(this.caja.efectivo_esperado ?? this.caja.saldo_esperado), icon: 'pi pi-wallet text-primary !text-xl', iconBg: 'bg-primary-100 dark:bg-primary-400/10', tag: '', severity: 'success' as const },
+            { label: 'QR / banco', value: formatBs(this.caja.qr_esperado), icon: 'pi pi-qrcode text-indigo-500 !text-xl', iconBg: 'bg-indigo-100 dark:bg-indigo-400/10', tag: '', severity: 'info' as const },
+            { label: 'Total', value: formatBs(this.caja.saldo_esperado), icon: 'pi pi-chart-line text-primary !text-xl', iconBg: 'bg-primary-100 dark:bg-primary-400/10', tag: this.caja.estado, severity: 'success' as const }
         ];
     }
 
@@ -311,14 +312,14 @@ export class CajaActual implements OnInit {
             },
             error: (err) => {
                 this.cargando = false;
-                this.error = this.mensajeError(err, 'No se pudo cargar la caja actual');
+                this.error = this.aviso.error(err, 'No se pudo cargar la caja actual').resumen;
             }
         });
     }
 
     abrirCaja(): void {
         if (this.saldoInicial == null || this.saldoInicial < 0) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'El saldo inicial no puede ser negativo' });
+            this.aviso.aviso('Validación', 'El saldo inicial no puede ser negativo');
             return;
         }
         this.guardando = true;
@@ -329,11 +330,11 @@ export class CajaActual implements OnInit {
             next: (res) => {
                 this.guardando = false;
                 this.caja = res.data;
-                this.messageService.add({ severity: 'success', summary: 'Caja abierta', detail: res.mensaje });
+                this.aviso.ok('Caja abierta', res.mensaje);
             },
             error: (err) => {
                 this.guardando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.mensajeError(err, 'No se pudo abrir la caja') });
+                this.aviso.error(err, 'No se pudo abrir la caja');
             }
         });
     }
@@ -354,23 +355,29 @@ export class CajaActual implements OnInit {
             return;
         }
         if (!this.movimiento.tipo || !this.movimiento.categoria || !this.movimiento.concepto?.trim() || !this.movimiento.monto || this.movimiento.monto <= 0 || !this.movimiento.metodo_pago) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Completa tipo, categoría, concepto, monto y método de pago' });
+            this.aviso.aviso('Validación', 'Completa tipo, categoría, concepto, monto y método de pago');
+            return;
+        }
+        const mixto = mensajePagoMixto(this.movimiento.metodo_pago, this.movimiento.monto, this.movimiento.monto_efectivo || 0, this.movimiento.monto_qr || 0);
+        if (mixto) {
+            this.aviso.aviso('Validación', mixto);
             return;
         }
         this.guardando = true;
         this.cajaService.crearMovimiento(this.caja.id, {
             ...this.movimiento,
-            concepto: this.movimiento.concepto.trim()
+            concepto: this.movimiento.concepto.trim(),
+            ...extrasPagoMixto(this.movimiento.metodo_pago, this.movimiento.monto_efectivo || 0, this.movimiento.monto_qr || 0)
         }).subscribe({
             next: (res) => {
                 this.guardando = false;
                 this.dialogMovimiento = false;
-                this.messageService.add({ severity: 'success', summary: 'Movimiento', detail: res.mensaje });
+                this.aviso.ok('Movimiento', res.mensaje);
                 this.cargar();
             },
             error: (err) => {
                 this.guardando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.mensajeError(err, 'No se pudo registrar el movimiento') });
+                this.aviso.error(err, 'No se pudo registrar el movimiento');
             }
         });
     }
@@ -379,7 +386,7 @@ export class CajaActual implements OnInit {
         if (!this.caja) {
             return;
         }
-        this.saldoContado = this.caja.saldo_esperado;
+        this.saldoContado = this.caja.efectivo_esperado ?? this.caja.saldo_esperado;
         this.observacionCierre = '';
         this.dialogCierre = true;
     }
@@ -388,7 +395,7 @@ export class CajaActual implements OnInit {
         if (!this.caja) {
             return 0;
         }
-        return Math.round(((this.saldoContado || 0) - this.caja.saldo_esperado) * 100) / 100;
+        return Math.round(((this.saldoContado || 0) - (this.caja.efectivo_esperado ?? this.caja.saldo_esperado)) * 100) / 100;
     }
 
     get etiquetaArqueo(): string {
@@ -410,7 +417,7 @@ export class CajaActual implements OnInit {
             return;
         }
         if (this.saldoContado == null || this.saldoContado < 0) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'El saldo contado no puede ser negativo' });
+            this.aviso.aviso('Validación', 'El saldo contado no puede ser negativo');
             return;
         }
         this.guardando = true;
@@ -423,10 +430,10 @@ export class CajaActual implements OnInit {
                 const idCaja = this.caja?.id;
                 this.guardando = false;
                 this.dialogCierre = false;
-                this.messageService.add({ severity: 'success', summary: 'Caja cerrada', detail: 'Se abre el PDF del arqueo.' });
+                this.aviso.ok('Caja cerrada', 'Se abre el PDF del arqueo.');
                 if (idCaja) {
                     this.exportarService.mostrarPdf({ tipo: 'caja', formato: 'pdf', id_caja: idCaja }, visor).subscribe({
-                        error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de caja' })
+                        error: (err) => this.aviso.error(err, 'No se pudo generar el PDF de caja')
                     });
                 } else {
                     visor?.close();
@@ -436,7 +443,7 @@ export class CajaActual implements OnInit {
             error: (err) => {
                 visor?.close();
                 this.guardando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.mensajeError(err, 'No se pudo cerrar la caja') });
+                this.aviso.error(err, 'No se pudo cerrar la caja');
             }
         });
     }
@@ -448,6 +455,8 @@ export class CajaActual implements OnInit {
             concepto: '',
             monto: 0,
             metodo_pago: 'EFECTIVO',
+            monto_efectivo: 0,
+            monto_qr: 0,
             referencia: '',
             observacion: ''
         };
@@ -455,9 +464,5 @@ export class CajaActual implements OnInit {
 
     private obtenerUsername(): string {
         return this.authService.getUser()?.username || 'Usuario';
-    }
-
-    private mensajeError(err: HttpErrorResponse, fallback: string): string {
-        return err?.error?.mensaje || err?.error?.msg || fallback;
     }
 }

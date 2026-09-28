@@ -24,8 +24,7 @@ export const CATEGORIA_EGRESO = {
 export const METODO_PAGO = {
     EFECTIVO: 'EFECTIVO',
     QR: 'QR',
-    TRANSFERENCIA: 'TRANSFERENCIA',
-    OTRO: 'OTRO'
+    MIXTO: 'MIXTO'
 } as const;
 
 export const CATEGORIAS_POR_TIPO: Record<string, { label: string; value: string }[]> = {
@@ -58,9 +57,7 @@ export const ORIGEN_MOVIMIENTO_OPTIONS = [
 
 export const METODOS_PAGO_OPTIONS = [
     { label: 'Efectivo', value: METODO_PAGO.EFECTIVO },
-    { label: 'QR', value: METODO_PAGO.QR },
-    { label: 'Transferencia', value: METODO_PAGO.TRANSFERENCIA },
-    { label: 'Otro', value: METODO_PAGO.OTRO }
+    { label: 'QR', value: METODO_PAGO.QR }
 ];
 
 export const ESTADOS_CAJA_OPTIONS = [

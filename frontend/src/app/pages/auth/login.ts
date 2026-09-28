@@ -10,6 +10,7 @@ import { AppFloatingConfigurator } from '../../layout/component/app.floatingconf
 import { AuthService } from '../../core/services/auth.service';
 import { APP_ROUTES } from '../../core/constants/app-routes';
 import { EMPRESA } from '../../core/constants/empresa';
+import { mapearErrorHttp } from '../../shared/utils/error-http';
 
 @Component({
     selector: 'app-login',
@@ -44,7 +45,7 @@ export class Login {
             },
             error: (error) => {
                 this.loading = false;
-                this.errorMensaje = error?.error?.mensaje || error?.error?.msg || 'No se pudo iniciar sesión';
+                this.errorMensaje = mapearErrorHttp(error, 'No se pudo iniciar sesión').resumen;
             }
         });
     }

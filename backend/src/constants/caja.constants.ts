@@ -37,8 +37,7 @@ export const CATEGORIAS_POR_TIPO = {
 export const METODO_PAGO = {
     EFECTIVO: 'EFECTIVO',
     QR: 'QR',
-    TRANSFERENCIA: 'TRANSFERENCIA',
-    OTRO: 'OTRO'
+    MIXTO: 'MIXTO'
 } as const;
 
 export const ORIGEN_MOVIMIENTO = {

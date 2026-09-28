@@ -40,6 +40,8 @@ export interface Cobranza {
     id_caja: number;
     monto: number;
     metodo_pago: string;
+    monto_efectivo?: number;
+    monto_qr?: number;
     referencia?: string | null;
     observacion?: string | null;
     fecha: string;
@@ -54,6 +56,8 @@ export interface CrearVentaPayload {
     lineas: { descripcion?: string; cantidad: number; precio_unitario: number; id_producto?: number }[];
     pago_inicial?: number;
     metodo_pago?: string;
+    monto_efectivo?: number;
+    monto_qr?: number;
     referencia?: string;
 }
 

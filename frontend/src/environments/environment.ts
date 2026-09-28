@@ -4,9 +4,9 @@
 
 export const environment = {
     production: false,
-    endpoint: 'https://ingenio-arrocero.onrender.com/',
-    apiUrl: 'https://ingenio-arrocero.onrender.com/',
-  };
+    endpoint: 'http://127.0.0.1:3001/',
+    apiUrl: 'http://127.0.0.1:3001/'
+};
   
   /*
    * For easier debugging in development mode, you can import the following file

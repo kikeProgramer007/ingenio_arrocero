@@ -1,8 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -11,8 +9,7 @@ import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
-import { etiquetaMetodo, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
+import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Cobranza, Venta } from './ventas.models';
 import { VentasService } from './ventas.service';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
@@ -22,7 +19,9 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { ExportarService } from '../../shared/services/exportar.service';
+import { AvisoService } from '../../shared/services/aviso.service';
 
 @Component({
     selector: 'app-cobranzas',
@@ -38,7 +37,6 @@ import { ExportarService } from '../../shared/services/exportar.service';
         TableModule,
         TagModule,
         TextareaModule,
-        ToastModule,
         EstadoVacioComponent,
         KpiGridComponent,
         DialogCajaCerradaComponent,
@@ -47,9 +45,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
         AyudaCampoComponent,
         MetodoPagoComponent
     ],
-    providers: [MessageService],
     template: `
-        <p-toast />
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -83,7 +79,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
                         <td>{{ item.cliente?.nombre || '-' }}</td>
                         <td>#{{ item.id_venta }}</td>
                         <td>{{ formatBs(item.monto) }}</td>
-                        <td>{{ etiquetaMetodo(item.metodo_pago) }}</td>
+                        <td>{{ etiquetaPago(item) }}</td>
                         <td>{{ formatBs(item.venta?.saldo_pendiente) }}</td>
                         <td>{{ item.usuario?.username || '-' }}</td>
                     </tr>
@@ -123,8 +119,8 @@ import { ExportarService } from '../../shared/services/exportar.service';
                     <p-inputNumber [(ngModel)]="monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Cómo entra el dinero a caja." posicion="right" /></label>
-                    <app-metodo-pago [(ngModel)]="metodoPago" />
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto parte el cobro." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="monto" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o QR. Opcional en efectivo." posicion="top" /></label>
@@ -152,12 +148,14 @@ export class CobranzasPage implements OnInit {
     idVenta: number | null = null;
     monto = 0;
     metodoPago = 'EFECTIVO';
+    montoEfectivo = 0;
+    montoQr = 0;
     referencia = '';
     observacion = '';
     pendientePorCobrar = 0;
     formatBs = formatBs;
     formatFecha = formatFecha;
-    etiquetaMetodo = etiquetaMetodo;
+    etiquetaPago = etiquetaPago;
 
     get kpis(): KpiItem[] {
         return [
@@ -167,7 +165,7 @@ export class CobranzasPage implements OnInit {
         ];
     }
 
-    constructor(private ventasService: VentasService, private messageService: MessageService, private exportarService: ExportarService) {}
+    constructor(private ventasService: VentasService, private aviso: AvisoService, private exportarService: ExportarService) {}
 
     ngOnInit(): void {
         this.cargar();
@@ -182,7 +180,7 @@ export class CobranzasPage implements OnInit {
             },
             error: (err) => {
                 this.cargando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudieron cargar cobranzas') });
+                this.aviso.error(err, 'No se pudieron cargar cobranzas');
             }
         });
         this.ventasService.listar().subscribe({
@@ -215,17 +213,24 @@ export class CobranzasPage implements OnInit {
                 const sel = this.pendientes[0];
                 this.monto = sel ? sel.saldo_pendiente : 0;
                 this.metodoPago = 'EFECTIVO';
+                this.montoEfectivo = 0;
+                this.montoQr = 0;
                 this.referencia = '';
                 this.observacion = '';
                 this.dialog = true;
             },
-            error: (err) => this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudieron cargar ventas pendientes') })
+            error: (err) => this.aviso.error(err, 'No se pudieron cargar ventas pendientes')
         });
     }
 
     guardar(): void {
         if (!this.idVenta || !this.monto) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Seleccione venta y monto' });
+            this.aviso.aviso('Validación', 'Seleccione venta y monto');
+            return;
+        }
+        const mixto = mensajePagoMixto(this.metodoPago, this.monto, this.montoEfectivo, this.montoQr);
+        if (mixto) {
+            this.aviso.aviso('Validación', mixto);
             return;
         }
         this.guardando = true;
@@ -235,17 +240,18 @@ export class CobranzasPage implements OnInit {
             monto: this.monto,
             metodo_pago: this.metodoPago,
             referencia: this.referencia || undefined,
-            observacion: this.observacion || undefined
+            observacion: this.observacion || undefined,
+            ...extrasPagoMixto(this.metodoPago, this.montoEfectivo, this.montoQr)
         }).subscribe({
             next: () => {
                 this.guardando = false;
                 this.dialog = false;
-                this.messageService.add({ severity: 'success', summary: 'Cobranza', detail: 'Cobro registrado. Se abre la nota de venta actualizada.' });
+                this.aviso.ok('Cobranza', 'Cobro registrado. Se abre la nota de venta actualizada.');
                 const idVenta = this.idVenta;
                 this.cargar();
                 if (idVenta) {
                     this.exportarService.mostrarPdf({ tipo: 'venta', formato: 'pdf', id: idVenta }, visor).subscribe({
-                        error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de la venta' })
+                        error: (err) => this.aviso.error(err, 'No se pudo generar el PDF de la venta')
                     });
                 } else {
                     visor?.close();
@@ -258,12 +264,9 @@ export class CobranzasPage implements OnInit {
                     this.dialogCajaCerrada = true;
                     return;
                 }
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo registrar la cobranza') });
+                this.aviso.error(err, 'No se pudo registrar la cobranza');
             }
         });
     }
-
-    private msg(err: HttpErrorResponse, fallback: string): string {
-        return err?.error?.mensaje || err?.error?.errores?.[0] || fallback;
-    }
 }
+

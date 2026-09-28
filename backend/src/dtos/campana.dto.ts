@@ -75,6 +75,18 @@ export class CrearAcopioDTO {
     metodo_pago?: string;
 
     @IsOptional()
+    @Type(() => Number)
+    @IsNumber({}, { message: 'El monto en efectivo debe ser numérico' })
+    @Min(0)
+    monto_efectivo?: number;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber({}, { message: 'El monto QR debe ser numérico' })
+    @Min(0)
+    monto_qr?: number;
+
+    @IsOptional()
     @IsString()
     observacion?: string;
 }

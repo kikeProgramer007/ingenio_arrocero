@@ -1,11 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { ToastModule } from 'primeng/toast';
 import { apiUrl } from '../../core/utils/api-url';
 import { formatBs } from '../caja/caja.utils';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
@@ -13,10 +12,8 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 @Component({
     selector: 'app-reportes',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, ToastModule, BotonesExportarComponent],
-    providers: [MessageService],
+    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, BotonesExportarComponent],
     template: `
-        <p-toast />
         <div class="mb-6">
             <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Reportes</div>
             <div class="text-muted-color">Resumen operativo del período. Puede bajar PDF o Excel con movimientos, ventas y egresos.</div>
@@ -47,7 +44,7 @@ export class ReportesPage implements OnInit {
     cargando = false;
     cards: { label: string; value: string }[] = [];
 
-    constructor(private http: HttpClient, private messageService: MessageService) {}
+    constructor(private http: HttpClient, private aviso: AvisoService) {}
 
     ngOnInit(): void {
         this.cargar();
@@ -85,9 +82,9 @@ export class ReportesPage implements OnInit {
                 ];
                 this.cargando = false;
             },
-            error: (e: HttpErrorResponse) => {
+            error: (e) => {
                 this.cargando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: e?.error?.mensaje || 'No se pudo generar el reporte' });
+                this.aviso.error(e, 'No se pudo generar el reporte');
             }
         });
     }

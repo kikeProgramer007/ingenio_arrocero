@@ -1,8 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -11,7 +10,6 @@ import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
 import { formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Compra, LineaCompra, Proveedor } from './compras.models';
 import { ComprasService, ProveedoresService } from './compras.service';
@@ -22,6 +20,7 @@ import { ExportarService, FormatoExport } from '../../shared/services/exportar.s
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
@@ -38,7 +37,6 @@ import { TooltipModule } from 'primeng/tooltip';
         TableModule,
         TagModule,
         TextareaModule,
-        ToastModule,
         DialogCajaCerradaComponent,
         BotonesExportarComponent,
         TablaEsqueletoComponent,
@@ -46,9 +44,7 @@ import { TooltipModule } from 'primeng/tooltip';
         MetodoPagoComponent,
         TooltipModule
     ],
-    providers: [MessageService],
     template: `
-        <p-toast />
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -166,8 +162,8 @@ import { TooltipModule } from 'primeng/tooltip';
                         <p-inputNumber [(ngModel)]="pagoInicial" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
                     </div>
                     <div class="col-span-12 md:col-span-4">
-                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Cómo pagas ahora." posicion="top" /></label>
-                        <app-metodo-pago [(ngModel)]="metodoPago" />
+                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR sale del banco. Efectivo del cajón. Mixto parte el pago." posicion="top" /></label>
+                        <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="pagoInicial" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
                     </div>
                     <div class="col-span-12 md:col-span-4">
                         <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante." posicion="left" /></label>
@@ -231,6 +227,8 @@ export class ComprasPage implements OnInit {
     lineas: LineaCompra[] = [this.lineaVacia()];
     pagoInicial = 0;
     metodoPago = 'EFECTIVO';
+    montoEfectivo = 0;
+    montoQr = 0;
     referencia = '';
     observacion = '';
     detalle: Compra | null = null;
@@ -241,20 +239,20 @@ export class ComprasPage implements OnInit {
         private comprasService: ComprasService,
         private proveedoresService: ProveedoresService,
         private productosService: ProductosService,
-        private messageService: MessageService,
-        private exportarService: ExportarService
+        private exportarService: ExportarService,
+        private aviso: AvisoService
     ) {}
 
     exportarCompra(compra: Compra, formato: FormatoExport = 'pdf', visor?: Window | null): void {
         if (formato === 'xlsx') {
             this.exportarService.descargar({ tipo: 'compra', formato, id: compra.id }).subscribe({
-                error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el Excel de la compra' })
+                error: (err) => this.aviso.error(err, 'No se pudo generar el Excel de la compra')
             });
             return;
         }
         const ventana = visor ?? this.exportarService.abrirVentanaEspera('Generando nota de compra...');
         this.exportarService.mostrarPdf({ tipo: 'compra', formato: 'pdf', id: compra.id }, ventana).subscribe({
-            error: () => this.messageService.add({ severity: 'error', summary: 'Exportar', detail: 'No se pudo generar el PDF de la compra' })
+            error: (err) => this.aviso.error(err, 'No se pudo generar el PDF de la compra')
         });
     }
 
@@ -280,7 +278,7 @@ export class ComprasPage implements OnInit {
             },
             error: (err) => {
                 this.cargando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo cargar compras') });
+                this.aviso.error(err, 'No se pudo cargar compras');
             }
         });
     }
@@ -290,6 +288,8 @@ export class ComprasPage implements OnInit {
         this.lineas = [this.lineaVacia()];
         this.pagoInicial = 0;
         this.metodoPago = 'EFECTIVO';
+        this.montoEfectivo = 0;
+        this.montoQr = 0;
         this.referencia = '';
         this.observacion = '';
         this.dialogNueva = true;
@@ -309,12 +309,17 @@ export class ComprasPage implements OnInit {
 
     guardar(): void {
         if (!this.idProveedor) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Seleccione un proveedor' });
+            this.aviso.aviso('Validación', 'Seleccione un proveedor');
             return;
         }
         const lineas = this.lineas.filter((l) => Number(l.cantidad) > 0 && (l.id_producto || l.descripcion?.trim()));
         if (!lineas.length) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Agregue al menos un producto o una descripción' });
+            this.aviso.aviso('Validación', 'Agregue al menos un producto o una descripción');
+            return;
+        }
+        const mixto = mensajePagoMixto(this.metodoPago, this.pagoInicial || 0, this.montoEfectivo, this.montoQr);
+        if (this.pagoInicial > 0 && mixto) {
+            this.aviso.aviso('Validación', mixto);
             return;
         }
         this.guardando = true;
@@ -330,12 +335,13 @@ export class ComprasPage implements OnInit {
             })),
             pago_inicial: this.pagoInicial || 0,
             metodo_pago: this.pagoInicial > 0 ? this.metodoPago : undefined,
-            referencia: this.referencia || undefined
+            referencia: this.referencia || undefined,
+            ...(this.pagoInicial > 0 ? extrasPagoMixto(this.metodoPago, this.montoEfectivo, this.montoQr) : {})
         }).subscribe({
             next: (res) => {
                 this.guardando = false;
                 this.dialogNueva = false;
-                this.messageService.add({ severity: 'success', summary: 'Compra', detail: 'Compra registrada. Se abre la nota de compra.' });
+                this.aviso.ok('Compra', 'Compra registrada. Se abre la nota de compra.');
                 this.cargar();
                 this.cargarProductos();
                 if (res.data?.id) {
@@ -351,7 +357,7 @@ export class ComprasPage implements OnInit {
                     this.dialogCajaCerrada = true;
                     return;
                 }
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo registrar la compra') });
+                this.aviso.error(err, 'No se pudo registrar la compra');
             }
         });
     }
@@ -362,7 +368,7 @@ export class ComprasPage implements OnInit {
                 this.detalle = data;
                 this.dialogDetalle = true;
             },
-            error: (err) => this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo cargar el detalle') })
+            error: (err) => this.aviso.error(err, 'No se pudo cargar el detalle')
         });
     }
 
@@ -393,9 +399,5 @@ export class ComprasPage implements OnInit {
 
     private lineaVacia(): LineaCompra {
         return { descripcion: '', id_producto: null, cantidad: 1, precio_unitario: 0, subtotal: 0 };
-    }
-
-    private msg(err: HttpErrorResponse, fallback: string): string {
-        return err?.error?.mensaje || err?.error?.errores?.[0] || fallback;
     }
 }

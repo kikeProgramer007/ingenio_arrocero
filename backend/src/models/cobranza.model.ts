@@ -46,6 +46,14 @@ export const Cobranza = sequelize.define('cobranza', {
         type: DataTypes.STRING(30),
         allowNull: false
     },
+    monto_efectivo: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true
+    },
+    monto_qr: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true
+    },
     referencia: {
         type: DataTypes.STRING(100),
         allowNull: true

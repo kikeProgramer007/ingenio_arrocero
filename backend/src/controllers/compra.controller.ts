@@ -4,11 +4,12 @@ import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
-import { obtenerCajaAbierta, registrarEgresoCaja } from '../utils/caja-ingreso';
+import { obtenerCajaAbierta, registrarEgresosPartidos } from '../utils/caja-ingreso';
 import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
 import { CATEGORIA_EGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { ESTADO_COMPRA, estadoCompraPorSaldo } from '../constants/compra.constants';
 import { CrearCompraDTO, CrearPagoProveedorDTO } from '../dtos/compra.dto';
+import { camposPagoDocumento } from '../utils/metodo-pago';
 
 const usuarioAtributos = ['id', 'username'];
 
@@ -31,6 +32,8 @@ function mapPago(item: any) {
         id_caja: item.id_caja,
         monto: toMoney(item.monto),
         metodo_pago: item.metodo_pago,
+        monto_efectivo: toMoney(item.monto_efectivo),
+        monto_qr: toMoney(item.monto_qr),
         referencia: item.referencia,
         observacion: item.observacion,
         fecha: item.fecha,
@@ -200,20 +203,28 @@ export class CompraController {
             }
 
             if (pagoInicial > 0 && cajaAbierta) {
+                const pagoDoc = camposPagoDocumento(datos, pagoInicial);
+                if (!pagoDoc.ok) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: pagoDoc.mensaje });
+                    return;
+                }
                 const idCaja = cajaAbierta.get('id') as number;
                 const pago = await PagoProveedor.create({
                     id_compra: idCompra,
                     id_proveedor: datos.id_proveedor,
                     id_caja: idCaja,
-                    monto: pagoInicial,
-                    metodo_pago: datos.metodo_pago,
+                    monto: pagoDoc.monto,
+                    metodo_pago: pagoDoc.metodo_pago,
+                    monto_efectivo: pagoDoc.monto_efectivo,
+                    monto_qr: pagoDoc.monto_qr,
                     referencia: datos.referencia || null,
                     observacion: 'Pago al registrar la compra',
                     fecha: new Date(),
                     id_usuario: usuario.id
                 }, { transaction });
 
-                await registrarEgresoCaja({
+                const egreso = await registrarEgresosPartidos({
                     transaction,
                     idCaja,
                     idUsuario: usuario.id,
@@ -221,10 +232,17 @@ export class CompraController {
                     concepto: `Compra #${idCompra} - ${proveedor.get('nombre')}`,
                     monto: pagoInicial,
                     metodoPago: datos.metodo_pago!,
+                    montoEfectivo: datos.monto_efectivo,
+                    montoQr: datos.monto_qr,
                     referencia: datos.referencia || null,
                     origen: ORIGEN_MOVIMIENTO.COMPRA,
                     origenId: pago.get('id') as number
                 });
+                if (!egreso.ok) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: egreso.mensaje });
+                    return;
+                }
             }
 
             await transaction.commit();
@@ -315,12 +333,20 @@ export class PagoProveedorController {
 
             const idCaja = cajaAbierta.get('id') as number;
             const idProveedor = compra.get('id_proveedor') as number;
+            const pagoDoc = camposPagoDocumento(datos, monto);
+            if (!pagoDoc.ok) {
+                await transaction.rollback();
+                res.status(400).json({ mensaje: pagoDoc.mensaje });
+                return;
+            }
             const pago = await PagoProveedor.create({
                 id_compra: datos.id_compra,
                 id_proveedor: idProveedor,
                 id_caja: idCaja,
-                monto,
-                metodo_pago: datos.metodo_pago,
+                monto: pagoDoc.monto,
+                metodo_pago: pagoDoc.metodo_pago,
+                monto_efectivo: pagoDoc.monto_efectivo,
+                monto_qr: pagoDoc.monto_qr,
                 referencia: datos.referencia || null,
                 observacion: datos.observacion || null,
                 fecha: new Date(),
@@ -328,7 +354,7 @@ export class PagoProveedorController {
             }, { transaction });
 
             const nombreProveedor = (compra as any).proveedor?.nombre || 'Proveedor';
-            await registrarEgresoCaja({
+            const egreso = await registrarEgresosPartidos({
                 transaction,
                 idCaja,
                 idUsuario: usuario.id,
@@ -336,11 +362,18 @@ export class PagoProveedorController {
                 concepto: `Pago compra #${datos.id_compra} - ${nombreProveedor}`,
                 monto,
                 metodoPago: datos.metodo_pago,
+                montoEfectivo: datos.monto_efectivo,
+                montoQr: datos.monto_qr,
                 referencia: datos.referencia || null,
                 observacion: datos.observacion || null,
                 origen: ORIGEN_MOVIMIENTO.PAGO_PROVEEDOR,
                 origenId: pago.get('id') as number
             });
+            if (!egreso.ok) {
+                await transaction.rollback();
+                res.status(400).json({ mensaje: egreso.mensaje });
+                return;
+            }
 
             await transaction.commit();
             const creado = await PagoProveedor.findByPk(pago.get('id') as number, {

@@ -1,8 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -10,8 +9,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
-import { etiquetaMetodo, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
+import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Compra, PagoProveedor } from './compras.models';
 import { ComprasService } from './compras.service';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
@@ -21,6 +19,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 
 @Component({
     selector: 'app-pagos',
@@ -35,7 +34,6 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
         SelectModule,
         TableModule,
         TextareaModule,
-        ToastModule,
         EstadoVacioComponent,
         KpiGridComponent,
         DialogCajaCerradaComponent,
@@ -44,9 +42,7 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
         AyudaCampoComponent,
         MetodoPagoComponent
     ],
-    providers: [MessageService],
     template: `
-        <p-toast />
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -83,7 +79,7 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
                         <td>{{ formatBs(item.compra?.total) }}</td>
                         <td>{{ formatBs(item.monto) }}</td>
                         <td>{{ formatBs(item.compra?.saldo_pendiente) }}</td>
-                        <td>{{ etiquetaMetodo(item.metodo_pago) }}</td>
+                        <td>{{ etiquetaPago(item) }}</td>
                         <td>{{ item.usuario?.username || '-' }}</td>
                     </tr>
                 </ng-template>
@@ -122,8 +118,8 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
                     <p-inputNumber [(ngModel)]="monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Cómo sale el dinero de caja." posicion="right" /></label>
-                    <app-metodo-pago [(ngModel)]="metodoPago" />
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR sale del banco. Efectivo del cajón. Mixto parte el pago." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="monto" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante. Opcional en efectivo." posicion="top" /></label>
@@ -151,12 +147,14 @@ export class PagosPage implements OnInit {
     idCompra: number | null = null;
     monto = 0;
     metodoPago = 'EFECTIVO';
+    montoEfectivo = 0;
+    montoQr = 0;
     referencia = '';
     observacion = '';
     saldoPendiente = 0;
     formatBs = formatBs;
     formatFecha = formatFecha;
-    etiquetaMetodo = etiquetaMetodo;
+    etiquetaPago = etiquetaPago;
 
     get kpis(): KpiItem[] {
         return [
@@ -166,7 +164,7 @@ export class PagosPage implements OnInit {
         ];
     }
 
-    constructor(private comprasService: ComprasService, private messageService: MessageService) {}
+    constructor(private comprasService: ComprasService, private aviso: AvisoService) {}
 
     ngOnInit(): void {
         this.cargar();
@@ -181,7 +179,7 @@ export class PagosPage implements OnInit {
             },
             error: (err) => {
                 this.cargando = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudieron cargar pagos') });
+                this.aviso.error(err, 'No se pudieron cargar pagos');
             }
         });
         this.comprasService.listar().subscribe({
@@ -213,11 +211,13 @@ export class PagosPage implements OnInit {
                 this.idCompra = this.pendientes[0]?.id ?? null;
                 this.monto = this.pendientes[0]?.saldo_pendiente || 0;
                 this.metodoPago = 'EFECTIVO';
+                this.montoEfectivo = 0;
+                this.montoQr = 0;
                 this.referencia = '';
                 this.observacion = '';
                 this.dialog = true;
             },
-            error: (err) => this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudieron cargar compras pendientes') })
+            error: (err) => this.aviso.error(err, 'No se pudieron cargar compras pendientes')
         });
     }
 
@@ -228,7 +228,12 @@ export class PagosPage implements OnInit {
 
     guardar(): void {
         if (!this.idCompra || !this.monto) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Seleccione compra y monto' });
+            this.aviso.aviso('Validación', 'Seleccione compra y monto');
+            return;
+        }
+        const mixto = mensajePagoMixto(this.metodoPago, this.monto, this.montoEfectivo, this.montoQr);
+        if (mixto) {
+            this.aviso.aviso('Validación', mixto);
             return;
         }
         this.guardando = true;
@@ -237,12 +242,13 @@ export class PagosPage implements OnInit {
             monto: this.monto,
             metodo_pago: this.metodoPago,
             referencia: this.referencia || undefined,
-            observacion: this.observacion || undefined
+            observacion: this.observacion || undefined,
+            ...extrasPagoMixto(this.metodoPago, this.montoEfectivo, this.montoQr)
         }).subscribe({
             next: (res) => {
                 this.guardando = false;
                 this.dialog = false;
-                this.messageService.add({ severity: 'success', summary: 'Pago', detail: res.mensaje });
+                this.aviso.ok('Pago', res.mensaje);
                 this.cargar();
             },
             error: (err) => {
@@ -251,12 +257,8 @@ export class PagosPage implements OnInit {
                     this.dialogCajaCerrada = true;
                     return;
                 }
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: this.msg(err, 'No se pudo registrar el pago') });
+                this.aviso.error(err, 'No se pudo registrar el pago');
             }
         });
-    }
-
-    private msg(err: HttpErrorResponse, fallback: string): string {
-        return err?.error?.mensaje || err?.error?.errores?.[0] || fallback;
     }
 }

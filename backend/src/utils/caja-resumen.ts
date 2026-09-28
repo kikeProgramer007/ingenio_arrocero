@@ -1,5 +1,6 @@
 import { CATEGORIA_EGRESO, CATEGORIA_INGRESO, TIPO_MOVIMIENTO } from '../constants/caja.constants';
 import { roundMoney, toMoney } from './money';
+import { canalMetodo } from './metodo-pago';
 
 export const CATEGORIAS_COBRO_CLIENTE = [CATEGORIA_INGRESO.VENTA, CATEGORIA_INGRESO.COBRANZA];
 
@@ -14,6 +15,10 @@ export interface DesgloseMovimientos {
     gastos_empresa: number;
     retiros: number;
     otros_egresos: number;
+    efectivo_ingresos: number;
+    efectivo_egresos: number;
+    qr_ingresos: number;
+    qr_egresos: number;
 }
 
 function campo(movimiento: any, key: string) {
@@ -32,6 +37,10 @@ export function resumirMovimientos(movimientos: any[]): DesgloseMovimientos {
     let gastosEmpresa = 0;
     let retiros = 0;
     let otrosEgresos = 0;
+    let efectivoIngresos = 0;
+    let efectivoEgresos = 0;
+    let qrIngresos = 0;
+    let qrEgresos = 0;
     let ingresos = 0;
     let egresos = 0;
 
@@ -39,8 +48,14 @@ export function resumirMovimientos(movimientos: any[]): DesgloseMovimientos {
         const monto = toMoney(campo(movimiento, 'monto'));
         const tipo = campo(movimiento, 'tipo');
         const categoria = String(campo(movimiento, 'categoria') || '');
+        const canal = canalMetodo(campo(movimiento, 'metodo_pago'));
         if (tipo === TIPO_MOVIMIENTO.INGRESO) {
             ingresos += monto;
+            if (canal === 'EFECTIVO') {
+                efectivoIngresos += monto;
+            } else {
+                qrIngresos += monto;
+            }
             if (CATEGORIAS_COBRO_CLIENTE.includes(categoria as any)) {
                 cobrosClientes += monto;
             } else {
@@ -48,6 +63,11 @@ export function resumirMovimientos(movimientos: any[]): DesgloseMovimientos {
             }
         } else {
             egresos += monto;
+            if (canal === 'EFECTIVO') {
+                efectivoEgresos += monto;
+            } else {
+                qrEgresos += monto;
+            }
             if (categoria === CATEGORIA_EGRESO.PAGO_PROVEEDOR) {
                 pagosProveedor += monto;
             } else if (categoria === CATEGORIA_EGRESO.GASTO_EMPRESA) {
@@ -74,6 +94,10 @@ export function resumirMovimientos(movimientos: any[]): DesgloseMovimientos {
         pagos_proveedor: roundMoney(pagosProveedor),
         gastos_empresa: roundMoney(gastosEmpresa),
         retiros: roundMoney(retiros),
-        otros_egresos: roundMoney(otrosEgresos)
+        otros_egresos: roundMoney(otrosEgresos),
+        efectivo_ingresos: roundMoney(efectivoIngresos),
+        efectivo_egresos: roundMoney(efectivoEgresos),
+        qr_ingresos: roundMoney(qrIngresos),
+        qr_egresos: roundMoney(qrEgresos)
     };
 }

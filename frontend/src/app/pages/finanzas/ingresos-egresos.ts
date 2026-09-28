@@ -17,17 +17,14 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { TooltipModule } from 'primeng/tooltip';
-import { MessageService } from 'primeng/api';
-import { ToastModule } from 'primeng/toast';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { APP_ROUTES } from '../../core/constants/app-routes';
 
 @Component({
     selector: 'app-ingresos-egresos',
     standalone: true,
-    imports: [CommonModule, FormsModule, RouterModule, ButtonModule, DatePickerModule, SelectModule, TableModule, TagModule, ToastModule, EstadoVacioComponent, KpiGridComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, TooltipModule],
-    providers: [MessageService],
+    imports: [CommonModule, FormsModule, RouterModule, ButtonModule, DatePickerModule, SelectModule, TableModule, TagModule, EstadoVacioComponent, KpiGridComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, TooltipModule],
     template: `
-        <p-toast />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Control de ingresos y egresos</div>
@@ -58,7 +55,7 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
                     <p-select [options]="origenesFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroOrigen" placeholder="Todos" [showClear]="true" fluid />
                 </div>
                 <div class="col-span-12 md:col-span-4">
-                    <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="Efectivo, QR, transferencia u otro." posicion="left" /></label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="En el libro, Mixto se parte: un asiento de efectivo y otro de QR." posicion="left" /></label>
                     <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid />
                 </div>
             </div>
@@ -139,7 +136,7 @@ export class IngresosEgresosPage implements OnInit {
     etiquetaMetodo = etiquetaMetodo;
     etiquetaCategoria = etiquetaCategoria;
 
-    constructor(private cajaService: CajaService) {}
+    constructor(private cajaService: CajaService, private aviso: AvisoService) {}
 
     get fechaDesde(): string | undefined {
         return this.rango?.[0] ? this.ymd(this.rango[0]) : undefined;
@@ -175,7 +172,11 @@ export class IngresosEgresosPage implements OnInit {
             if (this.filtroOrigen && mov.origen !== this.filtroOrigen) {
                 return false;
             }
-            if (this.filtroMetodo && mov.metodo_pago !== this.filtroMetodo) {
+            if (this.filtroMetodo === 'QR') {
+                if (!['QR', 'TRANSFERENCIA', 'OTRO'].includes(String(mov.metodo_pago))) {
+                    return false;
+                }
+            } else if (this.filtroMetodo && mov.metodo_pago !== this.filtroMetodo) {
                 return false;
             }
             return true;
@@ -222,8 +223,9 @@ export class IngresosEgresosPage implements OnInit {
                 this.data = data;
                 this.cargando = false;
             },
-            error: () => {
+            error: (err) => {
                 this.cargando = false;
+                this.aviso.error(err, 'No se pudo cargar ingresos y egresos');
             }
         });
     }

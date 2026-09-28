@@ -72,7 +72,7 @@ export class VentasService {
         return this.http.get<Cobranza[]>(apiUrl('/api/cobranzas'), { params });
     }
 
-    crearCobranza(payload: { id_venta: number; monto: number; metodo_pago: string; referencia?: string; observacion?: string }): Observable<ApiMensaje<Cobranza>> {
+    crearCobranza(payload: { id_venta: number; monto: number; metodo_pago: string; monto_efectivo?: number; monto_qr?: number; referencia?: string; observacion?: string }): Observable<ApiMensaje<Cobranza>> {
         return this.http.post<ApiMensaje<Cobranza>>(apiUrl('/api/cobranzas'), payload);
     }
 }

@@ -3,8 +3,10 @@ export interface ErrorResponse {
     errores: string[];
 }
 
-export interface ErrorHandlerOptions {
-    showToast?: boolean;
-    redirectTo?: string;
-    customErrorMessage?: string;
+export interface ErrorApiMapeado {
+    mensaje: string;
+    resumen: string;
+    errores: string[];
+    estado: number | null;
+    cuerpoTexto: string;
 }

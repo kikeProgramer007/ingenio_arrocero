@@ -100,6 +100,14 @@ export const Acopio = sequelize.define('acopio', {
         type: DataTypes.STRING(30),
         allowNull: true
     },
+    monto_efectivo: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true
+    },
+    monto_qr: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true
+    },
     pago: {
         type: DataTypes.DECIMAL(12, 2),
         allowNull: false,

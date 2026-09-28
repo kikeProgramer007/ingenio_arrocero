@@ -13,8 +13,8 @@ import { formatBs } from '../../pages/caja/caja.utils';
             <div class="col-span-12 xl:col-span-7">
                 <div class="font-semibold text-lg mb-1">Cuadre de caja</div>
                 <p class="text-muted-color text-sm mb-4">
-                    Libro de caja: cada cobro queda como ingreso; si se anula la venta, se registra un egreso de devolución. No se borra el asiento.
-                    <app-ayuda-campo texto="Saldo esperado = saldo inicial + ingresos − egresos. El cobrado neto (cobros menos anulaciones) es un indicador; no se suma dos veces." posicion="right" />
+                    Libro de caja: cada cobro queda como ingreso; si se anula la venta, se registra un egreso de devolución por el mismo canal (efectivo o QR). No se borra el asiento.
+                    <app-ayuda-campo texto="Efectivo es el cajón. QR es saldo de banco de la sesión. El arqueo solo cuenta el efectivo." posicion="right" />
                 </p>
                 <div class="flex flex-col gap-2 text-sm">
                     <div class="flex justify-between py-2 border-b border-surface">
@@ -58,7 +58,17 @@ import { formatBs } from '../../pages/caja/caja.utils';
                         <span>{{ formatBs(caja.saldo_inicial) }}</span>
                     </div>
                     <div class="flex justify-between py-2 mt-1">
-                        <span class="font-semibold">Saldo esperado</span>
+                        <span class="font-semibold">Efectivo en caja</span>
+                        <span class="font-semibold">{{ formatBs(caja.efectivo_esperado ?? caja.saldo_esperado) }}</span>
+                    </div>
+                    <div class="text-muted-color text-xs">Saldo inicial + ingresos en efectivo − egresos en efectivo</div>
+                    <div class="flex justify-between py-2 mt-1">
+                        <span class="font-semibold">QR / banco</span>
+                        <span class="font-semibold">{{ formatBs(caja.qr_esperado) }}</span>
+                    </div>
+                    <div class="text-muted-color text-xs">Ingresos QR − egresos QR. No está en el cajón.</div>
+                    <div class="flex justify-between py-2 mt-1">
+                        <span class="font-semibold">Total (efectivo + QR)</span>
                         <span class="font-semibold">{{ formatBs(caja.saldo_esperado) }}</span>
                     </div>
                     <div class="text-muted-color text-xs">Saldo inicial + ingresos − egresos</div>

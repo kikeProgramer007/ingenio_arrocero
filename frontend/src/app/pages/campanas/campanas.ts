@@ -1,8 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -11,20 +11,18 @@ import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
 import { apiUrl } from '../../core/utils/api-url';
 import { formatBs } from '../caja/caja.utils';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 
 @Component({
     selector: 'app-campanas',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ToastModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent],
-    providers: [MessageService],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent],
     template: `
-        <p-toast />
         <div class="mb-6 flex flex-wrap justify-between gap-3">
             <div>
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Campañas de acopio</div>
@@ -76,7 +74,7 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
                 <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad <app-ayuda-campo texto="Kilos acopiados en esta entrega." posicion="right" /></label><p-inputNumber [(ngModel)]="acopio.cantidad" [min]="0.001" [maxFractionDigits]="3" fluid /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Precio unitario <app-ayuda-campo texto="Bs por kilo o unidad. El total es cantidad × precio." posicion="right" /></label><p-inputNumber [(ngModel)]="acopio.precio_unitario" mode="decimal" prefix="Bs " fluid /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Pago ahora <app-ayuda-campo texto="Lo que pagas ahora sale de caja. 0 = queda por pagar." posicion="right" /></label><p-inputNumber [(ngModel)]="acopio.pago" mode="decimal" prefix="Bs " [min]="0" fluid /></div>
-                <div *ngIf="acopio.pago > 0"><label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Tocá Efectivo, QR o transferencia. Obligatorio si hay pago." posicion="top" /></label><app-metodo-pago [(ngModel)]="acopio.metodo_pago" /></div>
+                <div *ngIf="acopio.pago > 0"><label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR sale del banco. Efectivo del cajón. Mixto parte el pago." posicion="top" /></label><app-metodo-pago [(ngModel)]="acopio.metodo_pago" [montoTotal]="acopio.pago" [(montoEfectivo)]="acopio.monto_efectivo" [(montoQr)]="acopio.monto_qr" /></div>
             </div>
             <ng-template #footer>
                 <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogAcopio = false" />
@@ -97,7 +95,7 @@ export class CampanasPage implements OnInit {
     acopio: any = {};
     formatBs = formatBs;
 
-    constructor(private http: HttpClient, private messageService: MessageService) {}
+    constructor(private http: HttpClient, private aviso: AvisoService) {}
 
     ngOnInit(): void {
         this.http.get<any[]>(apiUrl('/api/proveedores')).subscribe({ next: (d) => (this.proveedores = d) });
@@ -109,44 +107,50 @@ export class CampanasPage implements OnInit {
         this.cargando = true;
         this.http.get<any[]>(apiUrl('/api/campanas')).subscribe({
             next: (d) => { this.campanas = d; this.cargando = false; },
-            error: (e) => { this.cargando = false; this.err(e, 'No se pudo cargar'); }
+            error: (e) => { this.cargando = false; this.aviso.error(e, 'No se pudo cargar'); }
         });
     }
 
     crearCampana(): void {
         if (!this.campana.nombre || !this.campana.fecha_inicio) {
-            this.messageService.add({ severity: 'warn', summary: 'Validación', detail: 'Nombre y fecha son obligatorios' });
+            this.aviso.aviso('Validación', 'Nombre y fecha son obligatorios');
             return;
         }
         this.guardando = true;
         this.http.post<{ mensaje: string }>(apiUrl('/api/campanas'), this.campana).subscribe({
-            next: (res) => { this.guardando = false; this.dialogCampana = false; this.messageService.add({ severity: 'success', summary: 'Listo', detail: res.mensaje }); this.cargar(); },
-            error: (e) => { this.guardando = false; this.err(e, 'No se pudo crear'); }
+            next: (res) => { this.guardando = false; this.dialogCampana = false; this.aviso.ok('Listo', res.mensaje); this.cargar(); },
+            error: (e) => { this.guardando = false; this.aviso.error(e, 'No se pudo crear'); }
         });
     }
 
     abrirAcopio(c: any): void {
-        this.acopio = { id_campana: c.id, id_proveedor: null, id_producto: null, descripcion: 'Arroz en chala', cantidad: 0, precio_unitario: 0, pago: 0, metodo_pago: 'EFECTIVO' };
+        this.acopio = { id_campana: c.id, id_proveedor: null, id_producto: null, descripcion: 'Arroz en chala', cantidad: 0, precio_unitario: 0, pago: 0, metodo_pago: 'EFECTIVO', monto_efectivo: 0, monto_qr: 0 };
         this.dialogAcopio = true;
     }
 
     crearAcopio(): void {
+        const mixto = this.acopio.pago > 0 ? mensajePagoMixto(this.acopio.metodo_pago, this.acopio.pago, this.acopio.monto_efectivo, this.acopio.monto_qr) : null;
+        if (mixto) {
+            this.aviso.aviso('Validación', mixto);
+            return;
+        }
         this.guardando = true;
-        const payload = { ...this.acopio, id_producto: this.acopio.id_producto || undefined, metodo_pago: this.acopio.pago > 0 ? this.acopio.metodo_pago : undefined };
+        const payload = {
+            ...this.acopio,
+            id_producto: this.acopio.id_producto || undefined,
+            metodo_pago: this.acopio.pago > 0 ? this.acopio.metodo_pago : undefined,
+            ...(this.acopio.pago > 0 ? extrasPagoMixto(this.acopio.metodo_pago, this.acopio.monto_efectivo, this.acopio.monto_qr) : {})
+        };
         this.http.post<{ mensaje: string }>(apiUrl('/api/campanas/acopios'), payload).subscribe({
-            next: (res) => { this.guardando = false; this.dialogAcopio = false; this.messageService.add({ severity: 'success', summary: 'Listo', detail: res.mensaje }); this.cargar(); },
-            error: (e) => { this.guardando = false; this.err(e, 'No se pudo registrar acopio'); }
+            next: (res) => { this.guardando = false; this.dialogAcopio = false; this.aviso.ok('Listo', res.mensaje); this.cargar(); },
+            error: (e) => { this.guardando = false; this.aviso.error(e, 'No se pudo registrar acopio'); }
         });
     }
 
     cerrar(c: any): void {
         this.http.put<{ mensaje: string }>(apiUrl(`/api/campanas/${c.id}/cerrar`), {}).subscribe({
-            next: (res) => { this.messageService.add({ severity: 'success', summary: 'Listo', detail: res.mensaje }); this.cargar(); },
-            error: (e) => this.err(e, 'No se pudo cerrar')
+            next: (res) => { this.aviso.ok('Listo', res.mensaje); this.cargar(); },
+            error: (e) => this.aviso.error(e, 'No se pudo cerrar')
         });
-    }
-
-    private err(e: HttpErrorResponse, fallback: string) {
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: e?.error?.mensaje || e?.error?.errores?.[0] || fallback });
     }
 }

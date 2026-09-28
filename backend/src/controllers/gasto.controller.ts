@@ -4,9 +4,10 @@ import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser } from '../utils/auth-user';
 import { toMoney } from '../utils/money';
-import { obtenerCajaAbierta, registrarEgresoCaja } from '../utils/caja-ingreso';
+import { obtenerCajaAbierta, registrarEgresosPartidos } from '../utils/caja-ingreso';
 import { ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { CrearGastoDTO } from '../dtos/gasto.dto';
+import { camposPagoDocumento } from '../utils/metodo-pago';
 
 function mapGasto(item: any) {
     const descontar = Boolean(item.descontar_caja) && item.id_caja != null;
@@ -17,6 +18,8 @@ function mapGasto(item: any) {
         categoria: item.categoria || 'Otros',
         monto: toMoney(item.monto),
         metodo_pago: item.metodo_pago,
+        monto_efectivo: toMoney(item.monto_efectivo),
+        monto_qr: toMoney(item.monto_qr),
         descontar_caja: descontar,
         referencia: item.referencia,
         observacion: item.observacion,
@@ -70,13 +73,28 @@ export class GastoController {
             }
 
             const monto = toMoney(datos.monto);
-            const metodoPago = datos.metodo_pago || 'OTRO';
+            let metodoPago = datos.metodo_pago || 'EFECTIVO';
+            let montoEfectivo: number | null = null;
+            let montoQr: number | null = null;
+            if (descontarCaja) {
+                const pagoDoc = camposPagoDocumento(datos, monto);
+                if (!pagoDoc.ok) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: pagoDoc.mensaje });
+                    return;
+                }
+                metodoPago = pagoDoc.metodo_pago;
+                montoEfectivo = pagoDoc.monto_efectivo;
+                montoQr = pagoDoc.monto_qr;
+            }
             const gasto = await Gasto.create({
                 tipo: datos.tipo,
                 concepto: datos.concepto.trim(),
                 categoria: datos.categoria || (datos.tipo === 'GASTO_EMPRESA' ? 'Otros' : null),
                 monto,
                 metodo_pago: metodoPago,
+                monto_efectivo: montoEfectivo,
+                monto_qr: montoQr,
                 descontar_caja: descontarCaja,
                 referencia: datos.referencia || null,
                 observacion: datos.observacion || null,
@@ -86,7 +104,7 @@ export class GastoController {
             }, { transaction });
 
             if (descontarCaja && idCaja != null) {
-                await registrarEgresoCaja({
+                const egreso = await registrarEgresosPartidos({
                     transaction,
                     idCaja,
                     idUsuario: usuario.id,
@@ -94,11 +112,18 @@ export class GastoController {
                     concepto: datos.concepto.trim(),
                     monto,
                     metodoPago,
+                    montoEfectivo: datos.monto_efectivo,
+                    montoQr: datos.monto_qr,
                     referencia: datos.referencia || null,
                     observacion: datos.observacion || null,
                     origen: ORIGEN_MOVIMIENTO.GASTO,
                     origenId: gasto.get('id') as number
                 });
+                if (!egreso.ok) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: egreso.mensaje });
+                    return;
+                }
             }
 
             await transaction.commit();
