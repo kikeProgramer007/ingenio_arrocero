@@ -8,7 +8,6 @@ import { ButtonModule } from 'primeng/button';
 import { ChartModule } from 'primeng/chart';
 import { CheckboxModule } from 'primeng/checkbox';
 import { DialogModule } from 'primeng/dialog';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
@@ -24,13 +23,14 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
+import { InputNumeroComponent } from '../../shared/components/input-numero';
 
 const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'Repuestos', 'Servicios', 'Alimentación', 'Otros'];
 
 @Component({
     selector: 'app-gastos',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -126,7 +126,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                     <p-select [options]="categorias" [(ngModel)]="categoria" placeholder="Categoría" fluid />
                 </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Concepto <app-ayuda-campo texto="Ej.: Combustible camión, almuerzo cuadrilla, luz planta." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="concepto" /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Sale de caja al registrar. Debe haber caja abierta." posicion="right" /></label><p-inputNumber [(ngModel)]="monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Sale de caja al registrar. Debe haber caja abierta." posicion="right" /></label><app-input-numero [(ngModel)]="monto" /></div>
                 <div class="flex items-center gap-2" *ngIf="esRetiro">
                     <p-checkbox [(ngModel)]="descontarCaja" [binary]="true" inputId="descontarCaja" />
                     <label for="descontarCaja">Descontar de la caja</label>

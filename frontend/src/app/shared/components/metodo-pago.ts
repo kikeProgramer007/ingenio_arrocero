@@ -1,20 +1,20 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, forwardRef, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { METODO_PAGO } from '../../pages/caja/caja.constants';
 import { formatBs, toMoney } from '../utils/money';
+import { InputNumeroComponent } from './input-numero';
 
 const OPCIONES = [
-    { label: 'QR', value: METODO_PAGO.QR, icono: 'pi pi-qrcode' },
-    { label: 'Efectivo', value: METODO_PAGO.EFECTIVO, icono: 'pi pi-wallet' },
-    { label: 'Mixto', value: METODO_PAGO.MIXTO, icono: 'pi pi-th-large' }
+    { label: 'QR', value: METODO_PAGO.QR, icono: 'pi pi-qrcode', tono: 'qr' },
+    { label: 'Efectivo', value: METODO_PAGO.EFECTIVO, icono: 'pi pi-wallet', tono: 'efectivo' },
+    { label: 'Mixto', value: METODO_PAGO.MIXTO, icono: 'pi pi-th-large', tono: 'mixto' }
 ];
 
 @Component({
     selector: 'app-metodo-pago',
     standalone: true,
-    imports: [CommonModule, FormsModule, InputNumberModule],
+    imports: [CommonModule, FormsModule, InputNumeroComponent],
     providers: [
         {
             provide: NG_VALUE_ACCESSOR,
@@ -28,6 +28,7 @@ const OPCIONES = [
                 type="button"
                 class="metodo-pago-card"
                 *ngFor="let op of opciones"
+                [ngClass]="'metodo-pago-tono-' + op.tono"
                 [class.metodo-pago-card-activo]="valor === op.value"
                 [disabled]="deshabilitado"
                 role="radio"
@@ -39,34 +40,16 @@ const OPCIONES = [
                 <span class="metodo-pago-texto">{{ op.label }}</span>
             </button>
         </div>
-        <div class="metodo-pago-mixto" *ngIf="valor === 'MIXTO'">
+        <div class="metodo-pago-desglose" *ngIf="valor === 'MIXTO'">
             <p class="metodo-pago-ayuda">Indique cuánto entra en QR (banco) y cuánto en efectivo (cajón). La suma debe ser el total.</p>
             <div class="metodo-pago-montos">
                 <div>
                     <label>QR / banco</label>
-                    <p-inputNumber
-                        [ngModel]="montoQr"
-                        (ngModelChange)="cambiarQr($event)"
-                        mode="decimal"
-                        [min]="0"
-                        [minFractionDigits]="2"
-                        prefix="Bs "
-                        [disabled]="deshabilitado"
-                        fluid
-                    />
+                    <app-input-numero [ngModel]="montoQr" (ngModelChange)="cambiarQr($event)" [disabled]="deshabilitado" />
                 </div>
                 <div>
                     <label>Efectivo</label>
-                    <p-inputNumber
-                        [ngModel]="montoEfectivo"
-                        (ngModelChange)="cambiarEfectivo($event)"
-                        mode="decimal"
-                        [min]="0"
-                        [minFractionDigits]="2"
-                        prefix="Bs "
-                        [disabled]="deshabilitado"
-                        fluid
-                    />
+                    <app-input-numero [ngModel]="montoEfectivo" (ngModelChange)="cambiarEfectivo($event)" [disabled]="deshabilitado" />
                 </div>
             </div>
             <div class="metodo-pago-suma" [class.metodo-pago-suma-ok]="sumaCuadra" [class.metodo-pago-suma-error]="!sumaCuadra">
@@ -78,8 +61,9 @@ const OPCIONES = [
     styles: [`
         .metodo-pago-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 0.65rem;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.45rem;
+            align-items: stretch;
         }
         .metodo-pago-card {
             position: relative;
@@ -87,23 +71,35 @@ const OPCIONES = [
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 0.4rem;
-            min-height: 5.25rem;
-            padding: 0.85rem 0.4rem 0.7rem;
-            border: 1px solid var(--surface-border);
-            border-radius: 0.75rem;
+            gap: 0.2rem;
+            width: 100%;
+            height: 100%;
+            min-height: 3.85rem;
+            padding: 0.5rem 0.3rem 0.4rem;
+            box-sizing: border-box;
+            border: 2px solid var(--surface-border);
+            border-radius: 0.6rem;
             background: var(--surface-card);
-            color: var(--text-color);
+            color: var(--mp-color, var(--text-color));
             cursor: pointer;
             transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
         }
+        .metodo-pago-tono-qr {
+            --mp-color: var(--p-sky-600, #0284c7);
+        }
+        .metodo-pago-tono-efectivo {
+            --mp-color: var(--p-green-600, #16a34a);
+        }
+        .metodo-pago-tono-mixto {
+            --mp-color: var(--p-cyan-600, #0891b2);
+        }
         .metodo-pago-card:hover:not(:disabled) {
-            border-color: color-mix(in srgb, var(--primary-color) 45%, var(--surface-border));
+            border-color: color-mix(in srgb, var(--mp-color) 50%, var(--surface-border));
         }
         .metodo-pago-card-activo {
-            border-color: var(--primary-color);
-            background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-card));
-            box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 25%, transparent);
+            border-color: var(--mp-color);
+            background: color-mix(in srgb, var(--mp-color) 14%, var(--surface-card));
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--mp-color) 40%, transparent);
         }
         .metodo-pago-card:disabled {
             opacity: 0.55;
@@ -111,35 +107,32 @@ const OPCIONES = [
         }
         .metodo-pago-radio {
             position: absolute;
-            top: 0.55rem;
-            left: 0.55rem;
-            width: 0.9rem;
-            height: 0.9rem;
+            top: 0.4rem;
+            left: 0.4rem;
+            width: 0.75rem;
+            height: 0.75rem;
             border-radius: 50%;
-            border: 2px solid var(--text-color-secondary);
+            border: 2px solid color-mix(in srgb, var(--mp-color) 45%, var(--text-color-secondary));
             background: transparent;
         }
         .metodo-pago-radio-on {
-            border-color: var(--primary-color);
-            box-shadow: inset 0 0 0 3px var(--surface-card);
-            background: var(--primary-color);
+            border-color: var(--mp-color);
+            box-shadow: inset 0 0 0 2px var(--surface-card);
+            background: var(--mp-color);
         }
         .metodo-pago-icono {
-            font-size: 1.45rem;
-            color: var(--text-color-secondary);
-        }
-        .metodo-pago-card-activo .metodo-pago-icono,
-        .metodo-pago-card-activo .metodo-pago-texto {
-            color: var(--primary-color);
+            font-size: 1.15rem;
+            color: var(--mp-color);
         }
         .metodo-pago-texto {
-            font-size: 0.75rem;
+            font-size: 0.68rem;
             font-weight: 700;
             letter-spacing: 0.04em;
             text-transform: uppercase;
+            color: var(--mp-color);
         }
-        .metodo-pago-mixto {
-            margin-top: 0.85rem;
+        .metodo-pago-desglose {
+            margin-top: 0.75rem;
             display: flex;
             flex-direction: column;
             gap: 0.65rem;
@@ -223,13 +216,13 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
         }
     }
 
-    cambiarEfectivo(value: number): void {
+    cambiarEfectivo(value: number | null): void {
         const efectivo = toMoney(value);
         const qr = toMoney(Math.max(0, toMoney(this.montoTotal) - efectivo));
         this.emitir(efectivo, qr);
     }
 
-    cambiarQr(value: number): void {
+    cambiarQr(value: number | null): void {
         const qr = toMoney(value);
         const efectivo = toMoney(Math.max(0, toMoney(this.montoTotal) - qr));
         this.emitir(efectivo, qr);

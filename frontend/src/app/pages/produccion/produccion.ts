@@ -5,7 +5,6 @@ import { FormsModule } from '@angular/forms';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TextareaModule } from 'primeng/textarea';
@@ -13,11 +12,12 @@ import { apiUrl } from '../../core/utils/api-url';
 import { formatFecha } from '../caja/caja.utils';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { InputNumeroComponent } from '../../shared/components/input-numero';
 
 @Component({
     selector: 'app-produccion',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, SelectModule, TableModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, SelectModule, TableModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent],
     template: `
         <div class="mb-6 flex flex-wrap justify-between gap-3">
             <div>
@@ -49,9 +49,9 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
         <p-dialog header="Registrar producción" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }">
             <div class="flex flex-col gap-3">
                 <div><label class="flex items-center gap-1 font-bold mb-2">Producto origen <app-ayuda-campo texto="Materia prima que se consume (ej. chala). Baja del inventario." posicion="right" /></label><p-select [options]="productos" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_producto_origen" fluid /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad entrada <app-ayuda-campo texto="Cuánto origen se usa. Debe haber stock." posicion="right" /></label><p-inputNumber [(ngModel)]="form.cantidad_entrada" [min]="0.001" [maxFractionDigits]="3" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad entrada <app-ayuda-campo texto="Cuánto origen se usa. Debe haber stock." posicion="right" /></label><app-input-numero tipo="cantidad" [(ngModel)]="form.cantidad_entrada" [min]="0" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Producto destino <app-ayuda-campo texto="Producto que sale del proceso (ej. arroz pilado). Entra al inventario." posicion="right" /></label><p-select [options]="productos" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_producto_destino" fluid /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad salida <app-ayuda-campo texto="Cuánto producto terminado se obtiene. Puede ser distinta a la entrada." posicion="right" /></label><p-inputNumber [(ngModel)]="form.cantidad_salida" [min]="0.001" [maxFractionDigits]="3" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad salida <app-ayuda-campo texto="Cuánto producto terminado se obtiene. Puede ser distinta a la entrada." posicion="right" /></label><app-input-numero tipo="cantidad" [(ngModel)]="form.cantidad_salida" [min]="0" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Turno, merma, lote, etc." posicion="top" /></label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="form.observacion"></textarea></div>
             </div>
             <ng-template #footer>

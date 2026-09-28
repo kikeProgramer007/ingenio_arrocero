@@ -5,7 +5,6 @@ import { ActivatedRoute } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
@@ -25,6 +24,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { TooltipModule } from 'primeng/tooltip';
 import { AvisoService } from '../../shared/services/aviso.service';
@@ -38,7 +38,6 @@ import { AvisoService } from '../../shared/services/aviso.service';
         ButtonModule,
         DatePickerModule,
         DialogModule,
-        InputNumberModule,
         InputTextModule,
         SelectModule,
         SelectButtonModule,
@@ -52,6 +51,7 @@ import { AvisoService } from '../../shared/services/aviso.service';
         TablaEsqueletoComponent,
         AyudaCampoComponent,
         MetodoPagoComponent,
+        InputNumeroComponent,
         TooltipModule
     ],
     template: `
@@ -170,11 +170,11 @@ import { AvisoService } from '../../shared/services/aviso.service';
                             </div>
                             <div class="col-span-4 md:col-span-2">
                                 <label class="flex items-center gap-1 text-sm mb-1">Cantidad <app-ayuda-campo texto="Kilos o unidades que salen. Debe haber stock suficiente." posicion="top" /></label>
-                                <p-inputNumber [(ngModel)]="linea.cantidad" [min]="0" [minFractionDigits]="0" [maxFractionDigits]="3" fluid />
+                                <app-input-numero tipo="cantidad" [(ngModel)]="linea.cantidad" [min]="0" />
                             </div>
                             <div class="col-span-4 md:col-span-3">
                                 <label class="flex items-center gap-1 text-sm mb-1">Precio <app-ayuda-campo texto="Precio unitario en bolivianos. El subtotal es cantidad × precio." posicion="left" /></label>
-                                <p-inputNumber [(ngModel)]="linea.precio_unitario" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
+                                <app-input-numero [(ngModel)]="linea.precio_unitario" />
                             </div>
                             <div class="col-span-4 md:col-span-2">
                                 <p-button icon="pi pi-trash" severity="danger" [outlined]="true" pTooltip="Quitar línea" tooltipPosition="top" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1" />
@@ -193,7 +193,7 @@ import { AvisoService } from '../../shared/services/aviso.service';
                 <div class="grid grid-cols-12 gap-3" *ngIf="modoCobro === 'CREDITO'">
                     <div class="col-span-12 md:col-span-4">
                         <label class="flex items-center gap-1 font-bold mb-2">Abono ahora (opcional) <app-ayuda-campo texto="Ej.: total Bs 1.640, abono Bs 500. El resto queda pendiente. 0 = todo a crédito." posicion="top" /></label>
-                        <p-inputNumber [(ngModel)]="pagoInicial" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
+                        <app-input-numero [(ngModel)]="pagoInicial" />
                     </div>
                     <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
                         <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto permite partir el cobro." posicion="top" /></label>
@@ -298,7 +298,7 @@ import { AvisoService } from '../../shared/services/aviso.service';
                 <div class="text-muted-color">Venta #{{ detalle.id }} · saldo {{ formatBs(detalle.saldo_pendiente) }}</div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="No puede superar el saldo. Puedes cobrar menos y dejar el resto pendiente." posicion="right" /></label>
-                    <p-inputNumber [(ngModel)]="cobroMonto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid />
+                    <app-input-numero [(ngModel)]="cobroMonto" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto parte el cobro." posicion="right" /></label>

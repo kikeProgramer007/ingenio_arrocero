@@ -5,7 +5,6 @@ import { FormsModule } from '@angular/forms';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
@@ -18,12 +17,13 @@ import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
+import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
     selector: 'app-inventario',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, TooltipModule],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule],
     template: `
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -74,10 +74,10 @@ import { TooltipModule } from 'primeng/tooltip';
                 <div><label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Ej.: Arroz pilado, Arroz en chala." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="form.nombre" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Agrupa el producto (materia prima, terminado, etc.)." posicion="right" /></label><p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_categoria" fluid /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Unidad <app-ayuda-campo texto="Ej.: kg, qq, unidad." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="form.unidad_medida" /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Precio venta <app-ayuda-campo texto="Precio sugerido al vender. Se puede cambiar en cada venta." posicion="right" /></label><p-inputNumber [(ngModel)]="form.precio_venta" mode="decimal" [min]="0" prefix="Bs " fluid /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Precio compra <app-ayuda-campo texto="Costo de referencia. Se puede cambiar en cada compra." posicion="right" /></label><p-inputNumber [(ngModel)]="form.precio_compra" mode="decimal" [min]="0" prefix="Bs " fluid /></div>
-                <div *ngIf="!form.id"><label class="flex items-center gap-1 font-bold mb-2">Stock inicial <app-ayuda-campo texto="Cantidad con la que arranca el inventario. Solo al crear." posicion="right" /></label><p-inputNumber [(ngModel)]="form.stock" [min]="0" [maxFractionDigits]="3" fluid /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Stock mínimo <app-ayuda-campo texto="Alerta cuando el stock baje de este valor." posicion="right" /></label><p-inputNumber [(ngModel)]="form.stock_minimo" [min]="0" [maxFractionDigits]="3" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Precio venta <app-ayuda-campo texto="Precio sugerido al vender. Se puede cambiar en cada venta." posicion="right" /></label><app-input-numero [(ngModel)]="form.precio_venta" /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Precio compra <app-ayuda-campo texto="Costo de referencia. Se puede cambiar en cada compra." posicion="right" /></label><app-input-numero [(ngModel)]="form.precio_compra" /></div>
+                <div *ngIf="!form.id"><label class="flex items-center gap-1 font-bold mb-2">Stock inicial <app-ayuda-campo texto="Cantidad con la que arranca el inventario. Solo al crear." posicion="right" /></label><app-input-numero tipo="cantidad" [(ngModel)]="form.stock" [min]="0" /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Stock mínimo <app-ayuda-campo texto="Alerta cuando el stock baje de este valor." posicion="right" /></label><app-input-numero tipo="cantidad" [(ngModel)]="form.stock_minimo" [min]="0" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Descripción <app-ayuda-campo texto="Detalle interno del producto." posicion="top" /></label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="form.descripcion"></textarea></div>
             </div>
             <ng-template #footer>
@@ -89,7 +89,7 @@ import { TooltipModule } from 'primeng/tooltip';
         <p-dialog header="Ajuste de stock" [(visible)]="dialogAjuste" [modal]="true" [style]="{ width: '28rem' }">
             <p class="mb-3" *ngIf="ajusteProducto">{{ ajusteProducto.nombre }} · stock {{ ajusteProducto.stock }}</p>
             <label class="flex items-center gap-1 font-bold mb-2">Cantidad (+ entra / − sale) <app-ayuda-campo texto="Positivo entra al almacén. Negativo sale (merma, ajuste). No uses esto para ventas o compras." posicion="right" /></label>
-            <p-inputNumber [(ngModel)]="ajusteCantidad" [maxFractionDigits]="3" fluid />
+            <app-input-numero tipo="cantidad" [(ngModel)]="ajusteCantidad" />
             <label class="flex items-center gap-1 font-bold mb-2 mt-3">Observación <app-ayuda-campo texto="Motivo del ajuste. Ej.: merma, conteo físico." posicion="top" /></label>
             <textarea pTextarea class="w-full" rows="2" [(ngModel)]="ajusteObs"></textarea>
             <ng-template #footer>

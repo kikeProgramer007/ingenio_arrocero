@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
@@ -19,6 +18,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 
 @Component({
@@ -29,7 +29,6 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
         FormsModule,
         ButtonModule,
         DialogModule,
-        InputNumberModule,
         InputTextModule,
         SelectModule,
         TableModule,
@@ -40,7 +39,8 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
         BotonesExportarComponent,
         TablaEsqueletoComponent,
         AyudaCampoComponent,
-        MetodoPagoComponent
+        MetodoPagoComponent,
+        InputNumeroComponent
     ],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
@@ -115,7 +115,7 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="No puede superar el saldo. Puedes pagar una parte." posicion="right" /></label>
-                    <p-inputNumber [(ngModel)]="monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" prefix="Bs " fluid />
+                    <app-input-numero [(ngModel)]="monto" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR sale del banco. Efectivo del cajón. Mixto parte el pago." posicion="right" /></label>

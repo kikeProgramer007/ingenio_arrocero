@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
@@ -20,6 +19,7 @@ import { ExportarService, FormatoExport } from '../../shared/services/exportar.s
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { TooltipModule } from 'primeng/tooltip';
 
@@ -31,7 +31,6 @@ import { TooltipModule } from 'primeng/tooltip';
         FormsModule,
         ButtonModule,
         DialogModule,
-        InputNumberModule,
         InputTextModule,
         SelectModule,
         TableModule,
@@ -42,6 +41,7 @@ import { TooltipModule } from 'primeng/tooltip';
         TablaEsqueletoComponent,
         AyudaCampoComponent,
         MetodoPagoComponent,
+        InputNumeroComponent,
         TooltipModule
     ],
     template: `
@@ -143,11 +143,11 @@ import { TooltipModule } from 'primeng/tooltip';
                             </div>
                             <div class="col-span-4 md:col-span-2">
                                 <label class="flex items-center gap-1 text-sm mb-1">Cantidad <app-ayuda-campo texto="Kilos o unidades que entran al inventario." posicion="top" /></label>
-                                <p-inputNumber [(ngModel)]="linea.cantidad" [min]="0" [minFractionDigits]="0" [maxFractionDigits]="3" fluid />
+                                <app-input-numero tipo="cantidad" [(ngModel)]="linea.cantidad" [min]="0" />
                             </div>
                             <div class="col-span-4 md:col-span-3">
                                 <label class="flex items-center gap-1 text-sm mb-1">Precio <app-ayuda-campo texto="Costo unitario en bolivianos." posicion="left" /></label>
-                                <p-inputNumber [(ngModel)]="linea.precio_unitario" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
+                                <app-input-numero [(ngModel)]="linea.precio_unitario" />
                             </div>
                             <div class="col-span-4 md:col-span-2">
                                 <p-button icon="pi pi-trash" severity="danger" [outlined]="true" pTooltip="Quitar línea" tooltipPosition="top" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1" />
@@ -159,7 +159,7 @@ import { TooltipModule } from 'primeng/tooltip';
                 <div class="grid grid-cols-12 gap-3">
                     <div class="col-span-12 md:col-span-4">
                         <label class="flex items-center gap-1 font-bold mb-2">Pago inicial <app-ayuda-campo texto="Lo que pagas ahora sale de caja. 0 = toda la compra queda por pagar." posicion="top" /></label>
-                        <p-inputNumber [(ngModel)]="pagoInicial" mode="decimal" [min]="0" [minFractionDigits]="2" prefix="Bs " fluid />
+                        <app-input-numero [(ngModel)]="pagoInicial" />
                     </div>
                     <div class="col-span-12 md:col-span-4">
                         <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR sale del banco. Efectivo del cajón. Mixto parte el pago." posicion="top" /></label>

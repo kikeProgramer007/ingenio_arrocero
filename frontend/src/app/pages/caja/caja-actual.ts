@@ -5,7 +5,6 @@ import { Router } from '@angular/router';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
@@ -28,6 +27,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { ExportarService } from '../../shared/services/exportar.service';
 
@@ -39,7 +39,6 @@ import { ExportarService } from '../../shared/services/exportar.service';
         FormsModule,
         ButtonModule,
         DialogModule,
-        InputNumberModule,
         InputTextModule,
         SelectModule,
         SkeletonModule,
@@ -51,7 +50,8 @@ import { ExportarService } from '../../shared/services/exportar.service';
         BotonesExportarComponent,
         TablaEsqueletoComponent,
         AyudaCampoComponent,
-        MetodoPagoComponent
+        MetodoPagoComponent,
+        InputNumeroComponent
     ],
     template: `
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
@@ -97,7 +97,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
                 <div class="flex flex-col gap-5">
                     <div>
                         <label class="flex items-center gap-1 font-bold mb-2">Saldo inicial <app-ayuda-campo texto="Efectivo con el que abres el cajón. No es un ingreso del día; solo el punto de partida." posicion="right" /></label>
-                        <p-inputnumber [(ngModel)]="saldoInicial" mode="decimal" [min]="0" [minFractionDigits]="2" [maxFractionDigits]="2" locale="es-BO" prefix="Bs " fluid />
+                        <app-input-numero [(ngModel)]="saldoInicial" />
                     </div>
                     <div>
                         <label class="flex items-center gap-1 font-bold mb-2">Observación (opcional) <app-ayuda-campo texto="Ej.: turno mañana, billetes de 200, etc." posicion="top" /></label>
@@ -198,7 +198,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Importe que entra o sale ahora de la caja abierta." posicion="right" /></label>
-                    <p-inputnumber [(ngModel)]="movimiento.monto" mode="decimal" [min]="0.01" [minFractionDigits]="2" [maxFractionDigits]="2" locale="es-BO" prefix="Bs " fluid />
+                    <app-input-numero [(ngModel)]="movimiento.monto" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto parte el movimiento." posicion="right" /></label>
@@ -232,7 +232,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Efectivo contado en el cajón <app-ayuda-campo texto="Cuenta solo el dinero físico. El QR no está en el cajón: se compara con el efectivo esperado." posicion="top" /></label>
-                    <p-inputnumber [(ngModel)]="saldoContado" mode="decimal" [min]="0" [minFractionDigits]="2" [maxFractionDigits]="2" locale="es-BO" prefix="Bs " fluid />
+                    <app-input-numero [(ngModel)]="saldoContado" />
                 </div>
                 <div class="flex items-center justify-between">
                     <span class="text-muted-color">Diferencia</span>

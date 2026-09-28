@@ -5,7 +5,6 @@ import { FormsModule } from '@angular/forms';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
@@ -16,12 +15,13 @@ import { formatBs } from '../caja/caja.utils';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
+import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 
 @Component({
     selector: 'app-campanas',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent],
     template: `
         <div class="mb-6 flex flex-wrap justify-between gap-3">
             <div>
@@ -58,7 +58,7 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
             <div class="flex flex-col gap-3">
                 <div><label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Ej.: Campaña zafra 2026." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="campana.nombre" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Fecha inicio (YYYY-MM-DD) <app-ayuda-campo texto="Ej.: 2026-03-15. Día en que empieza el acopio." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="campana.fecha_inicio" /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Meta (kg) <app-ayuda-campo texto="Cantidad de chala que se quiere acopiar. Referencia, no bloquea." posicion="right" /></label><p-inputNumber [(ngModel)]="campana.meta_cantidad" [min]="0" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Meta (kg) <app-ayuda-campo texto="Cantidad de chala que se quiere acopiar. Referencia, no bloquea." posicion="right" /></label><app-input-numero tipo="cantidad" [(ngModel)]="campana.meta_cantidad" [min]="0" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Zona, precio de referencia, etc." posicion="top" /></label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="campana.observacion"></textarea></div>
             </div>
             <ng-template #footer>
@@ -71,9 +71,9 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
                 <div><label class="flex items-center gap-1 font-bold mb-2">Proveedor <app-ayuda-campo texto="Productor o intermediario que entrega la chala." posicion="right" /></label><p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="acopio.id_proveedor" [filter]="true" fluid /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Producto (opcional) <app-ayuda-campo texto="Si eliges un producto, entra al inventario. Si no, solo queda el acopio." posicion="right" /></label><p-select [options]="productos" optionLabel="nombre" optionValue="id" [(ngModel)]="acopio.id_producto" [showClear]="true" fluid /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Descripción <app-ayuda-campo texto="Ej.: Chala húmeda, lote de comunidad X." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="acopio.descripcion" /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad <app-ayuda-campo texto="Kilos acopiados en esta entrega." posicion="right" /></label><p-inputNumber [(ngModel)]="acopio.cantidad" [min]="0.001" [maxFractionDigits]="3" fluid /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Precio unitario <app-ayuda-campo texto="Bs por kilo o unidad. El total es cantidad × precio." posicion="right" /></label><p-inputNumber [(ngModel)]="acopio.precio_unitario" mode="decimal" prefix="Bs " fluid /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Pago ahora <app-ayuda-campo texto="Lo que pagas ahora sale de caja. 0 = queda por pagar." posicion="right" /></label><p-inputNumber [(ngModel)]="acopio.pago" mode="decimal" prefix="Bs " [min]="0" fluid /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad <app-ayuda-campo texto="Kilos acopiados en esta entrega." posicion="right" /></label><app-input-numero tipo="cantidad" [(ngModel)]="acopio.cantidad" [min]="0" /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Precio unitario <app-ayuda-campo texto="Bs por kilo o unidad. El total es cantidad × precio." posicion="right" /></label><app-input-numero [(ngModel)]="acopio.precio_unitario" /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Pago ahora <app-ayuda-campo texto="Lo que pagas ahora sale de caja. 0 = queda por pagar." posicion="right" /></label><app-input-numero [(ngModel)]="acopio.pago" /></div>
                 <div *ngIf="acopio.pago > 0"><label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR sale del banco. Efectivo del cajón. Mixto parte el pago." posicion="top" /></label><app-metodo-pago [(ngModel)]="acopio.metodo_pago" [montoTotal]="acopio.pago" [(montoEfectivo)]="acopio.monto_efectivo" [(montoQr)]="acopio.monto_qr" /></div>
             </div>
             <ng-template #footer>
