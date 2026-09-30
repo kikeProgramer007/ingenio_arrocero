@@ -38,17 +38,6 @@ function fmtFechaCorta(fecha: Date): string {
     return fecha.toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function fmtFechaHora(fecha: Date): string {
-    return fecha.toLocaleString('es-BO', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-}
-
 function numeroTabla(valor: number): string {
     return toMoney(valor).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -77,11 +66,19 @@ export function dibujarLogotipo(doc: PDFKit.PDFDocument, x: number, y: number, m
     }
 }
 
+/** Formulario continuo 9 1/2" × 11" (Paper King 140103, 3 vías). PDF en puntos (72/pulgada). */
+const INCH = 72;
+const PAPEL_CONTINUO = {
+    width: 9.5 * INCH,
+    height: 11 * INCH,
+    margin: 0.5 * INCH
+};
+
 export function enviarVoucherPdf(res: Response, baseNombre: string, datos: DatosVoucher): void {
     const doc = new PDFDocument({
-        size: 'A4',
-        layout: 'landscape',
-        margin: 28
+        size: [PAPEL_CONTINUO.width, PAPEL_CONTINUO.height],
+        layout: 'portrait',
+        margin: PAPEL_CONTINUO.margin
     });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${baseNombre}.pdf"`);
@@ -97,71 +94,81 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
     const right = doc.page.width - doc.page.margins.right;
     const width = right - left;
     const top = doc.page.margins.top;
+    const infoW = width * 0.48;
+    const tituloW = width * 0.34;
 
-    const logoW = dibujarLogotipo(doc, left, top, 70);
+    const logoW = dibujarLogotipo(doc, left, top, 54);
     const headerX = left + logoW;
+    const empresaW = Math.max(120, infoW - logoW);
     let y = top;
-    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(10);
+    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(9);
     if (empresa.titular) {
-        doc.text(empresa.titular, headerX, y, { width: 220 });
-        y += 12;
+        doc.text(empresa.titular, headerX, y, { width: empresaW });
+        y = doc.y + 1;
         doc.font('Helvetica').fontSize(8);
-        doc.text(empresa.nombre, headerX, y, { width: 220 });
-        y += 11;
+        doc.text(empresa.nombre, headerX, y, { width: empresaW });
+        y = doc.y + 1;
     } else {
-        doc.fontSize(12).text(empresa.nombre, headerX, y, { width: 220 });
-        y += 14;
+        doc.fontSize(11).text(empresa.nombre, headerX, y, { width: empresaW });
+        y = doc.y + 2;
         doc.font('Helvetica').fontSize(8);
     }
+    doc.font('Helvetica').fontSize(8);
     if (empresa.direccion) {
-        doc.text(empresa.direccion, headerX, y, { width: 220 });
-        y += 11;
+        doc.text(empresa.direccion, headerX, y, { width: empresaW });
+        y = doc.y;
+    }
+    if (empresa.nit) {
+        doc.text(`NIT: ${empresa.nit}`, headerX, y, { width: empresaW });
+        y = doc.y;
     }
     if (empresa.telefono) {
-        doc.text(`Tel.: ${empresa.telefono}`, headerX, y, { width: 220 });
-        y += 11;
+        doc.text(`Tel.: ${empresa.telefono}`, headerX, y, { width: empresaW });
+        y = doc.y;
     }
     if (empresa.ciudad) {
-        doc.text(empresa.ciudad, headerX, y, { width: 220 });
-        y += 11;
+        doc.text(empresa.ciudad, headerX, y, { width: empresaW });
+        y = doc.y;
     }
 
-    const centro = left + width * 0.42;
-    doc.font('Helvetica-Bold').fontSize(16).text(datos.tipoDocumento, centro, top + 8, { width: 200, align: 'center' });
+    const tituloX = right - tituloW;
+    doc.font('Helvetica-Bold').fontSize(13).fillColor('#000000');
+    doc.text(datos.tipoDocumento, tituloX, top, { width: tituloW, align: 'right' });
+    doc.fontSize(11).text(`Nº ${padNumero(datos.numero)}`, tituloX, top + 18, { width: tituloW, align: 'right' });
     doc.font('Helvetica').fontSize(8);
-    doc.text(`VENDEDOR: ${datos.vendedor.toUpperCase()}`, centro, top + 32, { width: 200, align: 'center' });
-    doc.text(empresa.nombre.toUpperCase(), centro, top + 44, { width: 200, align: 'center' });
-    doc.text(`FECHA: ${fmtFechaCorta(datos.fecha)}`, centro, top + 56, { width: 200, align: 'center' });
-    doc.text(`TIPO DE PAGO: ${datos.tipoPago}`, centro, top + 68, { width: 200, align: 'center' });
+    doc.text('Página: 1', tituloX, top + 34, { width: tituloW, align: 'right' });
+    doc.text(`VENDEDOR: ${datos.vendedor.toUpperCase()}`, tituloX, top + 48, { width: tituloW, align: 'right' });
+    doc.text(empresa.nombre.toUpperCase(), tituloX, top + 60, { width: tituloW, align: 'right' });
+    doc.text(`FECHA: ${fmtFechaCorta(datos.fecha)}`, tituloX, top + 72, { width: tituloW, align: 'right' });
+    doc.text(`TIPO DE PAGO: ${datos.tipoPago}`, tituloX, top + 84, { width: tituloW, align: 'right' });
 
-    doc.font('Helvetica-Bold').fontSize(11);
-    doc.text(`Nº ${padNumero(datos.numero)}`, right - 130, top + 8, { width: 130, align: 'right' });
-    doc.font('Helvetica').fontSize(8);
-    doc.text('Pagina: 1', right - 130, top + 24, { width: 130, align: 'right' });
-
-    const bloqueY = Math.max(y, top + 84) + 6;
-    doc.font('Helvetica-Bold').fontSize(9);
-    doc.text(`${datos.contraparteLabel}: ${datos.contraparteNombre.toUpperCase()}`, left, bloqueY);
+    const bloqueY = Math.max(y, top + 100) + 8;
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#000000');
+    doc.text(`${datos.contraparteLabel}: ${datos.contraparteNombre.toUpperCase()}`, left, bloqueY, { width });
     doc.font('Helvetica').fontSize(8);
     doc.text(`NIT/CI: ${datos.nitCi || '0'}`, left, bloqueY + 13);
-    doc.text(`CODIGO: ${datos.codigoContraparte}`, left, bloqueY + 26);
-    doc.text(`DIRECCION: ${datos.direccion || '-'}`, left, bloqueY + 39, { width: width * 0.55 });
+    doc.text(`CODIGO: ${datos.codigoContraparte}`, left, bloqueY + 25);
+    doc.text(`DIRECCION: ${datos.direccion || '-'}`, left, bloqueY + 37, { width });
 
-    const tableTop = bloqueY + 58;
+    const tableTop = bloqueY + 54;
+    const colPrecio = 72;
+    const colImporte = 78;
+    const colCant = 42;
+    const colCodigo = 64;
     const cols = [
-        { title: 'Código', w: 78, align: 'left' as const },
-        { title: 'Cant.', w: 50, align: 'right' as const },
-        { title: 'Descripción', w: width - 78 - 50 - 90 - 100, align: 'left' as const },
-        { title: 'Precio', w: 90, align: 'right' as const },
-        { title: 'Imp. Neto', w: 100, align: 'right' as const }
+        { title: 'Código', w: colCodigo, align: 'left' as const },
+        { title: 'Cant.', w: colCant, align: 'right' as const },
+        { title: 'Descripción', w: width - colCodigo - colCant - colPrecio - colImporte, align: 'left' as const },
+        { title: 'Precio', w: colPrecio, align: 'right' as const },
+        { title: 'Imp. Neto', w: colImporte, align: 'right' as const }
     ];
-    const headerH = 20;
+    const headerH = 18;
     doc.save();
     doc.rect(left, tableTop, width, headerH).fill(PDF_COLOR.vino);
     let x = left;
     doc.fillColor(PDF_COLOR.blanco).font('Helvetica-Bold').fontSize(8);
     cols.forEach((col) => {
-        doc.text(col.title, x + 5, tableTop + 6, { width: col.w - 10, align: col.align, lineBreak: false });
+        doc.text(col.title, x + 4, tableTop + 5, { width: col.w - 8, align: col.align, lineBreak: false });
         x += col.w;
     });
     doc.restore();
@@ -179,16 +186,16 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
             numeroTabla(linea.importe)
         ];
         const altos = cols.map((col, i) =>
-            Math.max(11, doc.heightOfString(celdas[i], { width: col.w - 10, align: col.align }))
+            Math.max(10, doc.heightOfString(celdas[i], { width: col.w - 8, align: col.align }))
         );
-        const rowH = Math.max(18, Math.max(...altos) + 8);
+        const rowH = Math.max(16, Math.max(...altos) + 6);
         if (idx % 2 === 0) {
             doc.rect(left, rowY, width, rowH).fill(PDF_COLOR.zebra);
         }
         x = left;
         doc.fillColor(PDF_COLOR.texto).font('Helvetica').fontSize(8);
         cols.forEach((col, i) => {
-            doc.text(celdas[i], x + 5, rowY + 4, { width: col.w - 10, align: col.align });
+            doc.text(celdas[i], x + 4, rowY + 3, { width: col.w - 8, align: col.align });
             x += col.w;
         });
         doc.strokeColor(PDF_COLOR.linea).lineWidth(0.3);
@@ -198,30 +205,32 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
     doc.strokeColor(PDF_COLOR.vinoOscuro).lineWidth(0.8);
     doc.rect(left, tableTop, width, rowY - tableTop).stroke();
 
-    const totY = Math.max(rowY + 10, tableTop + 90);
+    const totY = Math.max(rowY + 10, tableTop + 80);
+    const colVal = 88;
+    const colLbl = 110;
     doc.moveTo(left, totY).lineTo(right, totY).stroke();
     doc.font('Helvetica-Bold').fontSize(9);
     doc.text(`SUBTOTALES  ${cantTotal}`, left, totY + 8);
-    doc.text('DESCUENTO FIN.', right - 220, totY + 8, { width: 110, align: 'right' });
-    doc.font('Helvetica').text(numeroTabla(0), right - 100, totY + 8, { width: 100, align: 'right' });
+    doc.text('DESCUENTO FIN.', right - colLbl - colVal, totY + 8, { width: colLbl, align: 'right' });
+    doc.font('Helvetica').text(numeroTabla(0), right - colVal, totY + 8, { width: colVal, align: 'right' });
     doc.font('Helvetica-Bold');
-    doc.text('TOTAL Bs', right - 220, totY + 22, { width: 110, align: 'right' });
-    doc.text(numeroTabla(datos.total), right - 100, totY + 22, { width: 100, align: 'right' });
+    doc.text('TOTAL Bs', right - colLbl - colVal, totY + 22, { width: colLbl, align: 'right' });
+    doc.text(numeroTabla(datos.total), right - colVal, totY + 22, { width: colVal, align: 'right' });
     if (datos.cobrado != null) {
         doc.font('Helvetica').fontSize(8);
-        doc.text('COBRADO', right - 220, totY + 36, { width: 110, align: 'right' });
-        doc.text(numeroTabla(datos.cobrado), right - 100, totY + 36, { width: 100, align: 'right' });
+        doc.text('COBRADO', right - colLbl - colVal, totY + 36, { width: colLbl, align: 'right' });
+        doc.text(numeroTabla(datos.cobrado), right - colVal, totY + 36, { width: colVal, align: 'right' });
     }
     if (datos.pendiente != null) {
         doc.font('Helvetica').fontSize(8);
-        doc.text('SALDO', right - 220, totY + 50, { width: 110, align: 'right' });
-        doc.text(numeroTabla(datos.pendiente), right - 100, totY + 50, { width: 100, align: 'right' });
+        doc.text('SALDO', right - colLbl - colVal, totY + 50, { width: colLbl, align: 'right' });
+        doc.text(numeroTabla(datos.pendiente), right - colVal, totY + 50, { width: colVal, align: 'right' });
     }
 
     doc.font('Helvetica').fontSize(8);
-    doc.text(montoALetrasBs(datos.total), left, totY + 24, { width: width * 0.58 });
+    doc.text(montoALetrasBs(datos.total), left, totY + 24, { width: width - colLbl - colVal - 8 });
     doc.font('Helvetica-Bold');
-    doc.text(`DETALLE: ${datos.detalle}`, left, totY + 40);
+    doc.text(`DETALLE: ${datos.detalle || ''}`, left, totY + 40, { width: width - colLbl - colVal - 8 });
 
     const firmasY = totY + 78;
     const firmaW = width / 4;
@@ -229,17 +238,9 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
     doc.font('Helvetica').fontSize(8);
     etiquetas.forEach((label, i) => {
         const fx = left + i * firmaW;
-        doc.moveTo(fx + 16, firmasY + 36).lineTo(fx + firmaW - 16, firmasY + 36).stroke();
+        doc.moveTo(fx + 10, firmasY + 36).lineTo(fx + firmaW - 10, firmasY + 36).stroke();
         doc.text(label, fx, firmasY + 40, { width: firmaW, align: 'center' });
     });
-
-    const pieY = doc.page.height - doc.page.margins.bottom - 12;
-    doc.fontSize(7).fillColor('#333333');
-    doc.text(`${fmtFechaHora(datos.fecha)} - Guardado por: ${datos.vendedor.toUpperCase()}`, left, pieY, {
-        width,
-        align: 'left'
-    });
-    doc.fillColor('#000000');
 }
 
 export function dibujarEncabezadoPdf(doc: PDFKit.PDFDocument, titulo: string, subtitulo?: string): void {
@@ -253,6 +254,13 @@ export function dibujarEncabezadoPdf(doc: PDFKit.PDFDocument, titulo: string, su
     let y = top;
     doc.fillColor(PDF_COLOR.texto).font('Helvetica-Bold').fontSize(12).text(empresa.nombre, x, y, { width: textW });
     y = doc.y + 2;
+    const lineaEmpresa = [empresa.nit ? `NIT ${empresa.nit}` : '', empresa.ciudad, empresa.telefono ? `Tel. ${empresa.telefono}` : '']
+        .filter(Boolean)
+        .join(' · ');
+    if (lineaEmpresa) {
+        doc.font('Helvetica').fontSize(8).fillColor(PDF_COLOR.muted).text(lineaEmpresa, x, y, { width: textW });
+        y = doc.y + 2;
+    }
     doc.fontSize(15).fillColor(PDF_COLOR.vino).text(titulo, x, y, { width: textW });
     y = doc.y + 2;
     if (subtitulo) {

@@ -16,6 +16,8 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { TooltipModule } from 'primeng/tooltip';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-proveedores',
@@ -33,11 +35,12 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
         ImagenCampoComponent,
         TablaEsqueletoComponent,
         AyudaCampoComponent,
-        TooltipModule
+        TooltipModule,
+        TablaBusquedaComponent
     ],
     template: `
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Proveedores</div>
                 <div class="text-muted-color">Quienes venden arroz en chala, insumos y servicios</div>
             </div>
@@ -45,11 +48,26 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap gap-3 mb-4">
-                <input pInputText [(ngModel)]="busqueda" placeholder="Buscar por nombre o NIT/CI" class="w-full md:w-80" (keyup.enter)="cargar()" />
-                <p-button label="Buscar" icon="pi pi-search" (onClick)="cargar()" [loading]="cargando" />
-            </div>
-            <p-table [value]="cargando ? [] : proveedores" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table
+                #dt
+                [value]="cargando ? [] : proveedores"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} proveedores"
+                [globalFilterFields]="['nombre', 'nit_ci', 'telefono', 'direccion']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Listado de proveedores</span>
+                        <app-tabla-busqueda placeholder="Buscar por nombre o NIT/CI" (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th></th>
@@ -127,11 +145,12 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
     `
 })
 export class ProveedoresPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     proveedores: Proveedor[] = [];
     cargando = false;
     guardando = false;
     dialog = false;
-    busqueda = '';
     form: Proveedor = this.vacio();
 
     constructor(private proveedoresService: ProveedoresService, private aviso: AvisoService) {}
@@ -142,7 +161,7 @@ export class ProveedoresPage implements OnInit {
 
     cargar(): void {
         this.cargando = true;
-        this.proveedoresService.listar({ q: this.busqueda || undefined, activos: 'todos' }).subscribe({
+        this.proveedoresService.listar({ activos: 'todos' }).subscribe({
             next: (data) => {
                 this.proveedores = data;
                 this.cargando = false;

@@ -15,9 +15,13 @@ import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { TooltipModule } from 'primeng/tooltip';
+import { Menu, MenuModule } from 'primeng/menu';
+import { MenuItem } from 'primeng/api';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 import { etiquetaPago, formatBs, formatFecha } from '../caja/caja.utils';
 import { ClientesService, VentasService } from './ventas.service';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-clientes',
@@ -35,11 +39,14 @@ import { ClientesService, VentasService } from './ventas.service';
         ImagenCampoComponent,
         TablaEsqueletoComponent,
         AyudaCampoComponent,
-        TooltipModule
+        TooltipModule,
+        MenuModule,
+        TablaBusquedaComponent
     ],
     template: `
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
+        <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Clientes</div>
                 <div class="text-muted-color">Compradores de arroz y otros productos</div>
             </div>
@@ -47,11 +54,26 @@ import { ClientesService, VentasService } from './ventas.service';
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap gap-3 mb-4">
-                <input pInputText [(ngModel)]="busqueda" placeholder="Buscar por nombre o NIT/CI" class="w-full md:w-80" (keyup.enter)="cargar()" />
-                <p-button label="Buscar" icon="pi pi-search" (onClick)="cargar()" [loading]="cargando" />
-            </div>
-            <p-table [value]="cargando ? [] : clientes" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table
+                #dt
+                [value]="cargando ? [] : clientes"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} clientes"
+                [globalFilterFields]="['nombre', 'nit_ci', 'telefono', 'direccion']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Listado de clientes</span>
+                        <app-tabla-busqueda placeholder="Buscar por nombre o NIT/CI" (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th></th>
@@ -72,8 +94,16 @@ import { ClientesService, VentasService } from './ventas.service';
                         <td>{{ cli.direccion || '-' }}</td>
                         <td><p-tag [value]="cli.activo ? 'Activo' : 'Inactivo'" [severity]="cli.activo ? 'success' : 'secondary'" /></td>
                         <td>
-                            <p-button icon="pi pi-book" [rounded]="true" [outlined]="true" severity="info" pTooltip="Cuenta del cliente" tooltipPosition="left" (onClick)="verExtracto(cli)" />
-                            <p-button icon="pi pi-pencil" [rounded]="true" [outlined]="true" severity="warn" class="ml-1" pTooltip="Editar" tooltipPosition="left" (onClick)="editar(cli)" />
+                            <p-button
+                                icon="pi pi-ellipsis-v"
+                                [rounded]="true"
+                                [text]="true"
+                                severity="secondary"
+                                pTooltip="Opciones"
+                                tooltipPosition="left"
+                                ariaLabel="Opciones del cliente"
+                                (onClick)="abrirAcciones($event, menuAcciones, cli)"
+                            />
                         </td>
                     </tr>
                 </ng-template>
@@ -188,16 +218,18 @@ import { ClientesService, VentasService } from './ventas.service';
     `
 })
 export class ClientesPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     clientes: Cliente[] = [];
     cargando = false;
     guardando = false;
     dialog = false;
     dialogExtracto = false;
-    busqueda = '';
     form: Cliente = this.vacio();
     extractoCliente: Cliente | null = null;
     extractoVentas: Venta[] = [];
     extractoCobranzas: Cobranza[] = [];
+    itemsAcciones: MenuItem[] = [];
     formatBs = formatBs;
     formatFecha = formatFecha;
     etiquetaPago = etiquetaPago;
@@ -210,7 +242,7 @@ export class ClientesPage implements OnInit {
 
     cargar(): void {
         this.cargando = true;
-        this.clientesService.listar({ q: this.busqueda || undefined, activos: 'todos' }).subscribe({
+        this.clientesService.listar({ activos: 'todos' }).subscribe({
             next: (data) => {
                 this.clientes = data;
                 this.cargando = false;
@@ -225,6 +257,24 @@ export class ClientesPage implements OnInit {
     abrirNuevo(): void {
         this.form = this.vacio();
         this.dialog = true;
+    }
+
+    abrirAcciones(event: Event, menu: Menu, cli: Cliente): void {
+        this.itemsAcciones = [
+            {
+                label: 'Cuenta del cliente',
+                icon: 'pi pi-book menu-icon-ver',
+                iconStyle: { color: '#3b82f6' },
+                command: () => this.verExtracto(cli)
+            },
+            {
+                label: 'Editar',
+                icon: 'pi pi-pencil menu-icon-editar',
+                iconStyle: { color: '#f59e0b' },
+                command: () => this.editar(cli)
+            }
+        ];
+        menu.toggle(event);
     }
 
     editar(cli: Cliente): void {

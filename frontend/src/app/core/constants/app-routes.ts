@@ -19,5 +19,6 @@ export const APP_ROUTES = {
     inventario: '/inventario',
     campanas: '/campanas',
     produccion: '/produccion',
-    reportes: '/reportes'
+    reportes: '/reportes',
+    empresa: '/empresa'
 } as const;

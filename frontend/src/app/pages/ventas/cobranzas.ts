@@ -22,6 +22,8 @@ import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { ExportarService } from '../../shared/services/exportar.service';
 import { AvisoService } from '../../shared/services/aviso.service';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-cobranzas',
@@ -43,12 +45,13 @@ import { AvisoService } from '../../shared/services/aviso.service';
         TablaEsqueletoComponent,
         AyudaCampoComponent,
         MetodoPagoComponent,
-        InputNumeroComponent
+        InputNumeroComponent,
+        TablaBusquedaComponent
     ],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Cobranzas</div>
                 <div class="text-muted-color">Registro de pagos recibidos de clientes</div>
             </div>
@@ -58,10 +61,31 @@ import { AvisoService } from '../../shared/services/aviso.service';
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" />
 
         <div class="card">
-            <div class="flex justify-end mb-3">
-                <app-botones-exportar tipo="cobranzas" />
+            <div class="flex flex-wrap items-end gap-2 mb-4">
+                <div class="ml-auto flex items-end gap-2 shrink-0">
+                    <app-botones-exportar tipo="cobranzas" />
+                </div>
             </div>
-            <p-table [value]="cargando ? [] : cobranzas" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table
+                #dt
+                [value]="cargando ? [] : cobranzas"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} cobranzas"
+                [globalFilterFields]="['fecha', 'cliente.nombre', 'id_venta', 'usuario.username']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Listado de cobranzas</span>
+                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
@@ -139,6 +163,8 @@ import { AvisoService } from '../../shared/services/aviso.service';
     `
 })
 export class CobranzasPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     cobranzas: Cobranza[] = [];
     pendientes: Venta[] = [];
     cargando = false;

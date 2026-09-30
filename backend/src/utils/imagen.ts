@@ -1,12 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 
-export type TipoImagen = 'producto' | 'cliente' | 'proveedor';
+export type TipoImagen = 'producto' | 'cliente' | 'proveedor' | 'empresa';
 
 export const IMAGEN_DEFAULT: Record<TipoImagen, string> = {
     producto: '/uploads/defaults/producto.svg',
     cliente: '/uploads/defaults/cliente.svg',
-    proveedor: '/uploads/defaults/proveedor.svg'
+    proveedor: '/uploads/defaults/proveedor.svg',
+    empresa: '/uploads/defaults/logotipo.jpeg'
 };
 
 export function uploadsRoot(): string {
@@ -25,7 +26,7 @@ export function imagenParaGuardar(pathImagen: string | null | undefined, tipo: T
     return resolverImagen(pathImagen, tipo);
 }
 
-const SVG: Record<TipoImagen, string> = {
+const SVG: Record<Exclude<TipoImagen, 'empresa'>, string> = {
     producto: `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <rect width="256" height="256" rx="28" fill="#E8F5E9"/>
   <path d="M78 86h100c8 0 14 6 14 14v86c0 18-16 32-36 32H100c-20 0-36-14-36-32V100c0-8 6-14 14-14z" fill="#66BB6A"/>
@@ -49,10 +50,10 @@ const SVG: Record<TipoImagen, string> = {
 
 export function asegurarDirectoriosImagen(): void {
     const root = uploadsRoot();
-    for (const dir of ['defaults', 'productos', 'clientes', 'proveedores']) {
+    for (const dir of ['defaults', 'productos', 'clientes', 'proveedores', 'empresas']) {
         fs.mkdirSync(path.join(root, dir), { recursive: true });
     }
-    (Object.keys(SVG) as TipoImagen[]).forEach((tipo) => {
+    (Object.keys(SVG) as Array<keyof typeof SVG>).forEach((tipo) => {
         const file = path.join(root, 'defaults', `${tipo}.svg`);
         if (!fs.existsSync(file)) {
             fs.writeFileSync(file, SVG[tipo], 'utf8');

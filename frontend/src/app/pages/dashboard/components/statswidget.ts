@@ -15,8 +15,8 @@ import { KpiGridComponent, KpiItem } from '../../../shared/components/kpi-grid';
         <app-kpi-grid class="col-span-12 mb-2" [items]="kpis" [loading]="loading" [columns]="6" />
         <div class="col-span-12" *ngIf="!loading && resumen">
             <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-color mb-2">
-                <span>La venta no es un ingreso. Cobrado es neto: cobros menos devoluciones por anulación. Caja {{ resumen.caja.estado === 'ABIERTA' ? 'abierta' : 'cerrada' }}.</span>
-                <a [routerLink]="cajaRoute" class="text-primary font-medium">Ir a caja actual</a>
+                <span class="min-w-0">La venta no es un ingreso. Cobrado es neto: cobros menos devoluciones por anulación. Caja {{ resumen.caja.estado === 'ABIERTA' ? 'abierta' : 'cerrada' }}.</span>
+                <a [routerLink]="cajaRoute" class="text-primary font-medium whitespace-nowrap">Ir a caja actual</a>
             </div>
         </div>
     `

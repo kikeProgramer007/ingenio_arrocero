@@ -22,6 +22,10 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { TooltipModule } from 'primeng/tooltip';
+import { Menu, MenuModule } from 'primeng/menu';
+import { MenuItem } from 'primeng/api';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-compras',
@@ -42,12 +46,15 @@ import { TooltipModule } from 'primeng/tooltip';
         AyudaCampoComponent,
         MetodoPagoComponent,
         InputNumeroComponent,
-        TooltipModule
+        TooltipModule,
+        MenuModule,
+        TablaBusquedaComponent
     ],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
+        <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Compras</div>
                 <div class="text-muted-color">Elige el producto (chala) para entrar al inventario. El dinero sale cuando pagas al proveedor.</div>
             </div>
@@ -55,17 +62,36 @@ import { TooltipModule } from 'primeng/tooltip';
         </div>
 
         <div class="card">
-            <div class="grid grid-cols-12 gap-3 mb-4">
-                <div class="col-span-12 md:col-span-4">
-                    <label class="block font-bold mb-2">Estado</label>
+            <div class="flex flex-wrap items-end gap-2 mb-4">
+                <div class="w-full sm:w-[12rem] min-w-0">
+                    <label class="block font-bold mb-1 text-sm">Estado</label>
                     <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid />
                 </div>
-                <div class="col-span-12 md:col-span-8 flex items-end gap-2 flex-wrap">
-                    <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <div class="ml-auto flex items-end gap-2 shrink-0">
                     <app-botones-exportar tipo="compras" [estado]="filtroEstado" />
                 </div>
             </div>
-            <p-table [value]="cargando ? [] : compras" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table
+                #dt
+                [value]="cargando ? [] : compras"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} compras"
+                [globalFilterFields]="['id', 'fecha', 'proveedor.nombre', 'estado']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Listado de compras</span>
+                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>#</th>
@@ -88,8 +114,16 @@ import { TooltipModule } from 'primeng/tooltip';
                         <td>{{ formatBs(compra.saldo_pendiente) }}</td>
                         <td><p-tag [value]="compra.estado" [severity]="severidad(compra.estado)" /></td>
                         <td>
-                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" severity="info" pTooltip="Ver detalle" tooltipPosition="left" (onClick)="ver(compra)" />
-                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" class="ml-1" pTooltip="Ver PDF" tooltipPosition="left" (onClick)="exportarCompra(compra, 'pdf')" />
+                            <p-button
+                                icon="pi pi-ellipsis-v"
+                                [rounded]="true"
+                                [text]="true"
+                                severity="secondary"
+                                pTooltip="Opciones"
+                                tooltipPosition="left"
+                                ariaLabel="Opciones de la compra"
+                                (onClick)="abrirAcciones($event, menuAcciones, compra)"
+                            />
                         </td>
                     </tr>
                 </ng-template>
@@ -116,7 +150,7 @@ import { TooltipModule } from 'primeng/tooltip';
                     <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProveedor" placeholder="Seleccione proveedor" [filter]="true" fluid />
                 </div>
                 <div>
-                    <div class="flex justify-between items-center mb-2">
+                    <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
                         <label class="flex items-center gap-1 font-bold">Productos / líneas <app-ayuda-campo texto="Producto del inventario entra al stock. Sin producto: escribe un concepto (flete)." posicion="right" /></label>
                         <p-button label="Agregar línea" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="agregarLinea()" />
                     </div>
@@ -141,15 +175,15 @@ import { TooltipModule } from 'primeng/tooltip';
                                 <label class="flex items-center gap-1 text-sm mb-1">Descripción <app-ayuda-campo texto="Ej.: Flete, comisión, servicio." posicion="top" /></label>
                                 <input pInputText class="w-full" placeholder="Ej. flete, servicio" [(ngModel)]="linea.descripcion" />
                             </div>
-                            <div class="col-span-4 md:col-span-2">
+                            <div class="col-span-12 sm:col-span-6 md:col-span-2">
                                 <label class="flex items-center gap-1 text-sm mb-1">Cantidad <app-ayuda-campo texto="Kilos o unidades que entran al inventario." posicion="top" /></label>
                                 <app-input-numero tipo="cantidad" [(ngModel)]="linea.cantidad" [min]="0" />
                             </div>
-                            <div class="col-span-4 md:col-span-3">
+                            <div class="col-span-12 sm:col-span-6 md:col-span-3">
                                 <label class="flex items-center gap-1 text-sm mb-1">Precio <app-ayuda-campo texto="Costo unitario en bolivianos." posicion="left" /></label>
                                 <app-input-numero [(ngModel)]="linea.precio_unitario" />
                             </div>
-                            <div class="col-span-4 md:col-span-2">
+                            <div class="col-span-12 md:col-span-2">
                                 <p-button icon="pi pi-trash" severity="danger" [outlined]="true" pTooltip="Quitar línea" tooltipPosition="top" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1" />
                             </div>
                         </div>
@@ -208,6 +242,8 @@ import { TooltipModule } from 'primeng/tooltip';
     `
 })
 export class ComprasPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     compras: Compra[] = [];
     proveedores: Proveedor[] = [];
     productos: ProductoLista[] = [];
@@ -232,6 +268,7 @@ export class ComprasPage implements OnInit {
     referencia = '';
     observacion = '';
     detalle: Compra | null = null;
+    itemsAcciones: MenuItem[] = [];
     formatBs = formatBs;
     formatFecha = formatFecha;
 
@@ -360,6 +397,24 @@ export class ComprasPage implements OnInit {
                 this.aviso.error(err, 'No se pudo registrar la compra');
             }
         });
+    }
+
+    abrirAcciones(event: Event, menu: Menu, compra: Compra): void {
+        this.itemsAcciones = [
+            {
+                label: 'Ver detalle',
+                icon: 'pi pi-eye menu-icon-ver',
+                iconStyle: { color: '#3b82f6' },
+                command: () => this.ver(compra)
+            },
+            {
+                label: 'Ver PDF',
+                icon: 'pi pi-file-pdf menu-icon-pdf',
+                iconStyle: { color: '#ef4444' },
+                command: () => this.exportarCompra(compra, 'pdf')
+            }
+        ];
+        menu.toggle(event);
     }
 
     ver(compra: Compra): void {

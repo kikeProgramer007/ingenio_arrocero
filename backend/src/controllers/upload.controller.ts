@@ -4,7 +4,7 @@ import multer from 'multer';
 import { handleError } from '../utils/error.handler';
 import { IMAGEN_DEFAULT, TipoImagen, asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
 
-const TIPOS: TipoImagen[] = ['producto', 'cliente', 'proveedor'];
+const TIPOS: TipoImagen[] = ['producto', 'cliente', 'proveedor', 'empresa'];
 
 const storage = multer.diskStorage({
     destination: (req, _file, cb) => {

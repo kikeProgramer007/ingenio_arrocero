@@ -10,9 +10,24 @@
     padding: 2rem;
     margin-bottom: 2rem;
     border-radius: var(--content-border-radius);
+    min-width: 0;
 
     &:last-child {
         margin-bottom: 0;
+    }
+}
+
+.p-datatable-wrapper {
+    overflow-x: auto;
+}
+
+.p-dialog {
+    max-width: calc(100vw - 1.5rem);
+}
+
+@media (max-width: 767px) {
+    .card {
+        padding: 1.25rem;
     }
 }
 
@@ -22,4 +37,81 @@
     &.p-toast-top-center {
         top: 100px;
     }
+}
+
+.p-menu .p-menu-item-icon.menu-icon-ver,
+.p-menu .p-menuitem-icon.menu-icon-ver {
+    color: #3b82f6 !important;
+}
+
+.p-menu .p-menu-item-icon.menu-icon-pdf,
+.p-menu .p-menuitem-icon.menu-icon-pdf {
+    color: #ef4444 !important;
+}
+
+.p-menu .p-menu-item-icon.menu-icon-anular,
+.p-menu .p-menuitem-icon.menu-icon-anular {
+    color: #f97316 !important;
+}
+
+.app-dark .p-menu .p-menu-item-icon.menu-icon-ver,
+.app-dark .p-menu .p-menuitem-icon.menu-icon-ver {
+    color: #60a5fa !important;
+}
+
+.app-dark .p-menu .p-menu-item-icon.menu-icon-pdf,
+.app-dark .p-menu .p-menuitem-icon.menu-icon-pdf {
+    color: #f87171 !important;
+}
+
+.app-dark .p-menu .p-menu-item-icon.menu-icon-anular,
+.app-dark .p-menu .p-menuitem-icon.menu-icon-anular {
+    color: #fb923c !important;
+}
+
+.p-menu .p-menu-item-icon.menu-icon-excel,
+.p-menu .p-menuitem-icon.menu-icon-excel {
+    color: #22c55e !important;
+}
+
+.p-menu .p-menu-item-icon.menu-icon-editar,
+.p-menu .p-menuitem-icon.menu-icon-editar {
+    color: #f59e0b !important;
+}
+
+.p-menu .p-menu-item-icon.menu-icon-ajuste,
+.p-menu .p-menuitem-icon.menu-icon-ajuste {
+    color: #06b6d4 !important;
+}
+
+.p-menu .p-menu-item-icon.menu-icon-kardex,
+.p-menu .p-menuitem-icon.menu-icon-kardex {
+    color: #8b5cf6 !important;
+}
+
+.p-menu .p-menu-item-icon.menu-icon-acopio,
+.p-menu .p-menuitem-icon.menu-icon-acopio {
+    color: #22c55e !important;
+}
+
+.app-dark .p-menu .p-menu-item-icon.menu-icon-excel,
+.app-dark .p-menu .p-menuitem-icon.menu-icon-excel,
+.app-dark .p-menu .p-menu-item-icon.menu-icon-acopio,
+.app-dark .p-menu .p-menuitem-icon.menu-icon-acopio {
+    color: #4ade80 !important;
+}
+
+.app-dark .p-menu .p-menu-item-icon.menu-icon-editar,
+.app-dark .p-menu .p-menuitem-icon.menu-icon-editar {
+    color: #fbbf24 !important;
+}
+
+.app-dark .p-menu .p-menu-item-icon.menu-icon-ajuste,
+.app-dark .p-menu .p-menuitem-icon.menu-icon-ajuste {
+    color: #22d3ee !important;
+}
+
+.app-dark .p-menu .p-menu-item-icon.menu-icon-kardex,
+.app-dark .p-menu .p-menuitem-icon.menu-icon-kardex {
+    color: #a78bfa !important;
 }

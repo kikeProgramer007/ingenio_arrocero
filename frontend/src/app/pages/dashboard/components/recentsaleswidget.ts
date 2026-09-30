@@ -15,9 +15,9 @@ import { TablaEsqueletoComponent } from '../../../shared/components/tabla-esquel
     imports: [CommonModule, TableModule, TagModule, RouterModule, EstadoVacioComponent, TablaEsqueletoComponent],
     template: `
         <div class="card !mb-8">
-            <div class="flex justify-between items-center mb-4">
+            <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
                 <div class="font-semibold text-xl">Últimos ingresos</div>
-                <a [routerLink]="cobranzasRoute" class="text-primary text-sm">Cobranzas</a>
+                <a [routerLink]="cobranzasRoute" class="text-primary text-sm whitespace-nowrap">Cobranzas</a>
             </div>
             <p-table [value]="loading ? [] : (resumen?.ingresos_recientes || [])" [loading]="loading" [showLoader]="false" [rows]="6" responsiveLayout="scroll">
                 <ng-template #header>
@@ -39,9 +39,9 @@ import { TablaEsqueletoComponent } from '../../../shared/components/tabla-esquel
             </p-table>
         </div>
         <div class="card !mb-8">
-            <div class="flex justify-between items-center mb-4">
+            <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
                 <div class="font-semibold text-xl">Últimos egresos</div>
-                <a [routerLink]="egresosRoute" class="text-primary text-sm">Ver control</a>
+                <a [routerLink]="egresosRoute" class="text-primary text-sm whitespace-nowrap">Ver control</a>
             </div>
             <p-table [value]="loading ? [] : (resumen?.egresos_recientes || [])" [loading]="loading" [showLoader]="false" [rows]="6" responsiveLayout="scroll">
                 <ng-template #header>

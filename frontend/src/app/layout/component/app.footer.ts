@@ -1,15 +1,15 @@
-import { Component } from '@angular/core';
-import { EMPRESA } from '../../core/constants/empresa';
+import { Component, inject } from '@angular/core';
+import { EmpresaService } from '../../core/services/empresa.service';
 
 @Component({
     standalone: true,
     selector: 'app-footer',
     template: `<div class="layout-footer">
-        {{ empresa.nombre }}
+        {{ empresa.nombreUi() }}
         <span class="text-muted-color mx-2">·</span>
-        <span class="text-muted-color">{{ empresa.slogan }}</span>
+        <span class="text-muted-color">{{ empresa.slogan() }}</span>
     </div>`
 })
 export class AppFooter {
-    empresa = EMPRESA;
+    empresa = inject(EmpresaService);
 }

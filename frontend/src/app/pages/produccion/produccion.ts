@@ -13,21 +13,42 @@ import { formatFecha } from '../caja/caja.utils';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { InputNumeroComponent } from '../../shared/components/input-numero';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-produccion',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, SelectModule, TableModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, SelectModule, TableModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TablaBusquedaComponent],
     template: `
-        <div class="mb-6 flex flex-wrap justify-between gap-3">
-            <div>
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Producción</div>
                 <div class="text-muted-color">Convierte materia prima (chala) en producto terminado</div>
             </div>
             <p-button label="Nueva producción" icon="pi pi-plus" (onClick)="dialog = true" />
         </div>
         <div class="card">
-            <p-table [value]="cargando ? [] : items" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10">
+            <p-table
+                #dt
+                [value]="cargando ? [] : items"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} producciones"
+                [globalFilterFields]="['fecha', 'producto_origen.nombre', 'producto_destino.nombre']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Listado de producción</span>
+                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr><th>Fecha</th><th>Origen</th><th>Entrada</th><th>Destino</th><th>Salida</th><th>Merma</th></tr>
                 </ng-template>
@@ -46,7 +67,7 @@ import { InputNumeroComponent } from '../../shared/components/input-numero';
                 </ng-template>
             </p-table>
         </div>
-        <p-dialog header="Registrar producción" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }">
+        <p-dialog header="Registrar producción" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-3">
                 <div><label class="flex items-center gap-1 font-bold mb-2">Producto origen <app-ayuda-campo texto="Materia prima que se consume (ej. chala). Baja del inventario." posicion="right" /></label><p-select [options]="productos" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_producto_origen" fluid /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Cantidad entrada <app-ayuda-campo texto="Cuánto origen se usa. Debe haber stock." posicion="right" /></label><app-input-numero tipo="cantidad" [(ngModel)]="form.cantidad_entrada" [min]="0" /></div>
@@ -62,6 +83,8 @@ import { InputNumeroComponent } from '../../shared/components/input-numero';
     `
 })
 export class ProduccionPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     items: any[] = [];
     productos: any[] = [];
     cargando = false;

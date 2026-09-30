@@ -54,6 +54,12 @@ export class AppMenu {
             };
         };
 
+        const submenu = (label: string, icon: string, items: ReturnType<typeof link>[]): MenuItem => ({
+            label,
+            icon,
+            items
+        });
+
         return [
             {
                 label: 'Inicio',
@@ -62,37 +68,40 @@ export class AppMenu {
             {
                 label: 'Ingresos',
                 items: [
-                    link(APP_ROUTES.ventas, 'Ventas', 'pi pi-shopping-cart'),
-                    link(APP_ROUTES.cobranzas, 'Cobranzas', 'pi pi-money-bill')
+                    submenu('Ventas', 'pi pi-shopping-cart', [
+                        link(APP_ROUTES.ventas, 'Ventas', 'pi pi-shopping-cart'),
+                        link(APP_ROUTES.cobranzas, 'Cobranzas', 'pi pi-money-bill')
+                    ]),
+                    link(APP_ROUTES.clientes, 'Clientes', 'pi pi-users')
                 ]
             },
             {
                 label: 'Egresos',
                 items: [
-                    link(APP_ROUTES.pagos, 'Pagos a proveedores', 'pi pi-send'),
-                    link(APP_ROUTES.gastos, 'Gastos de empresa', 'pi pi-briefcase'),
-                    link(APP_ROUTES.retiros, 'Retiros personales', 'pi pi-user')
+                    submenu('Compras', 'pi pi-box', [
+                        link(APP_ROUTES.compras, 'Compras', 'pi pi-box'),
+                        link(APP_ROUTES.pagos, 'Pagos a proveedores', 'pi pi-send'),
+                        link(APP_ROUTES.proveedores, 'Proveedores', 'pi pi-truck')
+                    ]),
+                    submenu('Gastos', 'pi pi-briefcase', [
+                        link(APP_ROUTES.gastos, 'Gastos de empresa', 'pi pi-briefcase'),
+                        link(APP_ROUTES.retiros, 'Retiros personales', 'pi pi-user')
+                    ])
                 ]
             },
             {
                 label: 'Control financiero',
                 items: [
-                    link(APP_ROUTES.ingresosEgresos, 'Ingresos y egresos', 'pi pi-arrows-h'),
-                    link(APP_ROUTES.caja, 'Caja actual', 'pi pi-wallet'),
-                    link(APP_ROUTES.cajaHistorial, 'Historial de cajas', 'pi pi-history')
-                ]
-            },
-            {
-                label: 'Gestión',
-                items: [
-                    link(APP_ROUTES.clientes, 'Clientes', 'pi pi-users'),
-                    link(APP_ROUTES.proveedores, 'Proveedores', 'pi pi-truck')
+                    submenu('Caja', 'pi pi-wallet', [
+                        link(APP_ROUTES.caja, 'Caja actual', 'pi pi-wallet'),
+                        link(APP_ROUTES.cajaHistorial, 'Historial de cajas', 'pi pi-history')
+                    ]),
+                    link(APP_ROUTES.ingresosEgresos, 'Ingresos y egresos', 'pi pi-arrows-h')
                 ]
             },
             {
                 label: 'Operaciones',
                 items: [
-                    link(APP_ROUTES.compras, 'Compras', 'pi pi-box'),
                     link(APP_ROUTES.inventario, 'Inventario', 'pi pi-th-large'),
                     link(APP_ROUTES.campanas, 'Campañas de acopio', 'pi pi-sun'),
                     link(APP_ROUTES.produccion, 'Producción', 'pi pi-cog')
@@ -101,6 +110,10 @@ export class AppMenu {
             {
                 label: 'Reportes',
                 items: [link(APP_ROUTES.reportes, 'Reportes', 'pi pi-chart-bar')]
+            },
+            {
+                label: 'Configuración',
+                items: [link(APP_ROUTES.empresa, 'Empresa', 'pi pi-building')]
             }
         ];
     }

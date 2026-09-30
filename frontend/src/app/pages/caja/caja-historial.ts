@@ -17,6 +17,10 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { ExportarService, FormatoExport } from '../../shared/services/exportar.service';
 import { TooltipModule } from 'primeng/tooltip';
+import { Menu, MenuModule } from 'primeng/menu';
+import { MenuItem } from 'primeng/api';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-caja-historial',
@@ -33,31 +37,51 @@ import { TooltipModule } from 'primeng/tooltip';
         CuadreCajaComponent,
         BotonesExportarComponent,
         TablaEsqueletoComponent,
-        TooltipModule
+        TooltipModule,
+        MenuModule,
+        TablaBusquedaComponent
     ],
     template: `
+        <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
         <div class="mb-6">
             <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Historial de cajas</div>
             <div class="text-muted-color">Consulta aperturas, cierres y diferencias de arqueo</div>
         </div>
 
         <div class="card">
-            <div class="grid grid-cols-12 gap-4 mb-4">
-                <div class="col-span-12 md:col-span-4">
-                    <label class="block font-bold mb-2">Rango de fechas</label>
-                    <p-datepicker selectionMode="range" [(ngModel)]="rangoFechas" dateFormat="dd/mm/yy" [showIcon]="true" [readonlyInput]="true" fluid />
-                </div>
-                <div class="col-span-12 md:col-span-3">
-                    <label class="block font-bold mb-2">Estado</label>
+            <div class="flex flex-wrap items-end gap-2 mb-4">
+                <div class="w-full sm:w-[9.5rem] min-w-0">
+                    <label class="block font-bold mb-1 text-sm">Estado</label>
                     <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="estado" placeholder="Estado" fluid />
                 </div>
-                <div class="col-span-12 md:col-span-5 flex items-end gap-2">
-                    <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
-                    <p-button label="Limpiar" icon="pi pi-times" severity="secondary" [outlined]="true" (onClick)="limpiar()" />
+                <div class="w-full sm:w-[15rem] min-w-0">
+                    <label class="block font-bold mb-1 text-sm">Período</label>
+                    <p-datepicker selectionMode="range" [(ngModel)]="rangoFechas" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
                 </div>
+                <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <p-button label="Limpiar" icon="pi pi-times" severity="secondary" [outlined]="true" (onClick)="limpiar()" />
             </div>
 
-            <p-table [value]="cargando ? [] : cajas" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table
+                #dt
+                [value]="cargando ? [] : cajas"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} cajas"
+                [globalFilterFields]="['fecha_apertura', 'usuario_apertura.username', 'estado']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Historial de cajas</span>
+                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
@@ -89,10 +113,17 @@ import { TooltipModule } from 'primeng/tooltip';
                         <td>
                             <p-tag [value]="caja.estado" [severity]="caja.estado === 'ABIERTA' ? 'success' : 'secondary'" />
                         </td>
-                        <td class="flex gap-1">
-                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" severity="info" pTooltip="Ver detalle" tooltipPosition="left" (onClick)="verDetalle(caja)" />
-                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" pTooltip="Ver PDF" tooltipPosition="left" (onClick)="exportarCaja(caja, 'pdf')" />
-                            <p-button icon="pi pi-file-excel" [rounded]="true" [outlined]="true" severity="success" pTooltip="Descargar Excel" tooltipPosition="left" (onClick)="exportarCaja(caja, 'xlsx')" />
+                        <td>
+                            <p-button
+                                icon="pi pi-ellipsis-v"
+                                [rounded]="true"
+                                [text]="true"
+                                severity="secondary"
+                                pTooltip="Opciones"
+                                tooltipPosition="left"
+                                ariaLabel="Opciones de la caja"
+                                (onClick)="abrirAcciones($event, menuAcciones, caja)"
+                            />
                         </td>
                     </tr>
                 </ng-template>
@@ -165,6 +196,8 @@ import { TooltipModule } from 'primeng/tooltip';
     `
 })
 export class CajaHistorial implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     cajas: CajaDetalle[] = [];
     detalle: CajaDetalle | null = null;
     cargando = false;
@@ -172,6 +205,7 @@ export class CajaHistorial implements OnInit {
     rangoFechas: Date[] | null = null;
     estado = '';
     estados = ESTADOS_CAJA_OPTIONS;
+    itemsAcciones: MenuItem[] = [];
 
     formatBs = formatBs;
     formatFecha = formatFecha;
@@ -218,6 +252,30 @@ export class CajaHistorial implements OnInit {
         this.rangoFechas = null;
         this.estado = '';
         this.cargar();
+    }
+
+    abrirAcciones(event: Event, menu: Menu, caja: CajaDetalle): void {
+        this.itemsAcciones = [
+            {
+                label: 'Ver detalle',
+                icon: 'pi pi-eye menu-icon-ver',
+                iconStyle: { color: '#3b82f6' },
+                command: () => this.verDetalle(caja)
+            },
+            {
+                label: 'Ver PDF',
+                icon: 'pi pi-file-pdf menu-icon-pdf',
+                iconStyle: { color: '#ef4444' },
+                command: () => this.exportarCaja(caja, 'pdf')
+            },
+            {
+                label: 'Descargar Excel',
+                icon: 'pi pi-file-excel menu-icon-excel',
+                iconStyle: { color: '#22c55e' },
+                command: () => this.exportarCaja(caja, 'xlsx')
+            }
+        ];
+        menu.toggle(event);
     }
 
     exportarCaja(caja: CajaDetalle, formato: FormatoExport): void {

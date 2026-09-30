@@ -20,6 +20,7 @@ import { CategoriaProducto } from './categoria-producto.model';
 import { MovimientoInventario } from './movimiento-inventario.model';
 import { Campana, Acopio } from './campana.model';
 import { Produccion } from './produccion.model';
+import { Empresa } from './empresa.model';
 
 User.belongsTo(Perfil, { foreignKey: 'id_perfil' });
 Perfil.hasMany(User, { foreignKey: 'id_perfil' });
@@ -119,5 +120,6 @@ export {
   MovimientoInventario,
   Campana,
   Acopio,
-  Produccion
+  Produccion,
+  Empresa
 };

@@ -67,6 +67,11 @@ export type TipoInputNumero = 'moneda' | 'cantidad';
             align-items: center;
             gap: 0.4rem;
             width: 100%;
+            min-width: 0;
+        }
+        .input-numero input {
+            min-width: 0;
+            flex: 1 1 auto;
         }
         .input-numero-prefijo {
             flex-shrink: 0;

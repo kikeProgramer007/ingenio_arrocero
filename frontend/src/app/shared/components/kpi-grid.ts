@@ -15,10 +15,10 @@ export interface KpiItem {
     standalone: true,
     imports: [CommonModule, SkeletonModule],
     template: `
-        <div class="grid grid-cols-12 gap-8 w-full mb-6">
+        <div class="grid grid-cols-12 gap-4 w-full mb-6 min-w-0">
         <ng-container *ngIf="loading">
             <div [class]="colClass" *ngFor="let i of placeholders">
-                <div class="card mb-0">
+                <div class="card mb-0 h-full min-w-0 overflow-hidden">
                     <p-skeleton width="45%" height="0.9rem" styleClass="mb-3" />
                     <p-skeleton width="70%" height="1.75rem" />
                 </div>
@@ -26,17 +26,17 @@ export interface KpiItem {
         </ng-container>
         <ng-container *ngIf="!loading">
             <div [class]="colClass" *ngFor="let kpi of items">
-                <div class="card mb-0">
-                    <div class="flex justify-between mb-3">
-                        <div>
-                            <span class="block text-muted-color font-medium mb-3">{{ kpi.label }}</span>
-                            <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl">{{ kpi.value }}</div>
+                <div class="card mb-0 h-full min-w-0 overflow-hidden">
+                    <div class="flex justify-between gap-3 mb-3 min-w-0">
+                        <div class="min-w-0 flex-1 overflow-hidden">
+                            <span class="block text-muted-color font-medium mb-2 truncate">{{ kpi.label }}</span>
+                            <div class="text-surface-900 dark:text-surface-0 font-semibold text-xl xl:text-2xl leading-tight whitespace-nowrap overflow-hidden text-ellipsis">{{ kpi.value }}</div>
                         </div>
-                        <div class="flex items-center justify-center rounded-border" [ngClass]="fondo(kpi.tone)" style="width: 2.5rem; height: 2.5rem">
+                        <div class="flex items-center justify-center rounded-border shrink-0" [ngClass]="fondo(kpi.tone)" style="width: 2.5rem; height: 2.5rem">
                             <i class="text-xl" [ngClass]="[kpi.icon, color(kpi.tone)]"></i>
                         </div>
                     </div>
-                    <span class="text-muted-color text-sm" *ngIf="kpi.hint">{{ kpi.hint }}</span>
+                    <span class="text-muted-color text-sm leading-snug" *ngIf="kpi.hint">{{ kpi.hint }}</span>
                 </div>
             </div>
         </ng-container>
@@ -54,12 +54,12 @@ export class KpiGridComponent {
 
     get colClass(): string {
         if (this.columns === 3) {
-            return 'col-span-12 md:col-span-4';
+            return 'col-span-12 sm:col-span-6 lg:col-span-4 min-w-0';
         }
         if (this.columns === 6) {
-            return 'col-span-12 sm:col-span-6 xl:col-span-2';
+            return 'col-span-12 sm:col-span-6 lg:col-span-4 min-w-0';
         }
-        return 'col-span-12 sm:col-span-6 xl:col-span-3';
+        return 'col-span-12 sm:col-span-6 xl:col-span-3 min-w-0';
     }
 
     fondo(tone: KpiItem['tone']): string {

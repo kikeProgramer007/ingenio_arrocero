@@ -17,7 +17,8 @@ export const APP_RUTAS = {
     INVENTARIO: '/inventario',
     CAMPANAS: '/campanas',
     PRODUCCION: '/produccion',
-    REPORTES: '/reportes'
+    REPORTES: '/reportes',
+    EMPRESA: '/empresa'
 } as const;
 
 export const PROGRAMAS_SEED = [
@@ -132,5 +133,12 @@ export const PROGRAMAS_SEED = [
         class_icon: 'pi pi-chart-bar',
         es_expandible: false,
         nro_posicion: 80
+    },
+    {
+        nombre_programa: 'Empresa',
+        url: APP_RUTAS.EMPRESA,
+        class_icon: 'pi pi-building',
+        es_expandible: false,
+        nro_posicion: 90
     }
 ];

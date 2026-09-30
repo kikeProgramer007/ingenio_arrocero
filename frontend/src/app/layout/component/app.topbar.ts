@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { MenuItem } from 'primeng/api';
 import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -8,7 +8,7 @@ import { LayoutService } from '../service/layout.service';
 import { MenuModule } from 'primeng/menu';
 import { AuthService } from '../../core/services/auth.service';
 import { APP_ROUTES } from '../../core/constants/app-routes';
-import { EMPRESA } from '../../core/constants/empresa';
+import { EmpresaService } from '../../core/services/empresa.service';
 import { ConfirmarService } from '../../shared/services/confirmar.service';
 
 @Component({
@@ -21,8 +21,8 @@ import { ConfirmarService } from '../../shared/services/confirmar.service';
                 <i class="pi pi-bars"></i>
             </button>
             <a class="layout-topbar-logo" [routerLink]="dashboardRoute">
-                <img [src]="empresa.logo" [alt]="empresa.nombre" />
-                <span>{{ empresa.nombre }}</span>
+                <img [src]="empresa.logo()" [alt]="empresa.nombreUi()" />
+                <span>{{ empresa.nombreUi() }}</span>
             </a>
         </div>
 
@@ -64,7 +64,7 @@ import { ConfirmarService } from '../../shared/services/confirmar.service';
     </div>`
 })
 export class AppTopbar {
-    empresa = EMPRESA;
+    empresa = inject(EmpresaService);
     dashboardRoute = APP_ROUTES.dashboard;
     items: MenuItem[] = [{ label: 'Cerrar sesión', icon: 'pi pi-sign-out', command: () => this.logout() }];
 

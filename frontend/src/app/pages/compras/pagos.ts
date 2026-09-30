@@ -20,6 +20,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-pagos',
@@ -40,12 +42,13 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
         TablaEsqueletoComponent,
         AyudaCampoComponent,
         MetodoPagoComponent,
-        InputNumeroComponent
+        InputNumeroComponent,
+        TablaBusquedaComponent
     ],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Pagos a proveedores</div>
                 <div class="text-muted-color">El dinero sale de caja al pagar. Una compra pendiente no es un egreso.</div>
             </div>
@@ -55,10 +58,31 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" />
 
         <div class="card">
-            <div class="flex justify-end mb-3">
-                <app-botones-exportar tipo="pagos" />
+            <div class="flex flex-wrap items-end gap-2 mb-4">
+                <div class="ml-auto flex items-end gap-2 shrink-0">
+                    <app-botones-exportar tipo="pagos" />
+                </div>
             </div>
-            <p-table [value]="cargando ? [] : pagos" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table
+                #dt
+                [value]="cargando ? [] : pagos"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} pagos"
+                [globalFilterFields]="['fecha', 'proveedor.nombre', 'id_compra', 'usuario.username']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Listado de pagos</span>
+                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
@@ -138,6 +162,8 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
     `
 })
 export class PagosPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     pagos: PagoProveedor[] = [];
     pendientes: Compra[] = [];
     cargando = false;

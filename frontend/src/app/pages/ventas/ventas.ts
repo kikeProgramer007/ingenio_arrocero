@@ -11,6 +11,8 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
+import { Menu, MenuModule } from 'primeng/menu';
+import { MenuItem } from 'primeng/api';
 import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Cliente, LineaVenta, Venta } from './ventas.models';
 import { ClientesService, VentasService } from './ventas.service';
@@ -28,6 +30,8 @@ import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { TooltipModule } from 'primeng/tooltip';
 import { AvisoService } from '../../shared/services/aviso.service';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-ventas',
@@ -44,6 +48,7 @@ import { AvisoService } from '../../shared/services/aviso.service';
         TableModule,
         TagModule,
         TextareaModule,
+        MenuModule,
         EstadoVacioComponent,
         KpiGridComponent,
         DialogCajaCerradaComponent,
@@ -52,12 +57,14 @@ import { AvisoService } from '../../shared/services/aviso.service';
         AyudaCampoComponent,
         MetodoPagoComponent,
         InputNumeroComponent,
-        TooltipModule
+        TooltipModule,
+        TablaBusquedaComponent
     ],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
+        <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Ventas</div>
                 <div class="text-muted-color">Elige el producto (arroz pelado) para bajar inventario. El dinero entra con el cobro.</div>
             </div>
@@ -67,27 +74,44 @@ import { AvisoService } from '../../shared/services/aviso.service';
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="4" />
 
         <div class="card">
-            <div class="grid grid-cols-12 gap-3 mb-4">
-                <div class="col-span-12 md:col-span-3">
-                    <label class="flex items-center gap-1 font-bold mb-2">Estado <app-ayuda-campo texto="Pendiente o parcial: aún hay saldo. Pagada: cobrada. Anulada: no suma y se devolvió el stock." posicion="bottom" /></label>
+            <div class="flex flex-wrap items-end gap-2 mb-4">
+                <div class="w-[calc(50%-0.25rem)] sm:w-[9.5rem] min-w-0">
+                    <label class="flex items-center gap-1 font-bold mb-1 text-sm">Estado <app-ayuda-campo texto="Pendiente o parcial: aún hay saldo. Pagada: cobrada. Anulada: no suma y se devolvió el stock." posicion="bottom" /></label>
                     <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid />
                 </div>
-                <div class="col-span-12 md:col-span-3">
-                    <label class="flex items-center gap-1 font-bold mb-2">Cliente <app-ayuda-campo texto="Filtra las ventas de un comprador. Déjalo en Todos para ver todos." posicion="bottom" /></label>
+                <div class="w-full sm:min-w-[16rem] sm:flex-1 sm:max-w-[22rem] min-w-0">
+                    <label class="flex items-center gap-1 font-bold mb-1 text-sm">Cliente <app-ayuda-campo texto="Filtra las ventas de un comprador. Déjalo en Todos para ver todos." posicion="bottom" /></label>
                     <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCliente" placeholder="Todos" [filter]="true" [showClear]="true" fluid />
                 </div>
-                <div class="col-span-12 md:col-span-4">
-                    <label class="flex items-center gap-1 font-bold mb-2">Período <app-ayuda-campo texto="Rango de fechas de la venta. La venta siempre se registra con la fecha de hoy." posicion="left" /></label>
-                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" [readonlyInput]="true" placeholder="Fechas" fluid />
+                <div class="w-full sm:w-[15rem] min-w-0">
+                    <label class="flex items-center gap-1 font-bold mb-1 text-sm">Período <app-ayuda-campo texto="Rango de fechas de la venta. La venta siempre se registra con la fecha de hoy." posicion="left" /></label>
+                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
                 </div>
-                <div class="col-span-12 md:col-span-2 flex items-end gap-2 flex-wrap">
-                    <p-button label="Filtrar" icon="pi pi-filter" pTooltip="Aplicar filtros" tooltipPosition="top" (onClick)="cargar()" [loading]="cargando" />
-                </div>
-                <div class="col-span-12 flex justify-end">
+                <p-button label="Filtrar" icon="pi pi-filter" pTooltip="Aplicar filtros" tooltipPosition="top" (onClick)="cargar()" [loading]="cargando" />
+                <div class="ml-auto flex items-end gap-2 shrink-0">
                     <app-botones-exportar tipo="ventas" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" [idCliente]="filtroCliente" [estado]="filtroEstado" />
                 </div>
             </div>
-            <p-table [value]="cargando ? [] : ventas" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table
+                #dt
+                [value]="cargando ? [] : ventas"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} ventas"
+                [globalFilterFields]="['id', 'fecha', 'cliente.nombre', 'estado']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Listado de ventas</span>
+                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>#</th>
@@ -110,9 +134,16 @@ import { AvisoService } from '../../shared/services/aviso.service';
                         <td>{{ formatBs(venta.saldo_pendiente) }}</td>
                         <td><p-tag [value]="venta.estado" [severity]="severidad(venta.estado)" /></td>
                         <td>
-                            <p-button icon="pi pi-eye" [rounded]="true" [outlined]="true" severity="info" pTooltip="Ver detalle" tooltipPosition="left" (onClick)="ver(venta)" />
-                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" class="ml-1" pTooltip="Ver PDF" tooltipPosition="left" (onClick)="exportarVenta(venta, 'pdf')" [disabled]="venta.estado === 'ANULADA'" />
-                            <p-button *ngIf="venta.estado !== 'ANULADA'" icon="pi pi-times" [rounded]="true" [outlined]="true" severity="danger" class="ml-1" pTooltip="Anular o eliminar" tooltipPosition="left" (onClick)="pedirAnular(venta)" />
+                            <p-button
+                                icon="pi pi-ellipsis-v"
+                                [rounded]="true"
+                                [text]="true"
+                                severity="secondary"
+                                pTooltip="Opciones"
+                                tooltipPosition="left"
+                                ariaLabel="Opciones de la venta"
+                                (onClick)="abrirAcciones($event, menuAcciones, venta)"
+                            />
                         </td>
                     </tr>
                 </ng-template>
@@ -136,14 +167,14 @@ import { AvisoService } from '../../shared/services/aviso.service';
         <p-dialog header="Nueva venta" [(visible)]="dialogNueva" [modal]="true" [style]="{ width: '56rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
                 <div>
-                    <div class="flex justify-between items-center mb-2">
+                    <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
                         <label class="flex items-center gap-1 font-bold">Cliente <app-ayuda-campo texto="Quien compra. Si no está en la lista, pulsa Nuevo." posicion="right" /></label>
                         <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirClienteRapido()" />
                     </div>
                     <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="idCliente" placeholder="Seleccione cliente" [filter]="true" fluid />
                 </div>
                 <div>
-                    <div class="flex justify-between items-center mb-2">
+                    <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
                         <label class="flex items-center gap-1 font-bold">Productos / líneas <app-ayuda-campo texto="Producto del inventario baja stock. Sin producto: escribe un concepto (flete, servicio) en Descripción." posicion="right" /></label>
                         <p-button label="Agregar línea" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="agregarLinea()" />
                     </div>
@@ -168,26 +199,26 @@ import { AvisoService } from '../../shared/services/aviso.service';
                                 <label class="flex items-center gap-1 text-sm mb-1">Descripción <app-ayuda-campo texto="Ej.: Flete Santa Cruz, servicio de entrega." posicion="top" /></label>
                                 <input pInputText class="w-full" placeholder="Ej. flete, servicio" [(ngModel)]="linea.descripcion" />
                             </div>
-                            <div class="col-span-4 md:col-span-2">
+                            <div class="col-span-12 sm:col-span-6 md:col-span-2">
                                 <label class="flex items-center gap-1 text-sm mb-1">Cantidad <app-ayuda-campo texto="Kilos o unidades que salen. Debe haber stock suficiente." posicion="top" /></label>
                                 <app-input-numero tipo="cantidad" [(ngModel)]="linea.cantidad" [min]="0" />
                             </div>
-                            <div class="col-span-4 md:col-span-3">
+                            <div class="col-span-12 sm:col-span-6 md:col-span-3">
                                 <label class="flex items-center gap-1 text-sm mb-1">Precio <app-ayuda-campo texto="Precio unitario en bolivianos. El subtotal es cantidad × precio." posicion="left" /></label>
                                 <app-input-numero [(ngModel)]="linea.precio_unitario" />
                             </div>
-                            <div class="col-span-4 md:col-span-2">
+                            <div class="col-span-12 md:col-span-2">
                                 <p-button icon="pi pi-trash" severity="danger" [outlined]="true" pTooltip="Quitar línea" tooltipPosition="top" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1" />
                             </div>
                         </div>
                         <small class="text-orange-500" *ngIf="avisoStock(linea)">{{ avisoStock(linea) }}</small>
                     </div>
                     <div class="text-right font-semibold mt-3">Total venta: {{ formatBs(totalLineas()) }}</div>
-                    <div class="text-right text-muted-color">Se cobra ahora: {{ formatBs(pagoAlRegistrar()) }} · Quedará pendiente: {{ formatBs(pendienteEstimado()) }}</div>
+                    <div class="text-right text-muted-color break-words">Se cobra ahora: {{ formatBs(pagoAlRegistrar()) }} · Quedará pendiente: {{ formatBs(pendienteEstimado()) }}</div>
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Forma de cobro <app-ayuda-campo texto="Contado: el total entra a caja ahora. Crédito: queda por cobrar; puedes abonar una parte." posicion="right" /></label>
-                    <p-selectbutton [options]="modosCobro" optionLabel="label" optionValue="value" [(ngModel)]="modoCobro" [allowEmpty]="false" />
+                    <p-selectbutton [options]="modosCobro" optionLabel="label" optionValue="value" [(ngModel)]="modoCobro" [allowEmpty]="false" styleClass="flex flex-wrap" />
                     <small class="block text-muted-color mt-2">La fecha de la venta es la de hoy. No se puede registrar con fecha anterior.</small>
                 </div>
                 <div class="grid grid-cols-12 gap-3" *ngIf="modoCobro === 'CREDITO'">
@@ -318,7 +349,10 @@ import { AvisoService } from '../../shared/services/aviso.service';
     `
 })
 export class VentasPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     ventas: Venta[] = [];
+    itemsAcciones: MenuItem[] = [];
     clientes: Cliente[] = [];
     productos: ProductoLista[] = [];
     cargando = false;
@@ -540,6 +574,35 @@ export class VentasPage implements OnInit {
                 this.aviso.error(err, 'No se pudo registrar la venta');
             }
         });
+    }
+
+    abrirAcciones(event: Event, menu: Menu, venta: Venta): void {
+        const items: MenuItem[] = [
+            {
+                label: 'Ver detalle',
+                icon: 'pi pi-eye menu-icon-ver',
+                iconStyle: { color: '#3b82f6' },
+                command: () => this.ver(venta)
+            },
+            {
+                label: 'Ver PDF',
+                icon: 'pi pi-file-pdf menu-icon-pdf',
+                iconStyle: { color: '#ef4444' },
+                disabled: venta.estado === 'ANULADA',
+                command: () => this.exportarVenta(venta, 'pdf')
+            }
+        ];
+        if (venta.estado !== 'ANULADA') {
+            items.push({ separator: true });
+            items.push({
+                label: 'Anular o eliminar',
+                icon: 'pi pi-times menu-icon-anular',
+                iconStyle: { color: '#f97316' },
+                command: () => this.pedirAnular(venta)
+            });
+        }
+        this.itemsAcciones = items;
+        menu.toggle(event);
     }
 
     ver(venta: Venta): void {

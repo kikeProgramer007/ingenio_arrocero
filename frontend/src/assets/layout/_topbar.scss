@@ -106,10 +106,22 @@
 
 @media (max-width: 991px) {
     .layout-topbar {
-        padding: 0 2rem;
+        padding: 0 1.25rem;
 
         .layout-topbar-logo-container {
             width: auto;
+            min-width: 0;
+        }
+
+        .layout-topbar-logo {
+            min-width: 0;
+
+            span {
+                max-width: 10rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
         }
 
         .layout-menu-button {

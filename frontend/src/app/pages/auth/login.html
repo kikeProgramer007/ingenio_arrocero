@@ -4,9 +4,9 @@
         <div class="login-royal-frame p-[3px] rounded-[2rem] w-full">
             <div class="w-full bg-surface-0 dark:bg-surface-900 py-12 px-8 sm:px-12 rounded-[1.85rem]">
                 <div class="text-center mb-8">
-                    <img [src]="empresa.logo" [alt]="empresa.nombre" class="login-royal-logo mx-auto mb-5" />
-                    <div class="text-surface-900 dark:text-surface-0 text-2xl font-semibold mb-1">{{ empresa.nombre }}</div>
-                    <span class="text-muted-color font-medium">{{ empresa.slogan }}</span>
+                    <img [src]="empresa.logo()" [alt]="empresa.nombreUi()" class="login-royal-logo mx-auto mb-5" />
+                    <div class="text-surface-900 dark:text-surface-0 text-2xl font-semibold mb-1">{{ empresa.nombreUi() }}</div>
+                    <span class="text-muted-color font-medium">{{ empresa.slogan() }}</span>
                 </div>
 
                 <div>

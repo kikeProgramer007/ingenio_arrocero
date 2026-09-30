@@ -24,17 +24,19 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { InputNumeroComponent } from '../../shared/components/input-numero';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'Repuestos', 'Servicios', 'Alimentación', 'Otros'];
 
 @Component({
     selector: 'app-gastos',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">{{ titulo }}</div>
                 <div class="text-muted-color">{{ subtitulo }}</div>
             </div>
@@ -42,28 +44,47 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
         </div>
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" />
         <div class="card mb-4">
-            <div class="grid grid-cols-12 gap-3 items-end">
-                <div class="col-span-12 md:col-span-4">
-                    <label class="flex items-center gap-1 font-bold mb-2">Ver <app-ayuda-campo texto="Empresa: gastos operativos. Personal: retiros. Todo: ambos." posicion="bottom" /></label>
+            <div class="flex flex-wrap items-end gap-2">
+                <div class="w-full sm:w-[14rem] min-w-0">
+                    <label class="flex items-center gap-1 font-bold mb-1 text-sm">Ver <app-ayuda-campo texto="Empresa: gastos operativos. Personal: retiros. Todo: ambos." posicion="bottom" /></label>
                     <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Tipo" fluid />
                 </div>
-                <div class="col-span-12 md:col-span-8 flex items-end gap-2 flex-wrap">
-                    <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <div class="ml-auto flex items-end gap-2 shrink-0">
                     <app-botones-exportar tipo="egresos" [tipoGasto]="filtroTipo || undefined" />
                 </div>
             </div>
         </div>
-        <div class="grid grid-cols-12 gap-8 mb-4" *ngIf="listandoEmpresa">
-            <div class="col-span-12 xl:col-span-5">
+        <div class="grid grid-cols-12 gap-4 mb-4 min-w-0" *ngIf="listandoEmpresa">
+            <div class="col-span-12 xl:col-span-5 min-w-0">
                 <div class="card">
                     <div class="font-semibold text-xl mb-3">Por categoría</div>
                     <p-chart type="doughnut" [data]="chartData" [options]="chartOptions" *ngIf="items.length" />
                     <app-estado-vacio *ngIf="!items.length && !cargando" icono="pi pi-chart-pie" titulo="Sin gastos para graficar" mensaje="Registra gastos operativos para ver el resumen." />
                 </div>
             </div>
-            <div class="col-span-12 xl:col-span-7">
+            <div class="col-span-12 xl:col-span-7 min-w-0">
                 <div class="card">
-                    <p-table [value]="cargando ? [] : items" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="8" responsiveLayout="scroll">
+                    <p-table
+                        #dtEmpresa
+                        [value]="cargando ? [] : items"
+                        [loading]="cargando"
+                        [showLoader]="false"
+                        [paginator]="true"
+                        [rows]="10"
+                        [rowsPerPageOptions]="filasTabla"
+                        [showCurrentPageReport]="true"
+                        currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} gastos"
+                        [globalFilterFields]="['fecha', 'categoria', 'concepto', 'usuario.username']"
+                        [rowHover]="true"
+                        responsiveLayout="scroll"
+                    >
+                        <ng-template #caption>
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <span class="font-semibold">Listado de gastos</span>
+                                <app-tabla-busqueda (buscar)="filtrarTabla(dtEmpresa, $event)" />
+                            </div>
+                        </ng-template>
                         <ng-template #header>
                             <tr><th>Fecha</th><th>Categoría</th><th>Concepto</th><th>Monto</th><th>Método</th><th>Usuario</th></tr>
                         </ng-template>
@@ -88,7 +109,26 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
             </div>
         </div>
         <div class="card" *ngIf="!listandoEmpresa">
-            <p-table [value]="cargando ? [] : items" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table
+                #dtLista
+                [value]="cargando ? [] : items"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} registros"
+                [globalFilterFields]="['fecha', 'concepto', 'tipo', 'usuario.username']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Listado</span>
+                        <app-tabla-busqueda (buscar)="filtrarTabla(dtLista, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
@@ -119,7 +159,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                 </ng-template>
             </p-table>
         </div>
-        <p-dialog [header]="titulo" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }">
+        <p-dialog [header]="titulo" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
                 <div *ngIf="esEmpresa">
                     <label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Clasifica el gasto (combustible, energía, etc.) para el reporte." posicion="right" /></label>
@@ -148,6 +188,8 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
     `
 })
 export class GastosPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     tipo = 'GASTO_EMPRESA';
     filtroTipo = 'GASTO_EMPRESA';
     tiposFiltro = [

@@ -27,6 +27,7 @@ export const appRoutes: Routes = [
             { path: 'produccion', loadChildren: () => import('./app/pages/produccion/produccion.routes'), canActivate: [AuthGuard] },
             { path: 'reportes', loadChildren: () => import('./app/pages/reportes/reportes.routes'), canActivate: [AuthGuard] },
             { path: 'ingresos-egresos', loadChildren: () => import('./app/pages/finanzas/ingresos-egresos.routes'), canActivate: [AuthGuard] },
+            { path: 'empresa', loadChildren: () => import('./app/pages/configuracion/empresa.routes'), canActivate: [AuthGuard] },
             { path: 'uikit', loadChildren: () => import('./app/pages/uikit/uikit.routes') ,canActivate:[AuthGuard] },
             { path: 'documentation', component: Documentation,canActivate:[AuthGuard]  },
             { path: 'pages', loadChildren: () => import('./app/pages/pages.routes'),canActivate:[AuthGuard] }

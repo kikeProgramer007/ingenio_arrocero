@@ -17,9 +17,9 @@ import { formatBs } from '../../pages/caja/caja.utils';
                     <app-ayuda-campo texto="Efectivo es el cajón. QR es saldo de banco de la sesión. El arqueo solo cuenta el efectivo." posicion="right" />
                 </p>
                 <div class="flex flex-col gap-2 text-sm">
-                    <div class="flex justify-between py-2 border-b border-surface">
-                        <span class="font-semibold">Ingresos</span>
-                        <span class="font-semibold text-green-600">{{ formatBs(caja.ingresos) }}</span>
+                    <div class="flex justify-between gap-3 py-2 border-b border-surface min-w-0">
+                        <span class="font-semibold min-w-0">Ingresos</span>
+                        <span class="font-semibold text-green-600 shrink-0">{{ formatBs(caja.ingresos) }}</span>
                     </div>
                     <div class="flex justify-between pl-4 text-muted-color">
                         <span>Cobros de clientes</span>
@@ -29,9 +29,9 @@ import { formatBs } from '../../pages/caja/caja.utils';
                         <span>Otros ingresos</span>
                         <span>{{ formatBs(d.otros_ingresos) }}</span>
                     </div>
-                    <div class="flex justify-between py-2 border-b border-surface">
-                        <span class="font-semibold">Egresos</span>
-                        <span class="font-semibold text-red-500">{{ formatBs(caja.egresos) }}</span>
+                    <div class="flex justify-between gap-3 py-2 border-b border-surface min-w-0">
+                        <span class="font-semibold min-w-0">Egresos</span>
+                        <span class="font-semibold text-red-500 shrink-0">{{ formatBs(caja.egresos) }}</span>
                     </div>
                     <div class="flex justify-between pl-4 text-muted-color">
                         <span>Pagos a proveedores</span>

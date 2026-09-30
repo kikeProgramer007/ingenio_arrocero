@@ -29,6 +29,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { ExportarService } from '../../shared/services/exportar.service';
 
 @Component({
@@ -51,25 +53,28 @@ import { ExportarService } from '../../shared/services/exportar.service';
         TablaEsqueletoComponent,
         AyudaCampoComponent,
         MetodoPagoComponent,
-        InputNumeroComponent
+        InputNumeroComponent,
+        TablaBusquedaComponent
     ],
     template: `
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <div>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 min-w-0">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Caja actual</div>
                 <div class="text-muted-color">En esta versión se opera una sola caja. Cuánto debería haber según los movimientos, y el arqueo al cerrar</div>
             </div>
-            <div class="flex gap-2 flex-wrap" *ngIf="caja">
-                <app-botones-exportar tipo="caja" [idCaja]="caja.id" />
+            <div class="flex gap-2 flex-wrap shrink-0 items-end" *ngIf="caja">
                 <p-button label="Nuevo movimiento" icon="pi pi-plus" pTooltip="Registrar ingreso o egreso manual" tooltipPosition="bottom" (onClick)="abrirDialogMovimiento()" [disabled]="guardando" />
                 <p-button label="Cerrar caja" icon="pi pi-lock" severity="warn" pTooltip="Arquear y cerrar la caja" tooltipPosition="bottom" (onClick)="abrirDialogCierre()" [disabled]="guardando" />
+                <div class="ml-auto flex items-end gap-2 shrink-0">
+                    <app-botones-exportar tipo="caja" [idCaja]="caja.id" />
+                </div>
             </div>
         </div>
 
         <div class="card" *ngIf="cargando">
             <p-skeleton width="40%" height="1.5rem" styleClass="mb-4" />
             <div class="grid grid-cols-12 gap-4">
-                <div class="col-span-12 md:col-span-2" *ngFor="let i of [1,2,3,4,5,6]">
+                <div class="col-span-12 sm:col-span-6 lg:col-span-4" *ngFor="let i of [1,2,3,4,5,6]">
                     <p-skeleton height="6rem" />
                 </div>
             </div>
@@ -115,15 +120,15 @@ import { ExportarService } from '../../shared/services/exportar.service';
         </ng-container>
 
         <ng-container *ngIf="!cargando && !error && caja">
-            <div class="grid grid-cols-12 gap-8 mb-6">
-                <div class="col-span-12 sm:col-span-6 xl:col-span-2" *ngFor="let card of cardsResumen()">
-                    <div class="card mb-0">
-                        <div class="flex justify-between mb-3">
-                            <div>
-                                <span class="block text-muted-color font-medium mb-3">{{ card.label }}</span>
-                                <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">{{ card.value }}</div>
+            <div class="grid grid-cols-12 gap-4 mb-6 min-w-0">
+                <div class="col-span-12 sm:col-span-6 lg:col-span-4 min-w-0" *ngFor="let card of cardsResumen()">
+                    <div class="card mb-0 h-full min-w-0 overflow-hidden">
+                        <div class="flex justify-between gap-3 mb-3 min-w-0">
+                            <div class="min-w-0 flex-1 overflow-hidden">
+                                <span class="block text-muted-color font-medium mb-2 truncate">{{ card.label }}</span>
+                                <div class="text-surface-900 dark:text-surface-0 font-medium text-xl whitespace-nowrap overflow-hidden text-ellipsis">{{ card.value }}</div>
                             </div>
-                            <div class="flex items-center justify-center rounded-border" [class]="card.iconBg" style="width: 2.5rem; height: 2.5rem">
+                            <div class="flex items-center justify-center rounded-border shrink-0" [class]="card.iconBg" style="width: 2.5rem; height: 2.5rem">
                                 <i [class]="card.icon"></i>
                             </div>
                         </div>
@@ -137,8 +142,26 @@ import { ExportarService } from '../../shared/services/exportar.service';
             </div>
 
             <div class="card">
-                <div class="font-semibold text-xl mb-4">Movimientos de caja</div>
-                <p-table [value]="cargandoTabla ? [] : (caja.movimientos || [])" [loading]="cargandoTabla" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+                <p-table
+                    #dt
+                    [value]="cargandoTabla ? [] : (caja.movimientos || [])"
+                    [loading]="cargandoTabla"
+                    [showLoader]="false"
+                    [paginator]="true"
+                    [rows]="10"
+                    [rowsPerPageOptions]="filasTabla"
+                    [showCurrentPageReport]="true"
+                    currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} movimientos"
+                    [globalFilterFields]="['tipo', 'categoria', 'concepto', 'metodo_pago', 'usuario.username']"
+                    [rowHover]="true"
+                    responsiveLayout="scroll"
+                >
+                    <ng-template #caption>
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <span class="font-semibold">Movimientos de caja</span>
+                            <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
+                        </div>
+                    </ng-template>
                     <ng-template #header>
                         <tr>
                             <th>Hora</th>
@@ -253,6 +276,8 @@ import { ExportarService } from '../../shared/services/exportar.service';
     `
 })
 export class CajaActual implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     caja: CajaDetalle | null = null;
     cargando = true;
     cargandoTabla = false;

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
@@ -14,21 +14,23 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
 import { RecentSalesWidget } from './components/recentsaleswidget';
 import { RevenueStreamWidget } from './components/revenuestreamwidget';
 import { StatsWidget } from './components/statswidget';
-import { EMPRESA } from '../../core/constants/empresa';
+import { EmpresaService } from '../../core/services/empresa.service';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-dashboard',
-    imports: [CommonModule, ButtonModule, RouterModule, TableModule, TagModule, StatsWidget, RecentSalesWidget, RevenueStreamWidget, EstadoVacioComponent, TablaEsqueletoComponent],
+    imports: [CommonModule, ButtonModule, RouterModule, TableModule, TagModule, StatsWidget, RecentSalesWidget, RevenueStreamWidget, EstadoVacioComponent, TablaEsqueletoComponent, TablaBusquedaComponent],
     template: `
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-            <div class="flex items-center gap-3">
-                <img [src]="empresa.logo" [alt]="empresa.nombre" class="h-12 w-12 rounded-md object-cover shrink-0" />
-                <div>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6 min-w-0">
+            <div class="flex items-start sm:items-center gap-3 min-w-0">
+                <img [src]="empresa.logo()" [alt]="empresa.nombreUi()" class="h-12 w-12 rounded-md object-cover shrink-0" />
+                <div class="min-w-0">
                     <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Dashboard</div>
                     <div class="text-muted-color">Control de ingresos y egresos del día. La venta no es cobro; el cobrado es neto de anulaciones.</div>
                 </div>
             </div>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2 shrink-0">
                 <p-button label="Ingresos y egresos" icon="pi pi-arrows-h" [outlined]="true" [routerLink]="controlRoute" />
                 <p-button *ngIf="error" label="Reintentar" icon="pi pi-refresh" (onClick)="cargar()" />
             </div>
@@ -52,9 +54,9 @@ import { EMPRESA } from '../../core/constants/empresa';
             </div>
         </div>
 
-        <div class="grid grid-cols-12 gap-8">
+        <div class="grid grid-cols-12 gap-4 min-w-0">
             <app-stats-widget class="contents" [resumen]="resumen" [loading]="loading" />
-            <div class="col-span-12 xl:col-span-6">
+            <div class="col-span-12 xl:col-span-6 min-w-0">
                 <app-revenue-stream-widget [resumen]="resumen" [loading]="loading" />
                 <div class="card">
                     <div class="font-semibold text-xl mb-4">Egresos por tipo (hoy)</div>
@@ -66,16 +68,34 @@ import { EMPRESA } from '../../core/constants/empresa';
                     </div>
                 </div>
             </div>
-            <div class="col-span-12 xl:col-span-6">
+            <div class="col-span-12 xl:col-span-6 min-w-0">
                 <app-recent-sales-widget [resumen]="resumen" [loading]="loading" />
             </div>
-            <div class="col-span-12">
+            <div class="col-span-12 min-w-0">
                 <div class="card">
-                    <div class="flex justify-between items-center mb-4">
-                        <div class="font-semibold text-xl">Cuentas pendientes</div>
-                        <a [routerLink]="cobranzasRoute" class="text-primary text-sm">Registrar cobranza</a>
-                    </div>
-                    <p-table [value]="loading ? [] : (resumen?.cuentas_pendientes || [])" [loading]="loading" [showLoader]="false" responsiveLayout="scroll">
+                    <p-table
+                        #dtPendientes
+                        [value]="loading ? [] : (resumen?.cuentas_pendientes || [])"
+                        [loading]="loading"
+                        [showLoader]="false"
+                        [paginator]="true"
+                        [rows]="10"
+                        [rowsPerPageOptions]="filasTabla"
+                        [showCurrentPageReport]="true"
+                        currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} cuentas"
+                        [globalFilterFields]="['id', 'cliente.nombre', 'estado']"
+                        [rowHover]="true"
+                        responsiveLayout="scroll"
+                    >
+                        <ng-template #caption>
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <span class="font-semibold">Cuentas pendientes</span>
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <a [routerLink]="cobranzasRoute" class="text-primary text-sm whitespace-nowrap">Registrar cobranza</a>
+                                    <app-tabla-busqueda (buscar)="filtrarTabla(dtPendientes, $event)" />
+                                </div>
+                            </div>
+                        </ng-template>
                         <ng-template #header>
                             <tr><th>Venta</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Estado</th></tr>
                         </ng-template>
@@ -106,6 +126,8 @@ import { EMPRESA } from '../../core/constants/empresa';
     `
 })
 export class Dashboard implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     resumen: DashboardResumen | null = null;
     loading = true;
     error: string | null = null;
@@ -113,7 +135,7 @@ export class Dashboard implements OnInit {
     controlRoute = APP_ROUTES.ingresosEgresos;
     cobranzasRoute = APP_ROUTES.cobranzas;
     cajaRoute = APP_ROUTES.caja;
-    empresa = EMPRESA;
+    empresa = inject(EmpresaService);
 
     constructor(private cajaService: CajaService, private aviso: AvisoService) {}
 

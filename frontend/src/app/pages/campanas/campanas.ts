@@ -17,21 +17,46 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { TooltipModule } from 'primeng/tooltip';
+import { Menu, MenuModule } from 'primeng/menu';
+import { MenuItem } from 'primeng/api';
 
 @Component({
     selector: 'app-campanas',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent, TooltipModule, MenuModule],
     template: `
-        <div class="mb-6 flex flex-wrap justify-between gap-3">
-            <div>
+        <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Campañas de acopio</div>
                 <div class="text-muted-color">Compra de arroz en chala por campaña</div>
             </div>
             <p-button label="Nueva campaña" icon="pi pi-plus" (onClick)="dialogCampana = true" />
         </div>
         <div class="card">
-            <p-table [value]="cargando ? [] : campanas" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="8">
+            <p-table
+                #dt
+                [value]="cargando ? [] : campanas"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} campañas"
+                [globalFilterFields]="['nombre', 'fecha_inicio', 'estado']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Listado de campañas</span>
+                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr><th>Nombre</th><th>Inicio</th><th>Acopiado</th><th>Meta</th><th>Monto</th><th>Estado</th><th></th></tr>
                 </ng-template>
@@ -43,9 +68,17 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
                         <td>{{ c.meta_cantidad ?? '-' }}</td>
                         <td>{{ formatBs(c.total_monto) }}</td>
                         <td><p-tag [value]="c.estado" [severity]="c.estado === 'ABIERTA' ? 'success' : 'secondary'" /></td>
-                        <td class="flex gap-1">
-                            <p-button label="Acopio" size="small" [disabled]="c.estado !== 'ABIERTA'" (onClick)="abrirAcopio(c)" />
-                            <p-button label="Cerrar" size="small" severity="secondary" [outlined]="true" [disabled]="c.estado !== 'ABIERTA'" (onClick)="cerrar(c)" />
+                        <td>
+                            <p-button
+                                icon="pi pi-ellipsis-v"
+                                [rounded]="true"
+                                [text]="true"
+                                severity="secondary"
+                                pTooltip="Opciones"
+                                tooltipPosition="left"
+                                ariaLabel="Opciones de la campaña"
+                                (onClick)="abrirAcciones($event, menuAcciones, c)"
+                            />
                         </td>
                     </tr>
                 </ng-template>
@@ -54,7 +87,7 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
                 </ng-template>
             </p-table>
         </div>
-        <p-dialog header="Nueva campaña" [(visible)]="dialogCampana" [modal]="true" [style]="{ width: '30rem' }">
+        <p-dialog header="Nueva campaña" [(visible)]="dialogCampana" [modal]="true" [style]="{ width: '30rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-3">
                 <div><label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Ej.: Campaña zafra 2026." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="campana.nombre" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Fecha inicio (YYYY-MM-DD) <app-ayuda-campo texto="Ej.: 2026-03-15. Día en que empieza el acopio." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="campana.fecha_inicio" /></div>
@@ -66,7 +99,7 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
                 <p-button label="Crear" [loading]="guardando" (onClick)="crearCampana()" />
             </ng-template>
         </p-dialog>
-        <p-dialog header="Registrar acopio" [(visible)]="dialogAcopio" [modal]="true" [style]="{ width: '32rem' }">
+        <p-dialog header="Registrar acopio" [(visible)]="dialogAcopio" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-3">
                 <div><label class="flex items-center gap-1 font-bold mb-2">Proveedor <app-ayuda-campo texto="Productor o intermediario que entrega la chala." posicion="right" /></label><p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="acopio.id_proveedor" [filter]="true" fluid /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Producto (opcional) <app-ayuda-campo texto="Si eliges un producto, entra al inventario. Si no, solo queda el acopio." posicion="right" /></label><p-select [options]="productos" optionLabel="nombre" optionValue="id" [(ngModel)]="acopio.id_producto" [showClear]="true" fluid /></div>
@@ -84,6 +117,8 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
     `
 })
 export class CampanasPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     campanas: any[] = [];
     proveedores: any[] = [];
     productos: any[] = [];
@@ -93,6 +128,7 @@ export class CampanasPage implements OnInit {
     dialogAcopio = false;
     campana: any = { nombre: '', fecha_inicio: new Date().toISOString().slice(0, 10), meta_cantidad: 0, observacion: '' };
     acopio: any = {};
+    itemsAcciones: MenuItem[] = [];
     formatBs = formatBs;
 
     constructor(private http: HttpClient, private aviso: AvisoService) {}
@@ -121,6 +157,27 @@ export class CampanasPage implements OnInit {
             next: (res) => { this.guardando = false; this.dialogCampana = false; this.aviso.ok('Listo', res.mensaje); this.cargar(); },
             error: (e) => { this.guardando = false; this.aviso.error(e, 'No se pudo crear'); }
         });
+    }
+
+    abrirAcciones(event: Event, menu: Menu, c: any): void {
+        const abierta = c.estado === 'ABIERTA';
+        this.itemsAcciones = [
+            {
+                label: 'Registrar acopio',
+                icon: 'pi pi-inbox menu-icon-acopio',
+                iconStyle: { color: '#22c55e' },
+                disabled: !abierta,
+                command: () => this.abrirAcopio(c)
+            },
+            {
+                label: 'Cerrar campaña',
+                icon: 'pi pi-lock menu-icon-anular',
+                iconStyle: { color: '#f97316' },
+                disabled: !abierta,
+                command: () => this.cerrar(c)
+            }
+        ];
+        menu.toggle(event);
     }
 
     abrirAcopio(c: any): void {

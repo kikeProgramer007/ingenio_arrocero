@@ -2,6 +2,7 @@
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    min-width: 0;
     justify-content: space-between;
     padding: 6rem 2rem 0 2rem;
     transition: margin-left var(--layout-section-transition-duration);
@@ -9,5 +10,7 @@
 
 .layout-main {
     flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
     padding-bottom: 2rem;
 }

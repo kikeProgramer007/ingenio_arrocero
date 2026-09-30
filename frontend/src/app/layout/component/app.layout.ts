@@ -23,7 +23,7 @@ import { ToastAppComponent } from '../../shared/components/toast-app';
             <app-footer></app-footer>
         </div>
         <div class="layout-mask animate-fadein"></div>
-        <p-confirmdialog [style]="{ width: '28rem' }" />
+        <p-confirmdialog [style]="{ width: '28rem' }" [breakpoints]="{ '960px': '95vw' }" />
         <app-toast-app />
     </div> `
 })

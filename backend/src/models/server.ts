@@ -14,12 +14,14 @@ import routeCampanas from '../routes/campana.routes';
 import routeProduccion from '../routes/produccion.routes';
 import routeReportes from '../routes/reporte.routes';
 import routeUploads from '../routes/upload.routes';
+import routeEmpresa from '../routes/empresa.routes';
 import { seedProgramasCaja } from '../seed/programas-caja.seed';
 import { seedInventarioBase } from '../seed/inventario.seed';
 import { sequelize } from '../models';
 import { assertBaseDeUsuario, shouldAlterSchema } from '../utils/db-sync';
-import { asegurarEsquemaGastos, asegurarEsquemaPagoMixto } from '../utils/ensure-schema';
+import { asegurarEsquemaEmpresa, asegurarEsquemaGastos, asegurarEsquemaPagoMixto } from '../utils/ensure-schema';
 import { asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
+import { asegurarEmpresa } from '../utils/empresa';
 
 class Server {
     private app: Application;
@@ -56,6 +58,7 @@ class Server {
         this.app.use('/api/producciones', routeProduccion);
         this.app.use('/api/reportes', routeReportes);
         this.app.use('/api/uploads', routeUploads);
+        this.app.use('/api/empresa', routeEmpresa);
     }
 
     midlewares() {
@@ -78,8 +81,10 @@ class Server {
             }
             await asegurarEsquemaGastos();
             await asegurarEsquemaPagoMixto();
+            await asegurarEsquemaEmpresa();
             await seedProgramasCaja();
             await seedInventarioBase();
+            await asegurarEmpresa();
             console.log(`Base de datos sincronizada (db=${dbName}, alter=${alter})`);
         } catch (error) {
             const sqlMessage = (error as { parent?: { sqlMessage?: string } })?.parent?.sqlMessage

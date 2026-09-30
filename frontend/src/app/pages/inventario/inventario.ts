@@ -19,24 +19,50 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { TooltipModule } from 'primeng/tooltip';
+import { Menu, MenuModule } from 'primeng/menu';
+import { MenuItem } from 'primeng/api';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-inventario',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule, MenuModule, TablaBusquedaComponent],
     template: `
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
+        <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Inventario</div>
                 <div class="text-muted-color">Productos, stock mínimo y ajustes</div>
             </div>
             <p-button label="Nuevo producto" icon="pi pi-plus" (onClick)="abrirNuevo()" />
         </div>
         <div class="card">
-            <div class="flex justify-end mb-3">
-                <app-botones-exportar tipo="inventario" />
+            <div class="flex flex-wrap items-end gap-2 mb-4">
+                <div class="ml-auto flex items-end gap-2 shrink-0">
+                    <app-botones-exportar tipo="inventario" />
+                </div>
             </div>
-            <p-table [value]="cargando ? [] : productos" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="10" responsiveLayout="scroll">
+            <p-table
+                #dt
+                [value]="cargando ? [] : productos"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} productos"
+                [globalFilterFields]="['nombre', 'categoria.nombre', 'unidad_medida']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Listado de productos</span>
+                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr><th></th><th>Producto</th><th>Categoría</th><th>Unidad</th><th>Stock</th><th>Mínimo</th><th>P. venta</th><th></th></tr>
                 </ng-template>
@@ -49,10 +75,17 @@ import { TooltipModule } from 'primeng/tooltip';
                         <td><p-tag [value]="p.stock" [severity]="p.bajo_minimo ? 'danger' : 'success'" /></td>
                         <td>{{ p.stock_minimo }}</td>
                         <td>{{ formatBs(p.precio_venta) }}</td>
-                        <td class="flex gap-1">
-                            <p-button icon="pi pi-pencil" [rounded]="true" [outlined]="true" severity="warn" pTooltip="Editar" tooltipPosition="left" (onClick)="editar(p)" />
-                            <p-button icon="pi pi-sliders-h" [rounded]="true" [outlined]="true" severity="info" pTooltip="Ajustar stock" tooltipPosition="left" (onClick)="abrirAjuste(p)" />
-                            <p-button icon="pi pi-list" [rounded]="true" [outlined]="true" pTooltip="Ver kardex" tooltipPosition="left" (onClick)="verKardex(p)" />
+                        <td>
+                            <p-button
+                                icon="pi pi-ellipsis-v"
+                                [rounded]="true"
+                                [text]="true"
+                                severity="secondary"
+                                pTooltip="Opciones"
+                                tooltipPosition="left"
+                                ariaLabel="Opciones del producto"
+                                (onClick)="abrirAcciones($event, menuAcciones, p)"
+                            />
                         </td>
                     </tr>
                 </ng-template>
@@ -65,7 +98,7 @@ import { TooltipModule } from 'primeng/tooltip';
             </p-table>
         </div>
 
-        <p-dialog [header]="form.id ? 'Editar producto' : 'Nuevo producto'" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }">
+        <p-dialog [header]="form.id ? 'Editar producto' : 'Nuevo producto'" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-3">
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Imagen <app-ayuda-campo texto="Foto del producto. Opcional." posicion="right" /></label>
@@ -86,7 +119,7 @@ import { TooltipModule } from 'primeng/tooltip';
             </ng-template>
         </p-dialog>
 
-        <p-dialog header="Ajuste de stock" [(visible)]="dialogAjuste" [modal]="true" [style]="{ width: '28rem' }">
+        <p-dialog header="Ajuste de stock" [(visible)]="dialogAjuste" [modal]="true" [style]="{ width: '28rem' }" [breakpoints]="{ '960px': '95vw' }">
             <p class="mb-3" *ngIf="ajusteProducto">{{ ajusteProducto.nombre }} · stock {{ ajusteProducto.stock }}</p>
             <label class="flex items-center gap-1 font-bold mb-2">Cantidad (+ entra / − sale) <app-ayuda-campo texto="Positivo entra al almacén. Negativo sale (merma, ajuste). No uses esto para ventas o compras." posicion="right" /></label>
             <app-input-numero tipo="cantidad" [(ngModel)]="ajusteCantidad" />
@@ -98,8 +131,17 @@ import { TooltipModule } from 'primeng/tooltip';
             </ng-template>
         </p-dialog>
 
-        <p-dialog header="Kardex" [(visible)]="dialogKardex" [modal]="true" [style]="{ width: '48rem' }">
-            <p-table [value]="kardex" [paginator]="true" [rows]="8">
+        <p-dialog header="Kardex" [(visible)]="dialogKardex" [modal]="true" [style]="{ width: '48rem' }" [breakpoints]="{ '960px': '95vw' }">
+            <p-table
+                [value]="kardex"
+                [paginator]="true"
+                [rows]="8"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} movimientos"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
                 <ng-template #header><tr><th>Fecha</th><th>Tipo</th><th>Cant.</th><th>Stock</th><th>Origen</th></tr></ng-template>
                 <ng-template #body let-k>
                     <tr><td>{{ k.fecha | date:'short' }}</td><td>{{ k.tipo }}</td><td>{{ k.cantidad }}</td><td>{{ k.stock_resultante }}</td><td>{{ k.origen }}</td></tr>
@@ -109,6 +151,8 @@ import { TooltipModule } from 'primeng/tooltip';
     `
 })
 export class InventarioPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     productos: any[] = [];
     categorias: any[] = [];
     kardex: any[] = [];
@@ -121,6 +165,7 @@ export class InventarioPage implements OnInit {
     ajusteProducto: any = null;
     ajusteCantidad = 0;
     ajusteObs = '';
+    itemsAcciones: MenuItem[] = [];
     formatBs = formatBs;
 
     constructor(private http: HttpClient, private aviso: AvisoService) {}
@@ -141,6 +186,30 @@ export class InventarioPage implements OnInit {
     abrirNuevo(): void {
         this.form = this.vacio();
         this.dialog = true;
+    }
+
+    abrirAcciones(event: Event, menu: Menu, p: any): void {
+        this.itemsAcciones = [
+            {
+                label: 'Editar',
+                icon: 'pi pi-pencil menu-icon-editar',
+                iconStyle: { color: '#f59e0b' },
+                command: () => this.editar(p)
+            },
+            {
+                label: 'Ajustar stock',
+                icon: 'pi pi-sliders-h menu-icon-ajuste',
+                iconStyle: { color: '#06b6d4' },
+                command: () => this.abrirAjuste(p)
+            },
+            {
+                label: 'Ver kardex',
+                icon: 'pi pi-list menu-icon-kardex',
+                iconStyle: { color: '#8b5cf6' },
+                command: () => this.verKardex(p)
+            }
+        ];
+        menu.toggle(event);
     }
 
     editar(p: any): void {

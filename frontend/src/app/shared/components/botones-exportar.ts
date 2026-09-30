@@ -10,7 +10,7 @@ import { AvisoService } from '../services/aviso.service';
     standalone: true,
     imports: [CommonModule, ButtonModule, TooltipModule],
     template: `
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
             <p-button
                 label="PDF"
                 icon="pi pi-file-pdf"

@@ -82,7 +82,7 @@ function cabecerasDescarga(res: Response, filename: string, contentType: string)
 
 export async function enviarExcel(res: Response, baseNombre: string, hojas: HojaExport[]): Promise<void> {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Ingenio Arrocero Royal';
+    workbook.creator = datosEmpresa().nombre;
     workbook.created = new Date();
 
     for (const hoja of hojas) {

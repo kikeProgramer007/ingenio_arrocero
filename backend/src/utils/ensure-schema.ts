@@ -59,3 +59,45 @@ export async function asegurarEsquemaPagoMixto(): Promise<void> {
         );
     }
 }
+
+export async function asegurarEsquemaEmpresa(): Promise<void> {
+    await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS empresa (
+            id INT NOT NULL AUTO_INCREMENT,
+            nombre VARCHAR(150) NOT NULL,
+            nombre_corto VARCHAR(80) NULL,
+            slogan VARCHAR(150) NULL,
+            titular VARCHAR(150) NULL,
+            nit VARCHAR(30) NULL,
+            direccion VARCHAR(250) NULL,
+            telefono VARCHAR(80) NULL,
+            ciudad VARCHAR(80) NULL,
+            email VARCHAR(120) NULL,
+            path_logo VARCHAR(255) NULL,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL,
+            PRIMARY KEY (id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    const columnas = await sequelize.query<ColumnRow>('SHOW COLUMNS FROM empresa', {
+        type: QueryTypes.SELECT
+    });
+    const nombres = new Set(columnas.map((col) => col.Field));
+    const faltantes: { nombre: string; ddl: string }[] = [
+        { nombre: 'nombre_corto', ddl: 'ADD COLUMN nombre_corto VARCHAR(80) NULL' },
+        { nombre: 'slogan', ddl: 'ADD COLUMN slogan VARCHAR(150) NULL' },
+        { nombre: 'titular', ddl: 'ADD COLUMN titular VARCHAR(150) NULL' },
+        { nombre: 'nit', ddl: 'ADD COLUMN nit VARCHAR(30) NULL' },
+        { nombre: 'direccion', ddl: 'ADD COLUMN direccion VARCHAR(250) NULL' },
+        { nombre: 'telefono', ddl: 'ADD COLUMN telefono VARCHAR(80) NULL' },
+        { nombre: 'ciudad', ddl: 'ADD COLUMN ciudad VARCHAR(80) NULL' },
+        { nombre: 'email', ddl: 'ADD COLUMN email VARCHAR(120) NULL' },
+        { nombre: 'path_logo', ddl: 'ADD COLUMN path_logo VARCHAR(255) NULL' }
+    ];
+    for (const col of faltantes) {
+        if (!nombres.has(col.nombre)) {
+            await sequelize.query(`ALTER TABLE empresa ${col.ddl}`);
+        }
+    }
+}

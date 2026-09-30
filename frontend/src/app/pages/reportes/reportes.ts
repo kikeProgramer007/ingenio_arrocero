@@ -19,20 +19,22 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
             <div class="text-muted-color">Resumen operativo del período. Puede bajar PDF o Excel con movimientos, ventas y egresos.</div>
         </div>
         <div class="card mb-4">
-            <div class="flex flex-wrap gap-3 items-end">
-                <div>
-                    <label class="block font-bold mb-2">Rango</label>
-                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" fluid />
+            <div class="flex flex-wrap items-end gap-2">
+                <div class="w-full sm:w-[15rem] min-w-0">
+                    <label class="block font-bold mb-1 text-sm">Período</label>
+                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" fluid />
                 </div>
                 <p-button label="Consultar" icon="pi pi-search" (onClick)="cargar()" [loading]="cargando" />
-                <app-botones-exportar tipo="resumen" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
+                <div class="ml-auto flex items-end gap-2 shrink-0">
+                    <app-botones-exportar tipo="resumen" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
+                </div>
             </div>
         </div>
-        <div class="grid grid-cols-12 gap-8" *ngIf="data">
-            <div class="col-span-12 md:col-span-4" *ngFor="let card of cards">
-                <div class="card mb-0">
+        <div class="grid grid-cols-12 gap-4 min-w-0" *ngIf="data">
+            <div class="col-span-12 sm:col-span-6 lg:col-span-4 min-w-0" *ngFor="let card of cards">
+                <div class="card mb-0 min-w-0 overflow-hidden">
                     <div class="text-muted-color mb-2">{{ card.label }}</div>
-                    <div class="text-xl font-semibold">{{ card.value }}</div>
+                    <div class="text-xl font-semibold break-words">{{ card.value }}</div>
                 </div>
             </div>
         </div>

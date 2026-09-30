@@ -18,22 +18,28 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { TooltipModule } from 'primeng/tooltip';
 import { AvisoService } from '../../shared/services/aviso.service';
+import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { APP_ROUTES } from '../../core/constants/app-routes';
 
 @Component({
     selector: 'app-ingresos-egresos',
     standalone: true,
-    imports: [CommonModule, FormsModule, RouterModule, ButtonModule, DatePickerModule, SelectModule, TableModule, TagModule, EstadoVacioComponent, KpiGridComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, TooltipModule],
+    imports: [CommonModule, FormsModule, RouterModule, ButtonModule, DatePickerModule, SelectModule, TableModule, TagModule, EstadoVacioComponent, KpiGridComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, TooltipModule, TablaBusquedaComponent],
     template: `
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
+        <div class="mb-6 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Control de ingresos y egresos</div>
                 <div class="text-muted-color">Resumen consolidado de todo el dinero que entra y sale de la empresa</div>
             </div>
-            <div class="flex flex-wrap gap-2 items-end">
-                <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" [readonlyInput]="true" placeholder="Período" />
+            <div class="flex flex-wrap gap-2 items-end w-full lg:w-auto">
+                <div class="w-full sm:w-[15rem] min-w-0">
+                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Período" fluid />
+                </div>
                 <p-button label="Consultar" icon="pi pi-search" (onClick)="cargar()" [loading]="cargando" />
-                <app-botones-exportar tipo="movimientos" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
+                <div class="ml-auto flex items-end gap-2 shrink-0">
+                    <app-botones-exportar tipo="movimientos" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
+                </div>
             </div>
         </div>
 
@@ -44,22 +50,40 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
         </div>
 
         <div class="card">
-            <div class="font-semibold text-xl mb-4">Movimientos</div>
-            <div class="grid grid-cols-12 gap-3 mb-4">
-                <div class="col-span-12 md:col-span-4">
-                    <label class="flex items-center gap-1 font-bold mb-2">Tipo <app-ayuda-campo texto="Ingreso: dinero que entra. Egreso: dinero que sale. Una venta a crédito no aparece hasta el cobro." posicion="bottom" /></label>
+            <div class="flex flex-wrap items-end gap-2 mb-4">
+                <div class="w-[calc(50%-0.25rem)] sm:w-[11rem] min-w-0">
+                    <label class="flex items-center gap-1 font-bold mb-1 text-sm">Tipo <app-ayuda-campo texto="Ingreso: dinero que entra. Egreso: dinero que sale. Una venta a crédito no aparece hasta el cobro." posicion="bottom" /></label>
                     <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" [showClear]="true" fluid />
                 </div>
-                <div class="col-span-12 md:col-span-4">
-                    <label class="flex items-center gap-1 font-bold mb-2">Origen <app-ayuda-campo texto="De dónde nació el movimiento: venta, cobranza, gasto, pago, manual, etc." posicion="bottom" /></label>
+                <div class="w-[calc(50%-0.25rem)] sm:min-w-[12rem] sm:flex-1 sm:max-w-[16rem] min-w-0">
+                    <label class="flex items-center gap-1 font-bold mb-1 text-sm">Origen <app-ayuda-campo texto="De dónde nació el movimiento: venta, cobranza, gasto, pago, manual, etc." posicion="bottom" /></label>
                     <p-select [options]="origenesFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroOrigen" placeholder="Todos" [showClear]="true" fluid />
                 </div>
-                <div class="col-span-12 md:col-span-4">
-                    <label class="flex items-center gap-1 font-bold mb-2">Método <app-ayuda-campo texto="En el libro, Mixto se parte: un asiento de efectivo y otro de QR." posicion="left" /></label>
+                <div class="w-full sm:w-[12rem] min-w-0">
+                    <label class="flex items-center gap-1 font-bold mb-1 text-sm">Método <app-ayuda-campo texto="En el libro, Mixto se parte: un asiento de efectivo y otro de QR." posicion="left" /></label>
                     <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid />
                 </div>
             </div>
-            <p-table [value]="cargando ? [] : movimientosFiltrados" [loading]="cargando" [showLoader]="false" [paginator]="true" [rows]="12" responsiveLayout="scroll">
+            <p-table
+                #dt
+                [value]="cargando ? [] : movimientosFiltrados"
+                [loading]="cargando"
+                [showLoader]="false"
+                [paginator]="true"
+                [rows]="10"
+                [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} movimientos"
+                [globalFilterFields]="['tipo', 'origen', 'concepto', 'contraparte', 'metodo_pago', 'usuario.username']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Movimientos</span>
+                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
@@ -120,6 +144,8 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
     `
 })
 export class IngresosEgresosPage implements OnInit {
+    filasTabla = FILAS_TABLA;
+    filtrarTabla = filtrarTabla;
     rango: Date[] | null = null;
     data: ControlIngresosEgresos | null = null;
     cargando = false;
