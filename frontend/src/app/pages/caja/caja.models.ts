@@ -124,6 +124,8 @@ export interface DashboardResumen {
         cobrado: number;
         pendiente: number;
         estado: string;
+        fecha_vencimiento?: string | null;
+        vencida?: boolean;
     }>;
     ingresos_recientes: MovimientoResumen[];
     egresos_recientes: MovimientoResumen[];

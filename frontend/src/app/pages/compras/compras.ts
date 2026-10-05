@@ -5,6 +5,7 @@ import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
+import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -36,6 +37,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         ButtonModule,
         DialogModule,
         InputTextModule,
+        DatePickerModule,
         SelectModule,
         TableModule,
         TagModule,
@@ -56,9 +58,12 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Compras</div>
-                <div class="text-muted-color">Elige el producto (chala) para entrar al inventario. El dinero sale cuando pagas al proveedor.</div>
+                <div class="text-muted-color">Compra de chala al productor. El pago se registra en Pagos a proveedores, no aquí.</div>
             </div>
-            <p-button label="Nueva compra" icon="pi pi-plus" (onClick)="abrirNueva()" />
+            <div class="flex flex-wrap gap-2">
+                <p-button label="Compra de chala" icon="pi pi-plus" (onClick)="abrirChala()" />
+                <p-button label="Servicio u otra compra" icon="pi pi-plus" [outlined]="true" (onClick)="abrirNueva()" />
+            </div>
         </div>
 
         <div class="card">
@@ -97,6 +102,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <th>#</th>
                         <th>Fecha</th>
                         <th>Proveedor</th>
+                        <th>Clase</th>
                         <th>Total</th>
                         <th>Pagado</th>
                         <th>Saldo</th>
@@ -109,6 +115,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <td>{{ compra.id }}</td>
                         <td>{{ formatFecha(compra.fecha) }}</td>
                         <td>{{ compra.proveedor?.nombre || '-' }}</td>
+                        <td><p-tag [value]="claseCompra(compra)" [severity]="compra.es_servicio ? 'secondary' : 'warn'" /></td>
                         <td>{{ formatBs(compra.total) }}</td>
                         <td>{{ formatBs(compra.pagado) }}</td>
                         <td>{{ formatBs(compra.saldo_pendiente) }}</td>
@@ -128,11 +135,11 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
-                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
+                            <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="9" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
                     <tr>
-                        <td colspan="8">
+                        <td colspan="9">
                             <div class="text-center py-8 text-muted-color">
                                 <i class="pi pi-box text-4xl mb-3 block"></i>
                                 No hay compras registradas.
@@ -143,24 +150,73 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             </p-table>
         </div>
 
-        <p-dialog header="Nueva compra" [(visible)]="dialogNueva" [modal]="true" [style]="{ width: '56rem' }" [breakpoints]="{ '960px': '95vw' }">
+        <p-dialog header="Compra de chala" [(visible)]="dialogChala" [modal]="true" [style]="{ width: '40rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
+                <p class="text-muted-color text-sm m-0">Producto fijo: Arroz en chala. Total = fanegas × precio. El pago se hace después en Pagos a proveedores.</p>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Proveedor <app-ayuda-campo texto="De quién compras la chala u otro insumo." posicion="right" /></label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Productor <app-ayuda-campo texto="Proveedor de la chala." posicion="right" /></label>
+                    <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProveedor" placeholder="Seleccione productor" [filter]="true" fluid />
+                </div>
+                <div class="grid grid-cols-12 gap-3">
+                    <div class="col-span-12 sm:col-span-6">
+                        <label class="flex items-center gap-1 font-bold mb-2">Fecha <app-ayuda-campo texto="Fecha de la boleta." posicion="top" /></label>
+                        <p-datepicker [(ngModel)]="fechaChala" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" fluid />
+                    </div>
+                    <div class="col-span-12 sm:col-span-6">
+                        <label class="flex items-center gap-1 font-bold mb-2">Boleta <app-ayuda-campo texto="Nro. de boleta de balanza." posicion="left" /></label>
+                        <input pInputText class="w-full" [(ngModel)]="boleta" maxlength="40" />
+                    </div>
+                    <div class="col-span-12 sm:col-span-6">
+                        <label class="flex items-center gap-1 font-bold mb-2">Concepto / variedad <app-ayuda-campo texto="ORO, EPAGRI u otra variedad de esa entrega." posicion="top" /></label>
+                        <p-select [options]="variedades" optionLabel="label" optionValue="value" [(ngModel)]="concepto" placeholder="Variedad" fluid />
+                    </div>
+                    <div class="col-span-12 sm:col-span-6" *ngIf="concepto === 'OTRO'">
+                        <label class="flex items-center gap-1 font-bold mb-2">Otra variedad</label>
+                        <input pInputText class="w-full" [(ngModel)]="conceptoOtro" maxlength="40" />
+                    </div>
+                    <div class="col-span-12 sm:col-span-6">
+                        <label class="flex items-center gap-1 font-bold mb-2">Chofer <app-ayuda-campo texto="Quién trajo el camión en esta entrega." posicion="top" /></label>
+                        <input pInputText class="w-full" [(ngModel)]="chofer" maxlength="120" />
+                    </div>
+                    <div class="col-span-12 sm:col-span-6">
+                        <label class="flex items-center gap-1 font-bold mb-2">Placa <app-ayuda-campo texto="Placa del camión de esta entrega." posicion="left" /></label>
+                        <input pInputText class="w-full" [(ngModel)]="placa" maxlength="30" />
+                    </div>
+                    <div class="col-span-12 sm:col-span-6">
+                        <label class="flex items-center gap-1 font-bold mb-2">Fanegas <app-ayuda-campo texto="Cantidad de la boleta. Es la única cantidad de esta compra." posicion="top" /></label>
+                        <app-input-numero tipo="cantidad" [(ngModel)]="fanegas" [min]="0" />
+                    </div>
+                    <div class="col-span-12 sm:col-span-6">
+                        <label class="flex items-center gap-1 font-bold mb-2">Precio <app-ayuda-campo texto="Precio por fanega." posicion="left" /></label>
+                        <app-input-numero [(ngModel)]="precioFanega" />
+                    </div>
+                </div>
+                <div class="text-right font-semibold text-lg">Total: {{ formatBs(totalChala()) }}</div>
+            </div>
+            <ng-template #footer>
+                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogChala = false" />
+                <p-button label="Registrar" [loading]="guardando" (onClick)="guardarChala()" />
+            </ng-template>
+        </p-dialog>
+
+        <p-dialog header="Servicio u otra compra" [(visible)]="dialogNueva" [modal]="true" [style]="{ width: '52rem' }" [breakpoints]="{ '960px': '95vw' }">
+            <div class="flex flex-col gap-4">
+                <p class="text-muted-color text-sm m-0">Empaque, insumos o un servicio fiado (flete, taller). Chala va en Compra de chala. Lo que pagas ahora de caja (luz, combustible) va a Gastos.</p>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Proveedor <app-ayuda-campo texto="A quién le compras o le fiaron el servicio." posicion="right" /></label>
                     <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProveedor" placeholder="Seleccione proveedor" [filter]="true" fluid />
                 </div>
                 <div>
                     <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
-                        <label class="flex items-center gap-1 font-bold">Productos / líneas <app-ayuda-campo texto="Producto del inventario entra al stock. Sin producto: escribe un concepto (flete)." posicion="right" /></label>
+                        <label class="flex items-center gap-1 font-bold">Líneas <app-ayuda-campo texto="Producto del inventario entra al stock. Sin producto: flete u otro servicio." posicion="right" /></label>
                         <p-button label="Agregar línea" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="agregarLinea()" />
                     </div>
-                    <p class="text-muted-color text-sm mb-3">Si eliges un producto (chala), entra al inventario. Si es un concepto, déjalo vacío y escribe la descripción.</p>
                     <div class="flex flex-col gap-3" *ngFor="let linea of lineas; let i = index">
                         <div class="grid grid-cols-12 gap-2 items-end">
                             <div class="col-span-12 md:col-span-5">
-                                <label class="flex items-center gap-1 text-sm mb-1">Producto <app-ayuda-campo texto="Ej.: Arroz en chala. Vacío = línea sin inventario." posicion="bottom" /></label>
+                                <label class="flex items-center gap-1 text-sm mb-1">Producto <app-ayuda-campo texto="Vacío = servicio sin inventario." posicion="bottom" /></label>
                                 <p-select
-                                    [options]="productosOpciones"
+                                    [options]="productosOpcionesSinChala"
                                     optionLabel="etiqueta"
                                     optionValue="id"
                                     [(ngModel)]="linea.id_producto"
@@ -176,7 +232,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                                 <input pInputText class="w-full" placeholder="Ej. flete, servicio" [(ngModel)]="linea.descripcion" />
                             </div>
                             <div class="col-span-12 sm:col-span-6 md:col-span-2">
-                                <label class="flex items-center gap-1 text-sm mb-1">Cantidad <app-ayuda-campo texto="Kilos o unidades que entran al inventario." posicion="top" /></label>
+                                <label class="flex items-center gap-1 text-sm mb-1">Cantidad <app-ayuda-campo texto="Unidades que entran al inventario." posicion="top" /></label>
                                 <app-input-numero tipo="cantidad" [(ngModel)]="linea.cantidad" [min]="0" />
                             </div>
                             <div class="col-span-12 sm:col-span-6 md:col-span-3">
@@ -192,11 +248,11 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 </div>
                 <div class="grid grid-cols-12 gap-3">
                     <div class="col-span-12 md:col-span-4">
-                        <label class="flex items-center gap-1 font-bold mb-2">Pago inicial <app-ayuda-campo texto="Lo que pagas ahora sale de caja. 0 = toda la compra queda por pagar." posicion="top" /></label>
+                        <label class="flex items-center gap-1 font-bold mb-2">Pago inicial <app-ayuda-campo texto="0 si queda por pagar. Un pago contra chala se registra en Pagos a proveedores." posicion="top" /></label>
                         <app-input-numero [(ngModel)]="pagoInicial" />
                     </div>
                     <div class="col-span-12 md:col-span-4">
-                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR sale del banco. Efectivo del cajón. Mixto parte el pago." posicion="top" /></label>
+                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Solo si hay pago inicial. QR sale del banco. Efectivo del cajón." posicion="top" /></label>
                         <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="pagoInicial" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
                     </div>
                     <div class="col-span-12 md:col-span-4">
@@ -218,7 +274,13 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         <p-dialog header="Detalle de compra" [(visible)]="dialogDetalle" [modal]="true" [style]="{ width: '44rem' }" [breakpoints]="{ '960px': '95vw' }">
             <ng-container *ngIf="detalle">
                 <div class="mb-3">{{ detalle.proveedor?.nombre }} · {{ formatFecha(detalle.fecha) }}</div>
-                <p-tag [value]="detalle.estado" [severity]="severidad(detalle.estado)" styleClass="mb-3" />
+                <p-tag [value]="claseCompra(detalle)" [severity]="detalle.es_servicio ? 'secondary' : 'warn'" styleClass="mb-3" />
+                <p-tag [value]="detalle.estado" [severity]="severidad(detalle.estado)" styleClass="mb-3 ml-2" />
+                <div class="text-sm text-muted-color mb-3" *ngIf="detalle.concepto || detalle.boleta || detalle.chofer || detalle.placa || detalle.fanegas">
+                    <span *ngIf="detalle.concepto">{{ detalle.concepto }} · </span>
+                    Boleta {{ detalle.boleta || '-' }} · Chofer {{ detalle.chofer || '-' }} · Placa {{ detalle.placa || '-' }}
+                    <span *ngIf="detalle.fanegas"> · {{ detalle.fanegas }} fanegas</span>
+                </div>
                 <p-table [value]="detalle.detalles || []">
                     <ng-template #header>
                         <tr><th>Descripción</th><th>Cant.</th><th>P. unit.</th><th>Subtotal</th></tr>
@@ -250,6 +312,7 @@ export class ComprasPage implements OnInit {
     cargando = false;
     guardando = false;
     dialogNueva = false;
+    dialogChala = false;
     dialogCajaCerrada = false;
     dialogDetalle = false;
     filtroEstado = '';
@@ -259,6 +322,11 @@ export class ComprasPage implements OnInit {
         { label: 'Parcial', value: 'PARCIAL' },
         { label: 'Pagada', value: 'PAGADA' }
     ];
+    variedades = [
+        { label: 'ORO', value: 'ORO' },
+        { label: 'EPAGRI', value: 'EPAGRI' },
+        { label: 'Otro', value: 'OTRO' }
+    ];
     idProveedor: number | null = null;
     lineas: LineaCompra[] = [this.lineaVacia()];
     pagoInicial = 0;
@@ -267,6 +335,14 @@ export class ComprasPage implements OnInit {
     montoQr = 0;
     referencia = '';
     observacion = '';
+    boleta = '';
+    chofer = '';
+    placa = '';
+    fanegas = 0;
+    precioFanega = 0;
+    concepto = 'ORO';
+    conceptoOtro = '';
+    fechaChala: Date = new Date();
     detalle: Compra | null = null;
     itemsAcciones: MenuItem[] = [];
     formatBs = formatBs;
@@ -306,6 +382,19 @@ export class ComprasPage implements OnInit {
         }));
     }
 
+    get productosOpcionesSinChala() {
+        return this.productos
+            .filter((p) => !this.esProductoChala(p))
+            .map((p) => ({
+                ...p,
+                etiqueta: `${p.nombre} · stock ${p.stock} ${p.unidad_medida}`
+            }));
+    }
+
+    get productoChala(): ProductoLista | undefined {
+        return this.productos.find((p) => this.esProductoChala(p));
+    }
+
     cargar(): void {
         this.cargando = true;
         this.comprasService.listar({ estado: this.filtroEstado || undefined }).subscribe({
@@ -332,6 +421,19 @@ export class ComprasPage implements OnInit {
         this.dialogNueva = true;
     }
 
+    abrirChala(): void {
+        this.idProveedor = null;
+        this.fechaChala = new Date();
+        this.boleta = '';
+        this.chofer = '';
+        this.placa = '';
+        this.fanegas = 0;
+        this.precioFanega = 0;
+        this.concepto = 'ORO';
+        this.conceptoOtro = '';
+        this.dialogChala = true;
+    }
+
     agregarLinea(): void {
         this.lineas.push(this.lineaVacia());
     }
@@ -342,6 +444,75 @@ export class ComprasPage implements OnInit {
 
     totalLineas(): number {
         return this.lineas.reduce((acc, l) => acc + Number(l.cantidad || 0) * Number(l.precio_unitario || 0), 0);
+    }
+
+    totalChala(): number {
+        return Number(this.fanegas || 0) * Number(this.precioFanega || 0);
+    }
+
+    guardarChala(): void {
+        if (!this.idProveedor) {
+            this.aviso.aviso('Validación', 'Seleccione un productor');
+            return;
+        }
+        const producto = this.productoChala;
+        if (!producto) {
+            this.aviso.aviso('Validación', 'No hay producto Arroz en chala en inventario. Créelo en Productos.');
+            return;
+        }
+        if (!this.boleta.trim()) {
+            this.aviso.aviso('Validación', 'Indique el nro. de boleta');
+            return;
+        }
+        const concepto = this.conceptoValor();
+        if (!concepto) {
+            this.aviso.aviso('Validación', 'Indique la variedad (ORO, EPAGRI u otra)');
+            return;
+        }
+        if (Number(this.fanegas) <= 0) {
+            this.aviso.aviso('Validación', 'Indique las fanegas');
+            return;
+        }
+        if (Number(this.precioFanega) <= 0) {
+            this.aviso.aviso('Validación', 'Indique el precio por fanega');
+            return;
+        }
+        this.guardando = true;
+        const visor = this.exportarService.abrirVentanaEspera('Generando nota de compra...');
+        this.comprasService.crear({
+            id_proveedor: this.idProveedor,
+            fecha: this.fechaYmd(this.fechaChala),
+            concepto,
+            boleta: this.boleta.trim(),
+            chofer: this.chofer.trim() || undefined,
+            placa: this.placa.trim() || undefined,
+            fanegas: Number(this.fanegas),
+            lineas: [{
+                descripcion: concepto,
+                cantidad: Number(this.fanegas),
+                precio_unitario: Number(this.precioFanega),
+                id_producto: producto.id
+            }],
+            pago_inicial: 0
+        }).subscribe({
+            next: (res) => {
+                this.guardando = false;
+                this.dialogChala = false;
+                this.aviso.ok('Compra', 'Compra de chala registrada. El pago se hace en Pagos a proveedores.');
+                this.cargar();
+                this.cargarProductos();
+                if (res.data?.id) {
+                    this.exportarCompra(res.data, 'pdf', visor);
+                } else {
+                    visor?.close();
+                }
+            },
+            error: (err) => {
+                visor?.close();
+                this.guardando = false;
+                this.aviso.error(err, 'No se pudo registrar la compra de chala');
+            }
+        });
     }
 
     guardar(): void {
@@ -434,6 +605,12 @@ export class ComprasPage implements OnInit {
         return 'secondary';
     }
 
+    claseCompra(compra: Compra): string {
+        if (compra.es_servicio) return 'Servicio';
+        if (compra.fanegas || compra.boleta) return 'Chala';
+        return 'Compra';
+    }
+
     onProductoCompra(linea: LineaCompra): void {
         const producto = this.productos.find((p) => p.id === linea.id_producto);
         if (producto) {
@@ -446,6 +623,32 @@ export class ComprasPage implements OnInit {
 
     private cargarProductos(): void {
         this.productosService.listar().subscribe({ next: (data) => (this.productos = data) });
+    }
+
+    private esProductoChala(p: ProductoLista): boolean {
+        const nombre = (p.nombre || '').toLowerCase();
+        const categoria = (p.categoria?.nombre || '').toLowerCase();
+        if (nombre.includes('pilado')) {
+            return false;
+        }
+        return nombre.includes('chala') || categoria.includes('chala');
+    }
+
+    private conceptoValor(): string {
+        if (this.concepto === 'OTRO') {
+            return this.conceptoOtro.trim();
+        }
+        return (this.concepto || '').trim();
+    }
+
+    private fechaYmd(fecha: Date | null): string | undefined {
+        if (!fecha) {
+            return undefined;
+        }
+        const y = fecha.getFullYear();
+        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+        const d = String(fecha.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
     }
 
     private nombreProducto(id?: number | null): string {

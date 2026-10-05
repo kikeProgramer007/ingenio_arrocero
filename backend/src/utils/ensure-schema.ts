@@ -60,6 +60,29 @@ export async function asegurarEsquemaPagoMixto(): Promise<void> {
     }
 }
 
+export async function asegurarEsquemaVentas(): Promise<void> {
+    const columnas = await sequelize.query<ColumnRow>('SHOW COLUMNS FROM ventas', {
+        type: QueryTypes.SELECT
+    });
+    const nombres = new Set(columnas.map((col) => col.Field));
+    if (!nombres.has('plazo_dias')) {
+        await sequelize.query('ALTER TABLE ventas ADD COLUMN plazo_dias INT NULL');
+    }
+    if (!nombres.has('fecha_vencimiento')) {
+        await sequelize.query('ALTER TABLE ventas ADD COLUMN fecha_vencimiento DATE NULL');
+    }
+}
+
+export async function asegurarEsquemaClientes(): Promise<void> {
+    const columnas = await sequelize.query<ColumnRow>('SHOW COLUMNS FROM clientes', {
+        type: QueryTypes.SELECT
+    });
+    const nombres = new Set(columnas.map((col) => col.Field));
+    if (!nombres.has('procedencia')) {
+        await sequelize.query('ALTER TABLE clientes ADD COLUMN procedencia VARCHAR(40) NULL');
+    }
+}
+
 export async function asegurarEsquemaEmpresa(): Promise<void> {
     await sequelize.query(`
         CREATE TABLE IF NOT EXISTS empresa (
@@ -93,11 +116,31 @@ export async function asegurarEsquemaEmpresa(): Promise<void> {
         { nombre: 'telefono', ddl: 'ADD COLUMN telefono VARCHAR(80) NULL' },
         { nombre: 'ciudad', ddl: 'ADD COLUMN ciudad VARCHAR(80) NULL' },
         { nombre: 'email', ddl: 'ADD COLUMN email VARCHAR(120) NULL' },
-        { nombre: 'path_logo', ddl: 'ADD COLUMN path_logo VARCHAR(255) NULL' }
+        { nombre: 'path_logo', ddl: 'ADD COLUMN path_logo VARCHAR(255) NULL' },
+        { nombre: 'formato_nota', ddl: "ADD COLUMN formato_nota VARCHAR(8) NULL" }
     ];
     for (const col of faltantes) {
         if (!nombres.has(col.nombre)) {
             await sequelize.query(`ALTER TABLE empresa ${col.ddl}`);
+        }
+    }
+}
+
+export async function asegurarEsquemaCompras(): Promise<void> {
+    const columnas = await sequelize.query<ColumnRow>('SHOW COLUMNS FROM compras', {
+        type: QueryTypes.SELECT
+    });
+    const nombres = new Set(columnas.map((col) => col.Field));
+    const faltantes: { nombre: string; ddl: string }[] = [
+        { nombre: 'boleta', ddl: 'ADD COLUMN boleta VARCHAR(40) NULL' },
+        { nombre: 'chofer', ddl: 'ADD COLUMN chofer VARCHAR(120) NULL' },
+        { nombre: 'placa', ddl: 'ADD COLUMN placa VARCHAR(30) NULL' },
+        { nombre: 'fanegas', ddl: 'ADD COLUMN fanegas DECIMAL(12,3) NULL' },
+        { nombre: 'concepto', ddl: 'ADD COLUMN concepto VARCHAR(40) NULL' }
+    ];
+    for (const col of faltantes) {
+        if (!nombres.has(col.nombre)) {
+            await sequelize.query(`ALTER TABLE compras ${col.ddl}`);
         }
     }
 }

@@ -2,14 +2,14 @@ import { Request, Response } from 'express';
 import { Cliente, Cobranza, Productos, sequelize, User, Venta, VentaDetalle } from '../models';
 import { Op } from 'sequelize';
 import { handleError } from '../utils/error.handler';
-import { parseFechaLocal } from '../utils/fecha';
+import { parseFechaLocal, agregarDias, diasEntre, inicioDia, ymdLocal } from '../utils/fecha';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
 import { obtenerCajaAbierta, registrarEgresoCaja, registrarIngresosPartidos } from '../utils/caja-ingreso';
 import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
 import { CATEGORIA_EGRESO, CATEGORIA_INGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
-import { cobradoVenta, ESTADO_VENTA, estadoVentaPorSaldo } from '../constants/venta.constants';
+import { cobradoVenta, ESTADO_VENTA, estadoVentaPorSaldo, esVentaVencida } from '../constants/venta.constants';
 import { CrearCobranzaDTO, CrearVentaDTO } from '../dtos/venta.dto';
 import { camposPagoDocumento, conceptoPorCanal, partesDesdeDocumento } from '../utils/metodo-pago';
 
@@ -26,6 +26,36 @@ function mapLinea(detalle: any) {
     };
 }
 
+function resolverPlazoCredito(
+    saldoPendiente: number,
+    plazoDias?: number,
+    fechaVencimiento?: string
+): { ok: true; plazo_dias: number | null; fecha_vencimiento: string | null } | { ok: false; mensaje: string } {
+    if (saldoPendiente <= 0) {
+        return { ok: true, plazo_dias: null, fecha_vencimiento: null };
+    }
+    const hoy = inicioDia();
+    if (fechaVencimiento) {
+        const venc = parseFechaLocal(fechaVencimiento);
+        if (Number.isNaN(venc.getTime())) {
+            return { ok: false, mensaje: 'La fecha de vencimiento no es válida' };
+        }
+        if (inicioDia(venc).getTime() < hoy.getTime()) {
+            return { ok: false, mensaje: 'La fecha de vencimiento no puede ser anterior a hoy' };
+        }
+        return {
+            ok: true,
+            plazo_dias: Math.max(1, diasEntre(hoy, venc)),
+            fecha_vencimiento: ymdLocal(venc)
+        };
+    }
+    if (plazoDias) {
+        const venc = agregarDias(hoy, plazoDias);
+        return { ok: true, plazo_dias: plazoDias, fecha_vencimiento: ymdLocal(venc) };
+    }
+    return { ok: true, plazo_dias: null, fecha_vencimiento: null };
+}
+
 function mapVenta(venta: any) {
     const total = toMoney(venta.total);
     const saldo = toMoney(venta.saldo_pendiente);
@@ -38,6 +68,9 @@ function mapVenta(venta: any) {
         pagado: cobradoVenta(total, saldo, venta.estado),
         estado: venta.estado,
         observacion: venta.observacion,
+        plazo_dias: venta.plazo_dias != null ? Number(venta.plazo_dias) : null,
+        fecha_vencimiento: venta.fecha_vencimiento || null,
+        vencida: esVentaVencida(venta.fecha_vencimiento, saldo, venta.estado),
         cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,
         usuario: venta.usuario ? { id: venta.usuario.id, username: venta.usuario.username } : null,
         detalles: (venta.detalles || []).map(mapLinea),
@@ -76,7 +109,11 @@ export class VentaController {
         try {
             const where: any = {};
             const { estado, id_cliente, fecha_desde, fecha_hasta } = req.query;
-            if (typeof estado === 'string' && estado) {
+            if (estado === 'VENCIDA') {
+                where.estado = { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] };
+                where.saldo_pendiente = { [Op.gt]: 0 };
+                where.fecha_vencimiento = { [Op.lt]: ymdLocal() };
+            } else if (typeof estado === 'string' && estado) {
                 where.estado = estado;
             } else {
                 where.estado = { [Op.ne]: ESTADO_VENTA.ANULADA };
@@ -176,6 +213,12 @@ export class VentaController {
             }
 
             const saldoPendiente = roundMoney(total - pagoInicial);
+            const plazo = resolverPlazoCredito(saldoPendiente, datos.plazo_dias, datos.fecha_vencimiento);
+            if (!plazo.ok) {
+                await transaction.rollback();
+                res.status(400).json({ mensaje: plazo.mensaje });
+                return;
+            }
             const venta = await Venta.create({
                 id_cliente: datos.id_cliente,
                 fecha: new Date(),
@@ -183,6 +226,8 @@ export class VentaController {
                 saldo_pendiente: saldoPendiente,
                 estado: estadoVentaPorSaldo(total, saldoPendiente),
                 observacion: datos.observacion?.trim() || null,
+                plazo_dias: plazo.plazo_dias,
+                fecha_vencimiento: plazo.fecha_vencimiento,
                 id_usuario: usuario.id
             }, { transaction });
 

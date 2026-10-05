@@ -23,6 +23,11 @@ export class CrearClienteDTO {
 
     @IsOptional()
     @IsString()
+    @MaxLength(40)
+    procedencia?: string;
+
+    @IsOptional()
+    @IsString()
     observacion?: string;
 
     @IsOptional()

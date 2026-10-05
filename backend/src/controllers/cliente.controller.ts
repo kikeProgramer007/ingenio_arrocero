@@ -13,6 +13,7 @@ function mapCliente(cliente: any) {
         nit_ci: cliente.nit_ci,
         telefono: cliente.telefono,
         direccion: cliente.direccion,
+        procedencia: cliente.procedencia,
         observacion: cliente.observacion,
         activo: cliente.activo,
         path_imagen: resolverImagen(cliente.path_imagen, 'cliente'),
@@ -32,7 +33,8 @@ export class ClienteController {
             if (typeof q === 'string' && q.trim()) {
                 where[Op.or] = [
                     { nombre: { [Op.like]: `%${q.trim()}%` } },
-                    { nit_ci: { [Op.like]: `%${q.trim()}%` } }
+                    { nit_ci: { [Op.like]: `%${q.trim()}%` } },
+                    { procedencia: { [Op.like]: `%${q.trim()}%` } }
                 ];
             }
             const clientes = await Cliente.findAll({
@@ -69,6 +71,7 @@ export class ClienteController {
                 nit_ci: datos.nit_ci?.trim() || null,
                 telefono: datos.telefono?.trim() || null,
                 direccion: datos.direccion?.trim() || null,
+                procedencia: datos.procedencia?.trim() || null,
                 observacion: datos.observacion?.trim() || null,
                 activo: datos.activo !== false,
                 path_imagen: imagenParaGuardar(datos.path_imagen, 'cliente')
@@ -95,6 +98,7 @@ export class ClienteController {
                 nit_ci: datos.nit_ci?.trim() || null,
                 telefono: datos.telefono?.trim() || null,
                 direccion: datos.direccion?.trim() || null,
+                procedencia: datos.procedencia?.trim() || null,
                 observacion: datos.observacion?.trim() || null,
                 activo: datos.activo ?? cliente.get('activo'),
                 path_imagen: imagenParaGuardar(datos.path_imagen ?? (cliente.get('path_imagen') as string), 'cliente')

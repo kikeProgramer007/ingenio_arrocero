@@ -19,7 +19,7 @@ import { seedProgramasCaja } from '../seed/programas-caja.seed';
 import { seedInventarioBase } from '../seed/inventario.seed';
 import { sequelize } from '../models';
 import { assertBaseDeUsuario, shouldAlterSchema } from '../utils/db-sync';
-import { asegurarEsquemaEmpresa, asegurarEsquemaGastos, asegurarEsquemaPagoMixto } from '../utils/ensure-schema';
+import { asegurarEsquemaClientes, asegurarEsquemaCompras, asegurarEsquemaEmpresa, asegurarEsquemaGastos, asegurarEsquemaPagoMixto, asegurarEsquemaVentas } from '../utils/ensure-schema';
 import { asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
 import { asegurarEmpresa } from '../utils/empresa';
 
@@ -82,6 +82,9 @@ class Server {
             await asegurarEsquemaGastos();
             await asegurarEsquemaPagoMixto();
             await asegurarEsquemaEmpresa();
+            await asegurarEsquemaClientes();
+            await asegurarEsquemaVentas();
+            await asegurarEsquemaCompras();
             await seedProgramasCaja();
             await seedInventarioBase();
             await asegurarEmpresa();

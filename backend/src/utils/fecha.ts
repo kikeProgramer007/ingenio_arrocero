@@ -23,6 +23,45 @@ export function parseFechaLocal(valor: string): Date {
     return new Date(anio, mes - 1, dia);
 }
 
+export function inicioDia(fecha = new Date()): Date {
+    const inicio = new Date(fecha);
+    inicio.setHours(0, 0, 0, 0);
+    return inicio;
+}
+
+export function ymdLocal(fecha = new Date()): string {
+    const y = fecha.getFullYear();
+    const m = String(fecha.getMonth() + 1).padStart(2, '0');
+    const d = String(fecha.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+export function agregarDias(fecha: Date, dias: number): Date {
+    const copia = inicioDia(fecha);
+    copia.setDate(copia.getDate() + dias);
+    return copia;
+}
+
+export function diasEntre(desde: Date, hasta: Date): number {
+    const a = inicioDia(desde).getTime();
+    const b = inicioDia(hasta).getTime();
+    return Math.round((b - a) / 86400000);
+}
+
+export function fechaComoDia(valor: unknown): Date | null {
+    if (!valor) {
+        return null;
+    }
+    if (typeof valor === 'string') {
+        const parsed = parseFechaLocal(valor);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+        return new Date(valor.getUTCFullYear(), valor.getUTCMonth(), valor.getUTCDate());
+    }
+    return null;
+}
+
 export function rangoDesdeQuery(desde?: unknown, hasta?: unknown): { inicio: Date; fin: Date } {
     if (typeof desde === 'string' && desde && typeof hasta === 'string' && hasta) {
         const inicio = parseFechaLocal(desde);

@@ -10,8 +10,25 @@ import { CATEGORIA_EGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants
 import { ESTADO_COMPRA, estadoCompraPorSaldo } from '../constants/compra.constants';
 import { CrearCompraDTO, CrearPagoProveedorDTO } from '../dtos/compra.dto';
 import { camposPagoDocumento } from '../utils/metodo-pago';
+import { esCompraServicio } from '../utils/cuenta-proveedor';
+import { parseFechaLocal, ymdLocal } from '../utils/fecha';
 
 const usuarioAtributos = ['id', 'username'];
+
+function fechaCompra(valor?: string): Date {
+    if (!valor) {
+        return new Date();
+    }
+    const fecha = parseFechaLocal(valor);
+    if (Number.isNaN(fecha.getTime())) {
+        return new Date();
+    }
+    if (ymdLocal(fecha) === ymdLocal()) {
+        return new Date();
+    }
+    fecha.setHours(12, 0, 0, 0);
+    return fecha;
+}
 
 function mapLinea(detalle: any) {
     return {
@@ -63,6 +80,12 @@ function mapCompra(compra: any) {
         pagado: roundMoney(total - saldo),
         estado: compra.estado,
         observacion: compra.observacion,
+        concepto: compra.concepto || null,
+        boleta: compra.boleta || null,
+        chofer: compra.chofer || null,
+        placa: compra.placa || null,
+        fanegas: compra.fanegas != null ? Number(compra.fanegas) : null,
+        es_servicio: esCompraServicio(compra),
         proveedor: compra.proveedor ? { id: compra.proveedor.id, nombre: compra.proveedor.nombre } : null,
         usuario: compra.usuario ? { id: compra.usuario.id, username: compra.usuario.username } : null,
         detalles: (compra.detalles || []).map(mapLinea),
@@ -168,11 +191,16 @@ export class CompraController {
             const saldoPendiente = roundMoney(total - pagoInicial);
             const compra = await Compra.create({
                 id_proveedor: datos.id_proveedor,
-                fecha: new Date(),
+                fecha: fechaCompra(datos.fecha),
                 total,
                 saldo_pendiente: saldoPendiente,
                 estado: estadoCompraPorSaldo(total, saldoPendiente),
                 observacion: datos.observacion?.trim() || null,
+                concepto: datos.concepto?.trim() || null,
+                boleta: datos.boleta?.trim() || null,
+                chofer: datos.chofer?.trim() || null,
+                placa: datos.placa?.trim() || null,
+                fanegas: datos.fanegas != null && Number(datos.fanegas) > 0 ? datos.fanegas : null,
                 id_usuario: usuario.id
             }, { transaction });
 

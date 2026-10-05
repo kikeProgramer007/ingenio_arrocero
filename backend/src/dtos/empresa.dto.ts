@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { FORMATOS_NOTA } from '../utils/empresa';
 
 export class ActualizarEmpresaDTO {
     @IsNotEmpty({ message: 'El nombre comercial es obligatorio' })
@@ -50,4 +51,8 @@ export class ActualizarEmpresaDTO {
     @IsString()
     @MaxLength(255)
     path_logo?: string;
+
+    @IsOptional()
+    @IsIn([...FORMATOS_NOTA], { message: 'El formato de la nota debe ser 11 o 5.5' })
+    formato_nota?: string;
 }

@@ -38,6 +38,8 @@ function celdaTexto(valor: Celda, columna = ''): string {
 function pesoColumna(nombre: string): number {
     const n = nombre.toLowerCase();
     if (/concepto|descripci[oó]n|observaci|detalle/.test(n)) return 2.8;
+    if (/chofer|productor/.test(n)) return 1.6;
+    if (/boleta|placa|fanegas/.test(n)) return 0.9;
     if (/cliente|proveedor/.test(n)) return 1.7;
     if (/categor[ií]a|origen/.test(n)) return 1.4;
     if (/fecha/.test(n)) return 1.45;
@@ -45,7 +47,7 @@ function pesoColumna(nombre: string): number {
     if (/usuario|estado/.test(n)) return 0.9;
     if (/^tipo$/.test(n)) return 0.9;
     if (/nro|nº|#/.test(n)) return 0.7;
-    if (/monto|total|precio|saldo|cobrado|pagado|ingreso|egreso|cantidad/.test(n)) return 1.15;
+    if (/monto|total|precio|saldo|cobrado|pagado|ingreso|egreso|cantidad|cargo|abono|compra|fanegas/.test(n)) return 1.15;
     return 1;
 }
 

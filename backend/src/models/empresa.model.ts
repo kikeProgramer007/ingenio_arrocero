@@ -48,6 +48,11 @@ export const Empresa = sequelize.define('empresa', {
         type: DataTypes.STRING(255),
         allowNull: true,
         defaultValue: '/uploads/defaults/logotipo.jpeg'
+    },
+    formato_nota: {
+        type: DataTypes.STRING(8),
+        allowNull: false,
+        defaultValue: '11'
     }
 }, {
     tableName: 'empresa',

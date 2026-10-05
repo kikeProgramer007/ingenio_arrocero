@@ -3,6 +3,9 @@ import path from 'path';
 import { Empresa } from '../models/empresa.model';
 import { uploadsRoot } from './imagen';
 
+export const FORMATOS_NOTA = ['11', '5.5'] as const;
+export type FormatoNota = (typeof FORMATOS_NOTA)[number];
+
 export type EmpresaDatos = {
     id: number;
     nombre: string;
@@ -15,7 +18,12 @@ export type EmpresaDatos = {
     ciudad: string;
     email: string;
     path_logo: string;
+    formato_nota: FormatoNota;
 };
+
+export function normalizarFormatoNota(valor: unknown): FormatoNota {
+    return String(valor || '').trim() === '5.5' ? '5.5' : '11';
+}
 
 const LOGO_DEFAULT = '/uploads/defaults/logotipo.jpeg';
 
@@ -35,7 +43,8 @@ export function datosEmpresaFallback(): EmpresaDatos {
         telefono: textoEnv('EMPRESA_TELEFONO'),
         ciudad: textoEnv('EMPRESA_CIUDAD'),
         email: textoEnv('EMPRESA_EMAIL'),
-        path_logo: LOGO_DEFAULT
+        path_logo: LOGO_DEFAULT,
+        formato_nota: normalizarFormatoNota(textoEnv('EMPRESA_FORMATO_NOTA', '11'))
     };
 }
 
@@ -53,7 +62,8 @@ export function mapEmpresa(row: any): EmpresaDatos {
         telefono: String(row?.telefono || '').trim(),
         ciudad: String(row?.ciudad || '').trim(),
         email: String(row?.email || '').trim(),
-        path_logo: pathLogo
+        path_logo: pathLogo,
+        formato_nota: normalizarFormatoNota(row?.formato_nota)
     };
 }
 
@@ -87,7 +97,8 @@ export async function asegurarEmpresa(): Promise<void> {
             telefono: inicial.telefono || null,
             ciudad: inicial.ciudad || null,
             email: inicial.email || null,
-            path_logo: LOGO_DEFAULT
+            path_logo: LOGO_DEFAULT,
+            formato_nota: inicial.formato_nota
         });
     }
     await refrescarEmpresa();

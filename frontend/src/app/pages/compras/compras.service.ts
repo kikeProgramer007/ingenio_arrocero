@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { apiUrl } from '../../core/utils/api-url';
-import { ApiMensaje, Compra, CrearCompraPayload, PagoProveedor, Proveedor } from './compras.models';
+import { ApiMensaje, Compra, CrearCompraPayload, CuentaProveedor, PagoProveedor, Proveedor } from './compras.models';
 
 @Injectable({ providedIn: 'root' })
 export class ProveedoresService {
@@ -25,6 +25,10 @@ export class ProveedoresService {
 
     actualizar(id: number, payload: Omit<Proveedor, 'id'>): Observable<ApiMensaje<Proveedor>> {
         return this.http.put<ApiMensaje<Proveedor>>(apiUrl(`/api/proveedores/${id}`), payload);
+    }
+
+    cuenta(id: number): Observable<CuentaProveedor> {
+        return this.http.get<CuentaProveedor>(apiUrl(`/api/proveedores/${id}/cuenta`));
     }
 }
 

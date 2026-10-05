@@ -45,7 +45,8 @@ export class EmpresaService {
             nombre: (empresa?.nombre || '').trim() || EMPRESA_FALLBACK.nombre,
             nombre_corto: (empresa?.nombre_corto || '').trim() || EMPRESA_FALLBACK.nombre_corto,
             slogan: (empresa?.slogan || '').trim() || EMPRESA_FALLBACK.slogan,
-            path_logo: (empresa?.path_logo || '').trim() || EMPRESA_FALLBACK.path_logo
+            path_logo: (empresa?.path_logo || '').trim() || EMPRESA_FALLBACK.path_logo,
+            formato_nota: empresa?.formato_nota === '5.5' ? '5.5' : '11'
         };
         this.datos.set(normalizada);
         const nombre = normalizada.nombre_corto || normalizada.nombre;

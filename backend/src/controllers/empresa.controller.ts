@@ -3,7 +3,7 @@ import { Empresa } from '../models/empresa.model';
 import { ActualizarEmpresaDTO } from '../dtos/empresa.dto';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
-import { mapEmpresa, refrescarEmpresa } from '../utils/empresa';
+import { mapEmpresa, normalizarFormatoNota, refrescarEmpresa } from '../utils/empresa';
 
 export class EmpresaController {
     public static async obtener(_req: Request, res: Response): Promise<void> {
@@ -32,7 +32,10 @@ export class EmpresaController {
                 telefono: datos.telefono?.trim() || null,
                 ciudad: datos.ciudad?.trim() || null,
                 email: datos.email?.trim() || null,
-                path_logo: (datos.path_logo || '').trim() || '/uploads/defaults/logotipo.jpeg'
+                path_logo: (datos.path_logo || '').trim() || '/uploads/defaults/logotipo.jpeg',
+                formato_nota: datos.formato_nota
+                    ? normalizarFormatoNota(datos.formato_nota)
+                    : normalizarFormatoNota(empresa?.get('formato_nota'))
             };
             if (!empresa) {
                 empresa = await Empresa.create(payload);

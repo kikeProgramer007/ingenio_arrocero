@@ -161,12 +161,13 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
         </div>
         <p-dialog [header]="titulo" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
+                <p class="text-muted-color text-sm" *ngIf="esEmpresa">Este gasto sale de caja al guardar. Si te fiaron el servicio (taller, flete), ve a Compras: línea sin producto y pago inicial 0. Queda como SERVICIO en la cuenta del productor.</p>
                 <div *ngIf="esEmpresa">
                     <label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Clasifica el gasto (combustible, energía, etc.) para el reporte." posicion="right" /></label>
                     <p-select [options]="categorias" [(ngModel)]="categoria" placeholder="Categoría" fluid />
                 </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Concepto <app-ayuda-campo texto="Ej.: Combustible camión, almuerzo cuadrilla, luz planta." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="concepto" /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Sale de caja al registrar. Debe haber caja abierta." posicion="right" /></label><app-input-numero [(ngModel)]="monto" /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Sale de caja al registrar. Debe haber caja abierta. Un servicio a crédito no va aquí: va a Compras." posicion="right" /></label><app-input-numero [(ngModel)]="monto" /></div>
                 <div class="flex items-center gap-2" *ngIf="esRetiro">
                     <p-checkbox [(ngModel)]="descontarCaja" [binary]="true" inputId="descontarCaja" />
                     <label for="descontarCaja">Descontar de la caja</label>
@@ -198,7 +199,7 @@ export class GastosPage implements OnInit {
         { label: 'Todos', value: '' }
     ];
     titulo = 'Gastos de empresa';
-    subtitulo = 'Control de egresos operativos de la empresa';
+    subtitulo = 'Egresos que salen de caja ahora. Si un proveedor te fió el servicio, registralo en Compras (sin producto), no aquí.';
     items: any[] = [];
     cargando = false;
     guardando = false;

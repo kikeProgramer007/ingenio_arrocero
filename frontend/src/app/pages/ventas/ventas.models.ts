@@ -1,9 +1,12 @@
+export const PROCEDENCIAS_CLIENTE = ['La Paz', 'Cochabamba', 'Oruro', 'Otras'] as const;
+
 export interface Cliente {
     id: number;
     nombre: string;
     nit_ci?: string | null;
     telefono?: string | null;
     direccion?: string | null;
+    procedencia?: string | null;
     observacion?: string | null;
     activo: boolean;
     path_imagen?: string | null;
@@ -27,6 +30,9 @@ export interface Venta {
     pagado: number;
     estado: string;
     observacion?: string | null;
+    plazo_dias?: number | null;
+    fecha_vencimiento?: string | null;
+    vencida?: boolean;
     cliente: { id: number; nombre: string } | null;
     usuario: { id: number; username: string } | null;
     detalles?: LineaVenta[];
@@ -59,6 +65,8 @@ export interface CrearVentaPayload {
     monto_efectivo?: number;
     monto_qr?: number;
     referencia?: string;
+    plazo_dias?: number;
+    fecha_vencimiento?: string;
 }
 
 export interface ApiMensaje<T> {

@@ -13,8 +13,8 @@ import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { Menu, MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
-import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
-import { Cliente, LineaVenta, Venta } from './ventas.models';
+import { etiquetaPago, formatBs, formatFecha, formatFechaCorta, esErrorCajaCerrada } from '../caja/caja.utils';
+import { Cliente, LineaVenta, PROCEDENCIAS_CLIENTE, Venta } from './ventas.models';
 import { ClientesService, VentasService } from './ventas.service';
 import { ExportarService, FormatoExport } from '../../shared/services/exportar.service';
 import { ConfirmarService } from '../../shared/services/confirmar.service';
@@ -120,6 +120,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <th>Total</th>
                         <th>Cobrado</th>
                         <th>Pendiente</th>
+                        <th>Vence</th>
                         <th>Estado</th>
                         <th></th>
                     </tr>
@@ -132,7 +133,14 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <td>{{ formatBs(venta.total) }}</td>
                         <td>{{ formatBs(venta.pagado) }}</td>
                         <td>{{ formatBs(venta.saldo_pendiente) }}</td>
-                        <td><p-tag [value]="venta.estado" [severity]="severidad(venta.estado)" /></td>
+                        <td>
+                            <span *ngIf="venta.fecha_vencimiento">{{ formatFechaCorta(venta.fecha_vencimiento) }}</span>
+                            <span *ngIf="!venta.fecha_vencimiento">-</span>
+                        </td>
+                        <td>
+                            <p-tag [value]="venta.estado" [severity]="severidad(venta.estado)" />
+                            <p-tag *ngIf="venta.vencida" value="Vencida" severity="danger" class="ml-1" />
+                        </td>
                         <td>
                             <p-button
                                 icon="pi pi-ellipsis-v"
@@ -148,11 +156,11 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
-                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="9" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
                     <tr>
-                        <td colspan="8">
+                        <td colspan="9">
                             <app-estado-vacio
                                 icono="pi pi-shopping-cart"
                                 titulo="No hay ventas registradas"
@@ -226,6 +234,15 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <label class="flex items-center gap-1 font-bold mb-2">Abono ahora (opcional) <app-ayuda-campo texto="Ej.: total Bs 1.640, abono Bs 500. El resto queda pendiente. 0 = todo a crédito." posicion="top" /></label>
                         <app-input-numero [(ngModel)]="pagoInicial" />
                     </div>
+                    <div class="col-span-12 md:col-span-4">
+                        <label class="flex items-center gap-1 font-bold mb-2">Plazo de cobro <app-ayuda-campo texto="Cuándo debe pagar el saldo. No cambia el precio ni los abonos. Opcional." posicion="top" /></label>
+                        <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid />
+                        <small class="block text-muted-color mt-1" *ngIf="plazoDias > 0">Vence el {{ vencimientoEstimado }}</small>
+                    </div>
+                    <div class="col-span-12 md:col-span-4" *ngIf="plazoDias === -1">
+                        <label class="flex items-center gap-1 font-bold mb-2">Fecha de vencimiento <app-ayuda-campo texto="Día en que el cliente debe cancelar el saldo." posicion="left" /></label>
+                        <p-datepicker [(ngModel)]="fechaVencimiento" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [minDate]="hoy" [readonlyInput]="true" fluid />
+                    </div>
                     <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
                         <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto permite partir el cobro." posicion="top" /></label>
                         <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="pagoInicial" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
@@ -259,7 +276,11 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         <p-dialog header="Detalle de venta" [(visible)]="dialogDetalle" [modal]="true" [style]="{ width: '44rem' }" [breakpoints]="{ '960px': '95vw' }">
             <ng-container *ngIf="detalle">
                 <div class="mb-3">{{ detalle.cliente?.nombre }} · {{ formatFecha(detalle.fecha) }}</div>
-                <p-tag [value]="detalle.estado" [severity]="severidad(detalle.estado)" styleClass="mb-3" />
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                    <p-tag [value]="detalle.estado" [severity]="severidad(detalle.estado)" />
+                    <p-tag *ngIf="detalle.vencida" value="Vencida" severity="danger" />
+                    <span class="text-muted-color" *ngIf="detalle.fecha_vencimiento">Vence {{ formatFechaCorta(detalle.fecha_vencimiento) }}</span>
+                </div>
                 <div class="grid grid-cols-12 gap-3 mb-4">
                     <div class="col-span-4"><div class="text-muted-color">Total</div><div class="font-semibold text-xl">{{ formatBs(detalle.total) }}</div></div>
                     <div class="col-span-4"><div class="text-muted-color">Cobrado</div><div class="font-semibold text-xl text-green-600">{{ formatBs(detalle.pagado) }}</div></div>
@@ -305,6 +326,10 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
         <p-dialog header="Nuevo cliente" [(visible)]="dialogCliente" [modal]="true" [style]="{ width: '28rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-3">
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Procedencia <app-ayuda-campo texto="De dónde viene el cliente: La Paz, Cochabamba, Oruro u otras." posicion="top" /></label>
+                    <p-select [options]="procedencias" [(ngModel)]="clienteRapido.procedencia" placeholder="Seleccione" [showClear]="true" fluid />
+                </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Nombre comercial o de la persona. Ej.: Distribuidora Rojas." posicion="right" /></label>
                     <input pInputText class="w-full" [(ngModel)]="clienteRapido.nombre" />
@@ -369,7 +394,8 @@ export class VentasPage implements OnInit {
     cobroEfectivo = 0;
     cobroQr = 0;
     cobroReferencia = '';
-    clienteRapido = { nombre: '', nit_ci: '', telefono: '' };
+    clienteRapido = { nombre: '', nit_ci: '', telefono: '', procedencia: null as string | null };
+    procedencias = [...PROCEDENCIAS_CLIENTE];
     filtroEstado = '';
     filtroCliente: number | null = null;
     rango: Date[] | null = null;
@@ -378,8 +404,19 @@ export class VentasPage implements OnInit {
         { label: 'Pendiente', value: 'PENDIENTE' },
         { label: 'Parcial', value: 'PARCIAL' },
         { label: 'Pagada', value: 'PAGADA' },
+        { label: 'Vencidas', value: 'VENCIDA' },
         { label: 'Anulada', value: 'ANULADA' }
     ];
+    plazosCredito = [
+        { label: 'Sin plazo', value: 0 },
+        { label: '7 días', value: 7 },
+        { label: '15 días', value: 15 },
+        { label: '30 días', value: 30 },
+        { label: 'Fecha exacta', value: -1 }
+    ];
+    plazoDias = 0;
+    fechaVencimiento: Date | null = null;
+    hoy = new Date();
     modosCobro = [
         { label: 'Contado', value: 'CONTADO' },
         { label: 'Crédito', value: 'CREDITO' }
@@ -396,6 +433,7 @@ export class VentasPage implements OnInit {
     detalle: Venta | null = null;
     formatBs = formatBs;
     formatFecha = formatFecha;
+    formatFechaCorta = formatFechaCorta;
     etiquetaPago = etiquetaPago;
 
     get kpis(): KpiItem[] {
@@ -403,11 +441,12 @@ export class VentasPage implements OnInit {
         const total = vigentes.reduce((acc, v) => acc + Number(v.total || 0), 0);
         const cobrado = vigentes.reduce((acc, v) => acc + Number(v.pagado || 0), 0);
         const pendiente = vigentes.reduce((acc, v) => acc + Number(v.saldo_pendiente || 0), 0);
+        const vencido = vigentes.filter((v) => v.vencida).reduce((acc, v) => acc + Number(v.saldo_pendiente || 0), 0);
         return [
             { label: 'Ventas', value: formatBs(total), icon: 'pi pi-shopping-cart', tone: 'neutral', hint: 'Documentos vigentes' },
             { label: 'Cobrado', value: formatBs(cobrado), icon: 'pi pi-money-bill', tone: 'success', hint: 'Pagado de vigentes; anulada = 0' },
             { label: 'Pendiente', value: formatBs(pendiente), icon: 'pi pi-clock', tone: 'warn', hint: 'Saldo por cobrar vigente' },
-            { label: 'Documentos', value: String(vigentes.length), icon: 'pi pi-file', tone: 'info' }
+            { label: 'Vencido', value: formatBs(vencido), icon: 'pi pi-exclamation-triangle', tone: 'danger', hint: 'Saldo con fecha de cobro ya vencida' }
         ];
     }
 
@@ -491,6 +530,9 @@ export class VentasPage implements OnInit {
         this.montoQr = 0;
         this.referencia = '';
         this.observacion = '';
+        this.plazoDias = 0;
+        this.fechaVencimiento = null;
+        this.hoy = new Date();
         this.dialogNueva = true;
     }
 
@@ -520,6 +562,28 @@ export class VentasPage implements OnInit {
         return abono > total ? total : abono;
     }
 
+    get vencimientoEstimado(): string {
+        if (this.plazoDias <= 0) {
+            return '';
+        }
+        const fecha = new Date();
+        fecha.setDate(fecha.getDate() + this.plazoDias);
+        return formatFechaCorta(fecha);
+    }
+
+    private plazoPayload(): { plazo_dias?: number; fecha_vencimiento?: string } {
+        if (this.modoCobro !== 'CREDITO' || this.pendienteEstimado() <= 0) {
+            return {};
+        }
+        if (this.plazoDias === -1 && this.fechaVencimiento) {
+            return { fecha_vencimiento: this.ymd(this.fechaVencimiento) };
+        }
+        if (this.plazoDias > 0) {
+            return { plazo_dias: this.plazoDias };
+        }
+        return {};
+    }
+
     guardar(): void {
         if (!this.idCliente) {
             this.aviso.aviso('Validación', 'Seleccione un cliente');
@@ -531,6 +595,10 @@ export class VentasPage implements OnInit {
             return;
         }
         const cobro = this.pagoAlRegistrar();
+        if (this.modoCobro === 'CREDITO' && this.plazoDias === -1 && !this.fechaVencimiento) {
+            this.aviso.aviso('Validación', 'Indique la fecha de vencimiento o elija un plazo en días');
+            return;
+        }
         const mixto = mensajePagoMixto(this.metodoPago, cobro, this.montoEfectivo, this.montoQr);
         if (mixto) {
             this.aviso.aviso('Validación', mixto);
@@ -550,7 +618,8 @@ export class VentasPage implements OnInit {
             pago_inicial: cobro,
             metodo_pago: cobro > 0 ? this.metodoPago : undefined,
             referencia: cobro > 0 ? this.referencia || undefined : undefined,
-            ...(cobro > 0 ? extrasPagoMixto(this.metodoPago, this.montoEfectivo, this.montoQr) : {})
+            ...(cobro > 0 ? extrasPagoMixto(this.metodoPago, this.montoEfectivo, this.montoQr) : {}),
+            ...this.plazoPayload()
         }).subscribe({
             next: (res) => {
                 this.guardando = false;
@@ -616,7 +685,7 @@ export class VentasPage implements OnInit {
     }
 
     abrirClienteRapido(): void {
-        this.clienteRapido = { nombre: '', nit_ci: '', telefono: '' };
+        this.clienteRapido = { nombre: '', nit_ci: '', telefono: '', procedencia: null };
         this.dialogCliente = true;
     }
 
@@ -630,6 +699,7 @@ export class VentasPage implements OnInit {
             nombre: this.clienteRapido.nombre.trim(),
             nit_ci: this.clienteRapido.nit_ci.trim() || undefined,
             telefono: this.clienteRapido.telefono.trim() || undefined,
+            procedencia: this.clienteRapido.procedencia || undefined,
             activo: true
         }).subscribe({
             next: (res) => {

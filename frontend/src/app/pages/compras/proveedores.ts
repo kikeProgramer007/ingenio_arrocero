@@ -9,15 +9,19 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
-import { Proveedor } from './compras.models';
+import { Proveedor, CuentaProveedor } from './compras.models';
 import { ProveedoresService } from './compras.service';
 import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { TooltipModule } from 'primeng/tooltip';
+import { Menu, MenuModule } from 'primeng/menu';
+import { MenuItem } from 'primeng/api';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { formatBs, formatFecha } from '../caja/caja.utils';
+import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 
 @Component({
     selector: 'app-proveedores',
@@ -36,9 +40,12 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         TablaEsqueletoComponent,
         AyudaCampoComponent,
         TooltipModule,
-        TablaBusquedaComponent
+        MenuModule,
+        TablaBusquedaComponent,
+        BotonesExportarComponent
     ],
     template: `
+        <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Proveedores</div>
@@ -87,7 +94,18 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <td>{{ item.telefono || '-' }}</td>
                         <td>{{ item.direccion || '-' }}</td>
                         <td><p-tag [value]="item.activo ? 'Activo' : 'Inactivo'" [severity]="item.activo ? 'success' : 'secondary'" /></td>
-                        <td><p-button icon="pi pi-pencil" [rounded]="true" [outlined]="true" severity="warn" pTooltip="Editar" tooltipPosition="left" (onClick)="editar(item)" /></td>
+                        <td>
+                            <p-button
+                                icon="pi pi-ellipsis-v"
+                                [rounded]="true"
+                                [text]="true"
+                                severity="secondary"
+                                pTooltip="Opciones"
+                                tooltipPosition="left"
+                                ariaLabel="Opciones del proveedor"
+                                (onClick)="abrirAcciones($event, menuAcciones, item)"
+                            />
+                        </td>
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
@@ -142,6 +160,83 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 <p-button label="Guardar" [loading]="guardando" (onClick)="guardar()" />
             </ng-template>
         </p-dialog>
+
+        <p-dialog header="Cuenta de {{ cuenta?.proveedor?.nombre }}" [(visible)]="dialogCuenta" [modal]="true" [style]="{ width: '72rem' }" [breakpoints]="{ '960px': '95vw' }">
+            <div class="grid grid-cols-12 gap-3 mb-4" *ngIf="cuenta">
+                <div class="col-span-4">
+                    <div class="text-muted-color">Cargo</div>
+                    <div class="font-semibold text-xl">{{ formatBs(cuenta.resumen.cargo) }}</div>
+                    <div class="text-muted-color text-xs">Compras {{ formatBs(cuenta.resumen.compras) }} · Servicios {{ formatBs(cuenta.resumen.servicios) }} · Acopio {{ formatBs(cuenta.resumen.acopios) }}</div>
+                </div>
+                <div class="col-span-4">
+                    <div class="text-muted-color">Abonado</div>
+                    <div class="font-semibold text-xl text-green-600">{{ formatBs(cuenta.resumen.abono) }}</div>
+                    <div class="text-muted-color text-xs">Pagos {{ formatBs(cuenta.resumen.pagado_compras) }} · Acopio {{ formatBs(cuenta.resumen.pagado_acopios) }}</div>
+                </div>
+                <div class="col-span-4">
+                    <div class="text-muted-color">Saldo por pagar</div>
+                    <div class="font-semibold text-xl text-orange-500">{{ formatBs(cuenta.resumen.saldo) }}</div>
+                </div>
+            </div>
+            <p class="text-muted-color text-sm mb-2">Lo que este productor entregó (compra + acopio). El stock del almacén es único: no se reserva ni se descuenta el pilado por productor.</p>
+            <p-table [value]="cuenta?.inventario || []" [paginator]="(cuenta?.inventario?.length || 0) > 5" [rows]="5" responsiveLayout="scroll" styleClass="mb-4">
+                <ng-template #header>
+                    <tr><th>Producto</th><th>Unidad</th><th>Compras</th><th>Acopio</th><th>Entregado</th></tr>
+                </ng-template>
+                <ng-template #body let-i>
+                    <tr>
+                        <td>{{ i.producto }}</td>
+                        <td>{{ i.unidad }}</td>
+                        <td>{{ formatCantidad(i.compras) }}</td>
+                        <td>{{ formatCantidad(i.acopio) }}</td>
+                        <td class="font-medium">{{ formatCantidad(i.entregado) }}</td>
+                    </tr>
+                </ng-template>
+                <ng-template #emptymessage>
+                    <tr><td colspan="5"><div class="text-center py-3 text-muted-color">Sin entregas de inventario. Un servicio (compra sin producto) no suma kilos.</div></td></tr>
+                </ng-template>
+            </p-table>
+            <p class="text-muted-color text-sm mb-3">Kardex de la cuenta: cada fila es una compra, un servicio o un pago. Boleta, chofer y placa van en la entrega de chala, no en el pago.</p>
+            <p-table [value]="cuenta?.kardex || []" [paginator]="true" [rows]="8" responsiveLayout="scroll">
+                <ng-template #header>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Concepto</th>
+                        <th>Boleta</th>
+                        <th>Chofer</th>
+                        <th>Placa</th>
+                        <th>Fanegas</th>
+                        <th>Precio</th>
+                        <th>Compra</th>
+                        <th>Pagos</th>
+                        <th>Saldo</th>
+                    </tr>
+                </ng-template>
+                <ng-template #body let-l>
+                    <tr>
+                        <td>{{ formatFecha(l.fecha) }}</td>
+                        <td><p-tag [value]="l.tipo" [severity]="severidadKardex(l.tipo)" /></td>
+                        <td>{{ l.detalle }}</td>
+                        <td>{{ l.boleta || '-' }}</td>
+                        <td>{{ l.chofer || '-' }}</td>
+                        <td>{{ l.placa || '-' }}</td>
+                        <td>{{ l.fanegas ? formatCantidad(l.fanegas) : '-' }}</td>
+                        <td>{{ l.precio ? formatBs(l.precio) : '-' }}</td>
+                        <td>{{ l.cargo ? formatBs(l.cargo) : '-' }}</td>
+                        <td>{{ l.abono ? formatBs(l.abono) : '-' }}</td>
+                        <td class="font-medium">{{ formatBs(l.saldo) }}</td>
+                    </tr>
+                </ng-template>
+                <ng-template #emptymessage>
+                    <tr><td colspan="11"><div class="text-center py-4 text-muted-color">Sin movimientos. Las compras, pagos y acopios de este productor aparecen aquí.</div></td></tr>
+                </ng-template>
+            </p-table>
+            <ng-template #footer>
+                <app-botones-exportar *ngIf="cuenta?.proveedor?.id" tipo="cuenta_proveedor" [id]="cuenta?.proveedor?.id" />
+                <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogCuenta = false" />
+            </ng-template>
+        </p-dialog>
     `
 })
 export class ProveedoresPage implements OnInit {
@@ -151,7 +246,12 @@ export class ProveedoresPage implements OnInit {
     cargando = false;
     guardando = false;
     dialog = false;
+    dialogCuenta = false;
     form: Proveedor = this.vacio();
+    cuenta: CuentaProveedor | null = null;
+    itemsAcciones: MenuItem[] = [];
+    formatBs = formatBs;
+    formatFecha = formatFecha;
 
     constructor(private proveedoresService: ProveedoresService, private aviso: AvisoService) {}
 
@@ -178,9 +278,41 @@ export class ProveedoresPage implements OnInit {
         this.dialog = true;
     }
 
+    abrirAcciones(event: Event, menu: Menu, item: Proveedor): void {
+        this.itemsAcciones = [
+            {
+                label: 'Cuenta del productor',
+                icon: 'pi pi-book menu-icon-ver',
+                iconStyle: { color: '#3b82f6' },
+                command: () => this.verCuenta(item)
+            },
+            {
+                label: 'Editar',
+                icon: 'pi pi-pencil menu-icon-editar',
+                iconStyle: { color: '#f59e0b' },
+                command: () => this.editar(item)
+            }
+        ];
+        menu.toggle(event);
+    }
+
     editar(item: Proveedor): void {
         this.form = { ...item };
         this.dialog = true;
+    }
+
+    verCuenta(item: Proveedor): void {
+        this.cuenta = null;
+        this.dialogCuenta = true;
+        this.proveedoresService.cuenta(item.id).subscribe({
+            next: (data) => {
+                this.cuenta = data;
+            },
+            error: (err) => {
+                this.dialogCuenta = false;
+                this.aviso.error(err, 'No se pudo cargar la cuenta del productor');
+            }
+        });
     }
 
     guardar(): void {
@@ -221,5 +353,16 @@ export class ProveedoresPage implements OnInit {
 
     foto(path?: string | null): string {
         return mediaUrl(path, 'proveedor');
+    }
+
+    formatCantidad(valor: number): string {
+        return Number(valor || 0).toLocaleString('es-BO', { maximumFractionDigits: 3 });
+    }
+
+    severidadKardex(tipo: string): 'success' | 'warn' | 'info' | 'secondary' {
+        if (tipo === 'PAGO' || tipo === 'PAGO ACOPIO') return 'success';
+        if (tipo === 'ACOPIO') return 'info';
+        if (tipo === 'SERVICIO') return 'secondary';
+        return 'warn';
     }
 }

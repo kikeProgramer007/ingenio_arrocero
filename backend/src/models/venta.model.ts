@@ -42,6 +42,14 @@ export const Venta = sequelize.define('venta', {
         type: DataTypes.TEXT,
         allowNull: true
     },
+    plazo_dias: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
+    fecha_vencimiento: {
+        type: DataTypes.DATEONLY,
+        allowNull: true
+    },
     id_usuario: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -60,7 +68,8 @@ export const Venta = sequelize.define('venta', {
     indexes: [
         { fields: ['id_cliente'] },
         { fields: ['estado'] },
-        { fields: ['fecha'] }
+        { fields: ['fecha'] },
+        { fields: ['fecha_vencimiento'] }
     ]
 });
 

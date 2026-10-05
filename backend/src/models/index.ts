@@ -70,6 +70,7 @@ User.hasMany(Compra, { foreignKey: 'id_usuario', as: 'compras' });
 
 Compra.hasMany(CompraDetalle, { foreignKey: 'id_compra', as: 'detalles' });
 CompraDetalle.belongsTo(Compra, { foreignKey: 'id_compra', as: 'compra' });
+CompraDetalle.belongsTo(Productos, { foreignKey: 'id_producto', as: 'producto' });
 
 Compra.hasMany(PagoProveedor, { foreignKey: 'id_compra', as: 'pagos' });
 PagoProveedor.belongsTo(Compra, { foreignKey: 'id_compra', as: 'compra' });

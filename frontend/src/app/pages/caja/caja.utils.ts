@@ -23,7 +23,13 @@ export function formatFechaCorta(value: string | Date | null | undefined): strin
     if (!value) {
         return '-';
     }
-    const date = typeof value === 'string' ? new Date(value) : value;
+    let date: Date;
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+        const [anio, mes, dia] = value.slice(0, 10).split('-').map(Number);
+        date = new Date(anio, mes - 1, dia);
+    } else {
+        date = typeof value === 'string' ? new Date(value) : value;
+    }
     if (Number.isNaN(date.getTime())) {
         return '-';
     }

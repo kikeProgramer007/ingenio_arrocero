@@ -10,7 +10,8 @@ import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { forkJoin } from 'rxjs';
-import { Cliente, Cobranza, Venta } from './ventas.models';
+import { SelectModule } from 'primeng/select';
+import { Cliente, Cobranza, PROCEDENCIAS_CLIENTE, Venta } from './ventas.models';
 import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
@@ -18,7 +19,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { Menu, MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
-import { etiquetaPago, formatBs, formatFecha } from '../caja/caja.utils';
+import { etiquetaPago, formatBs, formatFecha, formatFechaCorta } from '../caja/caja.utils';
 import { ClientesService, VentasService } from './ventas.service';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
@@ -36,6 +37,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         TagModule,
         TextareaModule,
         ToggleSwitchModule,
+        SelectModule,
         ImagenCampoComponent,
         TablaEsqueletoComponent,
         AyudaCampoComponent,
@@ -64,7 +66,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} clientes"
-                [globalFilterFields]="['nombre', 'nit_ci', 'telefono', 'direccion']"
+                [globalFilterFields]="['nombre', 'nit_ci', 'telefono', 'direccion', 'procedencia']"
                 [rowHover]="true"
                 responsiveLayout="scroll"
             >
@@ -80,6 +82,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <th>Nombre</th>
                         <th>NIT / CI</th>
                         <th>Teléfono</th>
+                        <th>Procedencia</th>
                         <th>Dirección</th>
                         <th>Estado</th>
                         <th></th>
@@ -91,6 +94,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <td>{{ cli.nombre }}</td>
                         <td>{{ cli.nit_ci || '-' }}</td>
                         <td>{{ cli.telefono || '-' }}</td>
+                        <td>{{ cli.procedencia || '-' }}</td>
                         <td>{{ cli.direccion || '-' }}</td>
                         <td><p-tag [value]="cli.activo ? 'Activo' : 'Inactivo'" [severity]="cli.activo ? 'success' : 'secondary'" /></td>
                         <td>
@@ -108,11 +112,11 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
-                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="7" [fila]="f" [conAvatar]="true"></tr>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f" [conAvatar]="true"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
                     <tr>
-                        <td colspan="7">
+                        <td colspan="8">
                             <div class="text-center py-8 text-muted-color">
                                 <i class="pi pi-users text-4xl mb-3 block"></i>
                                 No hay clientes registrados.
@@ -142,6 +146,10 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     <input pInputText class="w-full" [(ngModel)]="form.telefono" />
                 </div>
                 <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Procedencia <app-ayuda-campo texto="De dónde viene el cliente: La Paz, Cochabamba, Oruro u otras." posicion="right" /></label>
+                    <p-select [options]="procedencias" [(ngModel)]="form.procedencia" placeholder="Seleccione" [showClear]="true" fluid />
+                </div>
+                <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Dirección <app-ayuda-campo texto="Dónde entregar o visitar. Opcional." posicion="right" /></label>
                     <input pInputText class="w-full" [(ngModel)]="form.direccion" />
                 </div>
@@ -161,6 +169,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         </p-dialog>
 
         <p-dialog header="Cuenta de {{ extractoCliente?.nombre }}" [(visible)]="dialogExtracto" [modal]="true" [style]="{ width: '52rem' }" [breakpoints]="{ '960px': '95vw' }">
+            <div class="text-muted-color mb-3" *ngIf="extractoCliente?.procedencia">Procedencia: {{ extractoCliente?.procedencia }}</div>
             <div class="grid grid-cols-12 gap-3 mb-4">
                 <div class="col-span-4">
                     <div class="text-muted-color">Ventas</div>
@@ -178,7 +187,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <div class="font-semibold mb-2">Ventas</div>
             <p-table [value]="extractoVentas" [paginator]="true" [rows]="6" responsiveLayout="scroll">
                 <ng-template #header>
-                    <tr><th>#</th><th>Fecha</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Estado</th></tr>
+                    <tr><th>#</th><th>Fecha</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Vence</th><th>Estado</th></tr>
                 </ng-template>
                 <ng-template #body let-v>
                     <tr>
@@ -187,11 +196,15 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <td>{{ formatBs(v.total) }}</td>
                         <td>{{ formatBs(v.pagado) }}</td>
                         <td>{{ formatBs(v.saldo_pendiente) }}</td>
-                        <td><p-tag [value]="v.estado" [severity]="v.estado === 'PAGADA' ? 'success' : v.estado === 'PARCIAL' ? 'info' : v.estado === 'PENDIENTE' ? 'warn' : 'secondary'" /></td>
+                        <td>{{ v.fecha_vencimiento ? formatFechaCorta(v.fecha_vencimiento) : '-' }}</td>
+                        <td>
+                            <p-tag [value]="v.estado" [severity]="v.estado === 'PAGADA' ? 'success' : v.estado === 'PARCIAL' ? 'info' : v.estado === 'PENDIENTE' ? 'warn' : 'secondary'" />
+                            <p-tag *ngIf="v.vencida" value="Vencida" severity="danger" class="ml-1" />
+                        </td>
                     </tr>
                 </ng-template>
                 <ng-template #emptymessage>
-                    <tr><td colspan="6"><div class="text-center py-4 text-muted-color">Sin ventas.</div></td></tr>
+                    <tr><td colspan="7"><div class="text-center py-4 text-muted-color">Sin ventas.</div></td></tr>
                 </ng-template>
             </p-table>
             <div class="font-semibold mt-4 mb-2">Cobranzas</div>
@@ -232,7 +245,9 @@ export class ClientesPage implements OnInit {
     itemsAcciones: MenuItem[] = [];
     formatBs = formatBs;
     formatFecha = formatFecha;
+    formatFechaCorta = formatFechaCorta;
     etiquetaPago = etiquetaPago;
+    procedencias = [...PROCEDENCIAS_CLIENTE];
 
     constructor(private clientesService: ClientesService, private ventasService: VentasService, private aviso: AvisoService) {}
 
@@ -322,6 +337,7 @@ export class ClientesPage implements OnInit {
             nit_ci: this.form.nit_ci,
             telefono: this.form.telefono,
             direccion: this.form.direccion,
+            procedencia: this.form.procedencia || null,
             observacion: this.form.observacion,
             activo: this.form.activo,
             path_imagen: this.form.path_imagen || imagenDefault('cliente')
@@ -344,7 +360,7 @@ export class ClientesPage implements OnInit {
     }
 
     private vacio(): Cliente {
-        return { id: 0, nombre: '', nit_ci: '', telefono: '', direccion: '', observacion: '', activo: true, path_imagen: imagenDefault('cliente') };
+        return { id: 0, nombre: '', nit_ci: '', telefono: '', direccion: '', procedencia: null, observacion: '', activo: true, path_imagen: imagenDefault('cliente') };
     }
 
     foto(path?: string | null): string {

@@ -8,6 +8,7 @@ import {
     IsNumber,
     IsOptional,
     IsString,
+    Matches,
     MaxLength,
     Min,
     ValidateIf,
@@ -46,6 +47,36 @@ export class CrearCompraDTO {
     @IsOptional()
     @IsString()
     observacion?: string;
+
+    @IsOptional()
+    @IsString()
+    @MaxLength(40)
+    concepto?: string;
+
+    @IsOptional()
+    @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha debe ser AAAA-MM-DD' })
+    fecha?: string;
+
+    @IsOptional()
+    @IsString()
+    @MaxLength(40)
+    boleta?: string;
+
+    @IsOptional()
+    @IsString()
+    @MaxLength(120)
+    chofer?: string;
+
+    @IsOptional()
+    @IsString()
+    @MaxLength(30)
+    placa?: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber({}, { message: 'Las fanegas deben ser numéricas' })
+    @Min(0, { message: 'Las fanegas no pueden ser negativas' })
+    fanegas?: number;
 
     @IsArray({ message: 'Debe enviar al menos una línea' })
     @ArrayMinSize(1, { message: 'Debe agregar al menos una línea' })

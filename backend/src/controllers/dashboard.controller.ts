@@ -5,7 +5,7 @@ import { handleError } from '../utils/error.handler';
 import { clasificarDiferencia, roundMoney, toMoney } from '../utils/money';
 import { inicioFinDia, inicioFinMes, rangoDesdeQuery } from '../utils/fecha';
 import { CATEGORIA_EGRESO, ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
-import { cobradoVenta, ESTADO_VENTA } from '../constants/venta.constants';
+import { cobradoVenta, ESTADO_VENTA, esVentaVencida } from '../constants/venta.constants';
 import { ESTADO_COMPRA } from '../constants/compra.constants';
 import { resumirMovimientos } from '../utils/caja-resumen';
 
@@ -157,15 +157,19 @@ export class DashboardController {
                         usuario_apertura: null
                     },
                 resultado_arqueo: clasificarDiferencia(0),
-                cuentas_pendientes: ventasPendientes.map((venta: any) => ({
-                    id: venta.id,
-                    fecha: venta.fecha,
-                    cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,
-                    total: toMoney(venta.total),
-                    cobrado: cobradoVenta(venta.total, venta.saldo_pendiente, venta.estado),
-                    pendiente: toMoney(venta.saldo_pendiente),
-                    estado: venta.estado
-                })),
+                cuentas_pendientes: ventasPendientes
+                    .map((venta: any) => ({
+                        id: venta.id,
+                        fecha: venta.fecha,
+                        cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,
+                        total: toMoney(venta.total),
+                        cobrado: cobradoVenta(venta.total, venta.saldo_pendiente, venta.estado),
+                        pendiente: toMoney(venta.saldo_pendiente),
+                        estado: venta.estado,
+                        fecha_vencimiento: venta.fecha_vencimiento || null,
+                        vencida: esVentaVencida(venta.fecha_vencimiento, venta.saldo_pendiente, venta.estado)
+                    }))
+                    .sort((a, b) => Number(b.vencida) - Number(a.vencida)),
                 ingresos_recientes: ingresosRecientes,
                 egresos_recientes: egresosRecientes,
                 movimientos_recientes: movimientosHoy.slice(0, 8).map((movimiento: any) => mapMovimiento(movimiento))

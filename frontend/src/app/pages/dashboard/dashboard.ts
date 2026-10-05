@@ -7,7 +7,7 @@ import { TagModule } from 'primeng/tag';
 import { CajaService } from '../caja/caja.service';
 import { DashboardResumen } from '../caja/caja.models';
 import { AvisoService } from '../../shared/services/aviso.service';
-import { etiquetaCategoria, formatBs } from '../caja/caja.utils';
+import { etiquetaCategoria, formatBs, formatFechaCorta } from '../caja/caja.utils';
 import { APP_ROUTES } from '../../core/constants/app-routes';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
@@ -97,7 +97,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                             </div>
                         </ng-template>
                         <ng-template #header>
-                            <tr><th>Venta</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Estado</th></tr>
+                            <tr><th>Venta</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Vence</th><th>Estado</th></tr>
                         </ng-template>
                         <ng-template #body let-item>
                             <tr>
@@ -106,15 +106,19 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                                 <td>{{ formatBs(item.total) }}</td>
                                 <td>{{ formatBs(item.cobrado) }}</td>
                                 <td class="font-medium">{{ formatBs(item.pendiente) }}</td>
-                                <td><p-tag [value]="item.estado" [severity]="item.estado === 'PARCIAL' ? 'info' : 'warn'" /></td>
+                                <td>{{ item.fecha_vencimiento ? formatFechaCorta(item.fecha_vencimiento) : '-' }}</td>
+                                <td>
+                                    <p-tag [value]="item.estado" [severity]="item.estado === 'PARCIAL' ? 'info' : 'warn'" />
+                                    <p-tag *ngIf="item.vencida" value="Vencida" severity="danger" class="ml-1" />
+                                </td>
                             </tr>
                         </ng-template>
                         <ng-template #loadingbody>
-                            <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="6" [fila]="f"></tr>
+                            <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="7" [fila]="f"></tr>
                         </ng-template>
                         <ng-template #emptymessage>
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <app-estado-vacio icono="pi pi-check-circle" titulo="No hay saldos pendientes" mensaje="Las ventas parcialmente cobradas aparecerán aquí." />
                                 </td>
                             </tr>
@@ -132,6 +136,7 @@ export class Dashboard implements OnInit {
     loading = true;
     error: string | null = null;
     formatBs = formatBs;
+    formatFechaCorta = formatFechaCorta;
     controlRoute = APP_ROUTES.ingresosEgresos;
     cobranzasRoute = APP_ROUTES.cobranzas;
     cajaRoute = APP_ROUTES.caja;

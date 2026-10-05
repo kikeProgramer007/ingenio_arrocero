@@ -24,6 +24,10 @@ export const Cliente = sequelize.define('cliente', {
         type: DataTypes.STRING(250),
         allowNull: true
     },
+    procedencia: {
+        type: DataTypes.STRING(40),
+        allowNull: true
+    },
     observacion: {
         type: DataTypes.TEXT,
         allowNull: true

@@ -1,10 +1,13 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
-import { Proveedor } from '../models';
+import { Acopio, Campana, Compra, CompraDetalle, PagoProveedor, Productos, Proveedor, User } from '../models';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { ActualizarProveedorDTO, CrearProveedorDTO } from '../dtos/proveedor.dto';
 import { imagenParaGuardar, resolverImagen } from '../utils/imagen';
+import { roundMoney, toMoney } from '../utils/money';
+import { armarCuentaProveedor, esCompraServicio } from '../utils/cuenta-proveedor';
+import { toQty } from '../utils/inventario';
 
 function mapProveedor(proveedor: any) {
     return {
@@ -55,6 +58,85 @@ export class ProveedorController {
             res.status(200).json(mapProveedor(proveedor));
         } catch (error) {
             handleError(res, error, 'Error al obtener el proveedor');
+        }
+    }
+
+    public static async cuenta(req: Request, res: Response): Promise<void> {
+        try {
+            const id = Number(req.params.id);
+            const proveedor = await Proveedor.findByPk(id);
+            if (!proveedor) {
+                res.status(404).json({ mensaje: `No se encontró el proveedor con ID ${id}` });
+                return;
+            }
+            const usuarioAtributos = ['id', 'username'];
+            const [compras, pagos, acopios] = await Promise.all([
+                Compra.findAll({
+                    where: { id_proveedor: id },
+                    include: [
+                        { model: CompraDetalle, as: 'detalles', include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }] },
+                        { model: User, as: 'usuario', attributes: usuarioAtributos }
+                    ],
+                    order: [['fecha', 'DESC'], ['id', 'DESC']]
+                }),
+                PagoProveedor.findAll({
+                    where: { id_proveedor: id },
+                    include: [
+                        { model: Compra, as: 'compra', attributes: ['id', 'total', 'saldo_pendiente', 'estado'] },
+                        { model: User, as: 'usuario', attributes: usuarioAtributos }
+                    ],
+                    order: [['fecha', 'DESC'], ['id', 'DESC']]
+                }),
+                Acopio.findAll({
+                    where: { id_proveedor: id },
+                    include: [
+                        { model: Campana, as: 'campana', attributes: ['id', 'nombre'] },
+                        { model: Productos, as: 'producto', attributes: ['id', 'nombre'] },
+                        { model: User, as: 'usuario', attributes: usuarioAtributos }
+                    ],
+                    order: [['fecha', 'DESC'], ['id', 'DESC']]
+                })
+            ]);
+            const cuenta = armarCuentaProveedor(compras, pagos, acopios);
+            res.status(200).json({
+                proveedor: mapProveedor(proveedor),
+                resumen: cuenta.resumen,
+                inventario: cuenta.inventario,
+                kardex: cuenta.kardex,
+                compras: compras.map((c: any) => ({
+                    id: c.id,
+                    fecha: c.fecha,
+                    total: toMoney(c.total),
+                    pagado: roundMoney(toMoney(c.total) - toMoney(c.saldo_pendiente)),
+                    saldo_pendiente: toMoney(c.saldo_pendiente),
+                    estado: c.estado,
+                    es_servicio: esCompraServicio(c),
+                    observacion: c.observacion
+                })),
+                pagos: pagos.map((p: any) => ({
+                    id: p.id,
+                    fecha: p.fecha,
+                    id_compra: p.id_compra,
+                    monto: toMoney(p.monto),
+                    metodo_pago: p.metodo_pago,
+                    monto_efectivo: toMoney(p.monto_efectivo),
+                    monto_qr: toMoney(p.monto_qr),
+                    referencia: p.referencia,
+                    observacion: p.observacion
+                })),
+                acopios: acopios.map((a: any) => ({
+                    id: a.id,
+                    fecha: a.fecha,
+                    descripcion: a.descripcion,
+                    cantidad: toQty(a.cantidad),
+                    total: toMoney(a.total),
+                    pago: toMoney(a.pago),
+                    saldo: roundMoney(toMoney(a.total) - toMoney(a.pago)),
+                    campana: a.campana ? { id: a.campana.id, nombre: a.campana.nombre } : null
+                }))
+            });
+        } catch (error) {
+            handleError(res, error, 'Error al obtener la cuenta del productor');
         }
     }
 

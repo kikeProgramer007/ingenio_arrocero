@@ -8,18 +8,19 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 import { AvisoService } from '../../shared/services/aviso.service';
-import { Empresa } from '../../core/constants/empresa';
+import { Empresa, FORMATOS_NOTA } from '../../core/constants/empresa';
 import { EmpresaService } from '../../core/services/empresa.service';
 import { TipoImagen } from '../../core/utils/media-url';
+import { SelectModule } from 'primeng/select';
 
 @Component({
     selector: 'app-empresa',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, FluidModule, InputTextModule, SkeletonModule, AyudaCampoComponent, ImagenCampoComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, FluidModule, InputTextModule, SelectModule, SkeletonModule, AyudaCampoComponent, ImagenCampoComponent],
     template: `
         <div class="mb-6 min-w-0">
             <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Empresa</div>
-            <div class="text-muted-color">Datos que aparecen en el login, el dashboard y los reportes PDF</div>
+            <div class="text-muted-color">Datos que aparecen en el login, el dashboard y las notas. El formato de papel solo afecta la nota de venta y de compra.</div>
         </div>
 
         <div class="card">
@@ -98,6 +99,13 @@ import { TipoImagen } from '../../core/utils/media-url';
                                 <label for="emp-email" class="font-medium">Correo</label>
                                 <input pInputText id="emp-email" [(ngModel)]="form.email" maxlength="120" />
                             </div>
+                            <div class="col-span-12 md:col-span-6 flex flex-col gap-2">
+                                <label for="emp-papel" class="font-medium">
+                                    Formato de la nota
+                                    <app-ayuda-campo texto="Ancho siempre 9½. Largo 11 o 5½, según el formulario continuo del tractor. Los reportes Excel/PDF de listados no cambian." />
+                                </label>
+                                <p-select inputId="emp-papel" [options]="formatosNota" optionLabel="label" optionValue="value" [(ngModel)]="form.formato_nota" fluid />
+                            </div>
                         </div>
                     </p-fluid>
                     <div class="flex justify-end pt-4 mt-2 border-t border-surface">
@@ -112,6 +120,7 @@ export class EmpresaPage implements OnInit {
     private empresaService = inject(EmpresaService);
     private aviso = inject(AvisoService);
     readonly tipoLogo: TipoImagen = 'empresa';
+    readonly formatosNota = FORMATOS_NOTA;
     readonly esqueletoCampos = [1, 2, 3, 4, 5, 6];
     cargando = true;
     guardando = false;
@@ -126,7 +135,8 @@ export class EmpresaPage implements OnInit {
         telefono: '',
         ciudad: '',
         email: '',
-        path_logo: ''
+        path_logo: '',
+        formato_nota: '11'
     };
 
     ngOnInit(): void {

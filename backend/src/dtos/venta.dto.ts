@@ -8,6 +8,8 @@ import {
     IsNumber,
     IsOptional,
     IsString,
+    Matches,
+    Max,
     MaxLength,
     Min,
     ValidateIf,
@@ -46,6 +48,17 @@ export class CrearVentaDTO {
     @IsOptional()
     @IsString()
     observacion?: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt({ message: 'El plazo debe ser un número entero de días' })
+    @Min(1, { message: 'El plazo debe ser de al menos 1 día' })
+    @Max(365, { message: 'El plazo no puede superar 365 días' })
+    plazo_dias?: number;
+
+    @IsOptional()
+    @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha de vencimiento debe ser AAAA-MM-DD' })
+    fecha_vencimiento?: string;
 
     @IsArray({ message: 'Debe enviar al menos una línea' })
     @ArrayMinSize(1, { message: 'Debe agregar al menos una línea' })

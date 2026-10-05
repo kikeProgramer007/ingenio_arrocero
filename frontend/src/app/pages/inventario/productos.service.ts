@@ -10,6 +10,7 @@ export interface ProductoLista {
     precio_compra: number;
     stock: number;
     unidad_medida: string;
+    categoria?: { id: number; nombre: string } | null;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -21,6 +21,8 @@ export interface DatosVoucher {
     nitCi: string;
     codigoContraparte: string;
     direccion: string;
+    procedencia?: string;
+    fechaVencimiento?: string;
     vendedor: string;
     tipoPago: string;
     detalle: string;
@@ -66,19 +68,33 @@ export function dibujarLogotipo(doc: PDFKit.PDFDocument, x: number, y: number, m
     }
 }
 
-/** Formulario continuo 9 1/2" × 11" (Paper King 140103, 3 vías). PDF en puntos (72/pulgada). */
+/** Formulario continuo 9 1/2" de ancho. Alto 11" o 5 1/2" según empresa.formato_nota. */
 const INCH = 72;
-const PAPEL_CONTINUO = {
-    width: 9.5 * INCH,
-    height: 11 * INCH,
-    margin: 0.5 * INCH
-};
+
+function geometriaVoucher() {
+    const compacto = datosEmpresa().formato_nota === '5.5';
+    return {
+        compacto,
+        width: 9.5 * INCH,
+        height: (compacto ? 5.5 : 11) * INCH,
+        margin: (compacto ? 0.28 : 0.5) * INCH,
+        logoH: compacto ? 32 : 54,
+        titleSize: compacto ? 10 : 13,
+        numeroSize: compacto ? 9 : 11,
+        metaSize: compacto ? 7 : 8,
+        headerH: compacto ? 14 : 18,
+        rowMin: compacto ? 12 : 16,
+        firmaGap: compacto ? 16 : 28,
+        firmaLabel: compacto ? 18 : 32
+    };
+}
 
 export function enviarVoucherPdf(res: Response, baseNombre: string, datos: DatosVoucher): void {
+    const papel = geometriaVoucher();
     const doc = new PDFDocument({
-        size: [PAPEL_CONTINUO.width, PAPEL_CONTINUO.height],
+        size: [papel.width, papel.height],
         layout: 'portrait',
-        margin: PAPEL_CONTINUO.margin
+        margin: papel.margin
     });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${baseNombre}.pdf"`);
@@ -90,30 +106,32 @@ export function enviarVoucherPdf(res: Response, baseNombre: string, datos: Datos
 
 function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
     const empresa = datosEmpresa();
+    const g = geometriaVoucher();
     const left = doc.page.margins.left;
     const right = doc.page.width - doc.page.margins.right;
     const width = right - left;
     const top = doc.page.margins.top;
     const infoW = width * 0.48;
     const tituloW = width * 0.34;
+    const gap = g.compacto ? 0 : 1;
 
-    const logoW = dibujarLogotipo(doc, left, top, 54);
+    const logoW = dibujarLogotipo(doc, left, top, g.logoH);
     const headerX = left + logoW;
     const empresaW = Math.max(120, infoW - logoW);
     let y = top;
-    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(9);
+    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(g.compacto ? 8 : 9);
     if (empresa.titular) {
         doc.text(empresa.titular, headerX, y, { width: empresaW });
-        y = doc.y + 1;
-        doc.font('Helvetica').fontSize(8);
+        y = doc.y + gap;
+        doc.font('Helvetica').fontSize(g.metaSize);
         doc.text(empresa.nombre, headerX, y, { width: empresaW });
-        y = doc.y + 1;
+        y = doc.y + gap;
     } else {
-        doc.fontSize(11).text(empresa.nombre, headerX, y, { width: empresaW });
-        y = doc.y + 2;
-        doc.font('Helvetica').fontSize(8);
+        doc.fontSize(g.compacto ? 9 : 11).text(empresa.nombre, headerX, y, { width: empresaW });
+        y = doc.y + (g.compacto ? 1 : 2);
+        doc.font('Helvetica').fontSize(g.metaSize);
     }
-    doc.font('Helvetica').fontSize(8);
+    doc.font('Helvetica').fontSize(g.metaSize);
     if (empresa.direccion) {
         doc.text(empresa.direccion, headerX, y, { width: empresaW });
         y = doc.y;
@@ -132,29 +150,43 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
     }
 
     const tituloX = right - tituloW;
-    doc.font('Helvetica-Bold').fontSize(13).fillColor('#000000');
+    doc.font('Helvetica-Bold').fontSize(g.titleSize).fillColor('#000000');
     doc.text(datos.tipoDocumento, tituloX, top, { width: tituloW, align: 'right' });
-    doc.fontSize(11).text(`Nº ${padNumero(datos.numero)}`, tituloX, top + 18, { width: tituloW, align: 'right' });
-    doc.font('Helvetica').fontSize(8);
-    doc.text('Página: 1', tituloX, top + 34, { width: tituloW, align: 'right' });
-    doc.text(`VENDEDOR: ${datos.vendedor.toUpperCase()}`, tituloX, top + 48, { width: tituloW, align: 'right' });
-    doc.text(empresa.nombre.toUpperCase(), tituloX, top + 60, { width: tituloW, align: 'right' });
-    doc.text(`FECHA: ${fmtFechaCorta(datos.fecha)}`, tituloX, top + 72, { width: tituloW, align: 'right' });
-    doc.text(`TIPO DE PAGO: ${datos.tipoPago}`, tituloX, top + 84, { width: tituloW, align: 'right' });
+    doc.fontSize(g.numeroSize).text(`Nº ${padNumero(datos.numero)}`, tituloX, top + (g.compacto ? 14 : 18), { width: tituloW, align: 'right' });
+    doc.font('Helvetica').fontSize(g.metaSize);
+    const metaStep = g.compacto ? 10 : 12;
+    let metaY = top + (g.compacto ? 26 : 34);
+    doc.text('Página: 1', tituloX, metaY, { width: tituloW, align: 'right' });
+    metaY += metaStep;
+    doc.text(`VENDEDOR: ${datos.vendedor.toUpperCase()}`, tituloX, metaY, { width: tituloW, align: 'right' });
+    metaY += metaStep;
+    doc.text(empresa.nombre.toUpperCase(), tituloX, metaY, { width: tituloW, align: 'right' });
+    metaY += metaStep;
+    doc.text(`FECHA: ${fmtFechaCorta(datos.fecha)}`, tituloX, metaY, { width: tituloW, align: 'right' });
+    metaY += metaStep;
+    doc.text(`TIPO DE PAGO: ${datos.tipoPago}`, tituloX, metaY, { width: tituloW, align: 'right' });
+    if (datos.fechaVencimiento) {
+        metaY += metaStep;
+        doc.text(`VENCIMIENTO: ${datos.fechaVencimiento}`, tituloX, metaY, { width: tituloW, align: 'right' });
+    }
 
-    const bloqueY = Math.max(y, top + 100) + 8;
-    doc.font('Helvetica-Bold').fontSize(9).fillColor('#000000');
+    const bloqueY = Math.max(y, metaY + (g.compacto ? 8 : 12)) + (g.compacto ? 4 : 8);
+    doc.font('Helvetica-Bold').fontSize(g.compacto ? 8 : 9).fillColor('#000000');
     doc.text(`${datos.contraparteLabel}: ${datos.contraparteNombre.toUpperCase()}`, left, bloqueY, { width });
-    doc.font('Helvetica').fontSize(8);
-    doc.text(`NIT/CI: ${datos.nitCi || '0'}`, left, bloqueY + 13);
-    doc.text(`CODIGO: ${datos.codigoContraparte}`, left, bloqueY + 25);
-    doc.text(`DIRECCION: ${datos.direccion || '-'}`, left, bloqueY + 37, { width });
+    doc.font('Helvetica').fontSize(g.metaSize);
+    const lit = g.compacto ? 11 : 13;
+    doc.text(`NIT/CI: ${datos.nitCi || '0'}`, left, bloqueY + lit);
+    doc.text(`CODIGO: ${datos.codigoContraparte}`, left, bloqueY + lit * 2);
+    const lineaDir = datos.procedencia
+        ? `DIRECCION: ${datos.direccion || '-'}    PROCEDENCIA: ${datos.procedencia}`
+        : `DIRECCION: ${datos.direccion || '-'}`;
+    doc.text(lineaDir, left, bloqueY + lit * 3, { width });
 
-    const tableTop = bloqueY + 54;
-    const colPrecio = 72;
-    const colImporte = 78;
-    const colCant = 42;
-    const colCodigo = 64;
+    const tableTop = bloqueY + lit * 3 + (g.compacto ? 10 : 17);
+    const colPrecio = g.compacto ? 64 : 72;
+    const colImporte = g.compacto ? 70 : 78;
+    const colCant = g.compacto ? 36 : 42;
+    const colCodigo = g.compacto ? 56 : 64;
     const cols = [
         { title: 'Código', w: colCodigo, align: 'left' as const },
         { title: 'Cant.', w: colCant, align: 'right' as const },
@@ -162,21 +194,25 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
         { title: 'Precio', w: colPrecio, align: 'right' as const },
         { title: 'Imp. Neto', w: colImporte, align: 'right' as const }
     ];
-    const headerH = 18;
+    const headerH = g.headerH;
     doc.save();
-    doc.rect(left, tableTop, width, headerH).fill(PDF_COLOR.vino);
+    doc.lineWidth(0.8).strokeColor('#000000');
+    doc.rect(left, tableTop, width, headerH).stroke();
     let x = left;
-    doc.fillColor(PDF_COLOR.blanco).font('Helvetica-Bold').fontSize(8);
-    cols.forEach((col) => {
-        doc.text(col.title, x + 4, tableTop + 5, { width: col.w - 8, align: col.align, lineBreak: false });
+    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(g.metaSize);
+    cols.forEach((col, i) => {
+        doc.text(col.title, x + 4, tableTop + (g.compacto ? 3 : 5), { width: col.w - 8, align: col.align, lineBreak: false });
+        if (i < cols.length - 1) {
+            doc.moveTo(x + col.w, tableTop).lineTo(x + col.w, tableTop + headerH).stroke();
+        }
         x += col.w;
     });
     doc.restore();
 
     let rowY = tableTop + headerH;
-    doc.font('Helvetica').fontSize(8).fillColor(PDF_COLOR.texto);
+    doc.font('Helvetica').fontSize(g.metaSize).fillColor('#000000');
     let cantTotal = 0;
-    datos.lineas.forEach((linea, idx) => {
+    datos.lineas.forEach((linea) => {
         cantTotal += Number(linea.cantidad) || 0;
         const celdas = [
             linea.codigo || '',
@@ -186,60 +222,70 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
             numeroTabla(linea.importe)
         ];
         const altos = cols.map((col, i) =>
-            Math.max(10, doc.heightOfString(celdas[i], { width: col.w - 8, align: col.align }))
+            Math.max(9, doc.heightOfString(celdas[i], { width: col.w - 8, align: col.align }))
         );
-        const rowH = Math.max(16, Math.max(...altos) + 6);
-        if (idx % 2 === 0) {
-            doc.rect(left, rowY, width, rowH).fill(PDF_COLOR.zebra);
-        }
+        const rowH = Math.max(g.rowMin, Math.max(...altos) + (g.compacto ? 4 : 6));
         x = left;
-        doc.fillColor(PDF_COLOR.texto).font('Helvetica').fontSize(8);
+        doc.fillColor('#000000').font('Helvetica').fontSize(g.metaSize);
         cols.forEach((col, i) => {
-            doc.text(celdas[i], x + 4, rowY + 3, { width: col.w - 8, align: col.align });
+            doc.text(celdas[i], x + 4, rowY + 2, { width: col.w - 8, align: col.align });
             x += col.w;
         });
-        doc.strokeColor(PDF_COLOR.linea).lineWidth(0.3);
+        doc.strokeColor('#000000').lineWidth(0.4);
         doc.moveTo(left, rowY + rowH).lineTo(right, rowY + rowH).stroke();
         rowY += rowH;
     });
-    doc.strokeColor(PDF_COLOR.vinoOscuro).lineWidth(0.8);
+    doc.strokeColor('#000000').lineWidth(0.8);
     doc.rect(left, tableTop, width, rowY - tableTop).stroke();
+    x = left;
+    cols.forEach((col, i) => {
+        if (i < cols.length - 1) {
+            doc.moveTo(x + col.w, tableTop).lineTo(x + col.w, rowY).stroke();
+        }
+        x += col.w;
+    });
 
-    const totY = Math.max(rowY + 10, tableTop + 80);
-    const colVal = 88;
-    const colLbl = 110;
+    const totY = rowY + (g.compacto ? 4 : 8);
+    const colVal = g.compacto ? 80 : 88;
+    const colLbl = g.compacto ? 96 : 110;
+    const totStep = g.compacto ? 12 : 14;
+    doc.strokeColor('#000000').lineWidth(0.8);
     doc.moveTo(left, totY).lineTo(right, totY).stroke();
-    doc.font('Helvetica-Bold').fontSize(9);
-    doc.text(`SUBTOTALES  ${cantTotal}`, left, totY + 8);
-    doc.text('DESCUENTO FIN.', right - colLbl - colVal, totY + 8, { width: colLbl, align: 'right' });
-    doc.font('Helvetica').text(numeroTabla(0), right - colVal, totY + 8, { width: colVal, align: 'right' });
+    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(g.compacto ? 8 : 9);
+    doc.text(`SUBTOTALES  ${cantTotal}`, left, totY + 6);
+    doc.text('DESCUENTO FIN.', right - colLbl - colVal, totY + 6, { width: colLbl, align: 'right' });
+    doc.font('Helvetica').text(numeroTabla(0), right - colVal, totY + 6, { width: colVal, align: 'right' });
     doc.font('Helvetica-Bold');
-    doc.text('TOTAL Bs', right - colLbl - colVal, totY + 22, { width: colLbl, align: 'right' });
-    doc.text(numeroTabla(datos.total), right - colVal, totY + 22, { width: colVal, align: 'right' });
+    doc.text('TOTAL Bs', right - colLbl - colVal, totY + 6 + totStep, { width: colLbl, align: 'right' });
+    doc.text(numeroTabla(datos.total), right - colVal, totY + 6 + totStep, { width: colVal, align: 'right' });
+    let extraTot = 0;
     if (datos.cobrado != null) {
-        doc.font('Helvetica').fontSize(8);
-        doc.text('COBRADO', right - colLbl - colVal, totY + 36, { width: colLbl, align: 'right' });
-        doc.text(numeroTabla(datos.cobrado), right - colVal, totY + 36, { width: colVal, align: 'right' });
+        extraTot += totStep;
+        doc.font('Helvetica').fontSize(g.metaSize);
+        doc.text('COBRADO', right - colLbl - colVal, totY + 6 + totStep + extraTot, { width: colLbl, align: 'right' });
+        doc.text(numeroTabla(datos.cobrado), right - colVal, totY + 6 + totStep + extraTot, { width: colVal, align: 'right' });
     }
     if (datos.pendiente != null) {
-        doc.font('Helvetica').fontSize(8);
-        doc.text('SALDO', right - colLbl - colVal, totY + 50, { width: colLbl, align: 'right' });
-        doc.text(numeroTabla(datos.pendiente), right - colVal, totY + 50, { width: colVal, align: 'right' });
+        extraTot += totStep;
+        doc.font('Helvetica').fontSize(g.metaSize);
+        doc.text('SALDO', right - colLbl - colVal, totY + 6 + totStep + extraTot, { width: colLbl, align: 'right' });
+        doc.text(numeroTabla(datos.pendiente), right - colVal, totY + 6 + totStep + extraTot, { width: colVal, align: 'right' });
     }
 
-    doc.font('Helvetica').fontSize(8);
-    doc.text(montoALetrasBs(datos.total), left, totY + 24, { width: width - colLbl - colVal - 8 });
+    doc.font('Helvetica').fontSize(g.metaSize);
+    doc.text(montoALetrasBs(datos.total), left, totY + 6 + totStep, { width: width - colLbl - colVal - 8 });
     doc.font('Helvetica-Bold');
-    doc.text(`DETALLE: ${datos.detalle || ''}`, left, totY + 40, { width: width - colLbl - colVal - 8 });
+    doc.text(`DETALLE: ${datos.detalle || ''}`, left, totY + 6 + totStep * 2, { width: width - colLbl - colVal - 8 });
 
-    const firmasY = totY + 78;
+    const ultimoTotales = totY + 6 + totStep + extraTot + (g.compacto ? 8 : 14);
+    const firmasY = ultimoTotales + (g.compacto ? 4 : 10);
     const firmaW = width / 4;
     const etiquetas = ['VENDEDOR(a)', 'Pagado por', 'Recibido Por', 'CLIENTE'];
-    doc.font('Helvetica').fontSize(8);
+    doc.strokeColor('#000000').lineWidth(0.7).font('Helvetica').fontSize(g.metaSize).fillColor('#000000');
     etiquetas.forEach((label, i) => {
         const fx = left + i * firmaW;
-        doc.moveTo(fx + 10, firmasY + 36).lineTo(fx + firmaW - 10, firmasY + 36).stroke();
-        doc.text(label, fx, firmasY + 40, { width: firmaW, align: 'center' });
+        doc.moveTo(fx + 8, firmasY + g.firmaGap).lineTo(fx + firmaW - 8, firmasY + g.firmaGap).stroke();
+        doc.text(label, fx, firmasY + g.firmaLabel, { width: firmaW, align: 'center' });
     });
 }
 

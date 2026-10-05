@@ -42,6 +42,26 @@ export const Compra = sequelize.define('compra', {
         type: DataTypes.TEXT,
         allowNull: true
     },
+    concepto: {
+        type: DataTypes.STRING(40),
+        allowNull: true
+    },
+    boleta: {
+        type: DataTypes.STRING(40),
+        allowNull: true
+    },
+    chofer: {
+        type: DataTypes.STRING(120),
+        allowNull: true
+    },
+    placa: {
+        type: DataTypes.STRING(30),
+        allowNull: true
+    },
+    fanegas: {
+        type: DataTypes.DECIMAL(12, 3),
+        allowNull: true
+    },
     id_usuario: {
         type: DataTypes.INTEGER,
         allowNull: false,

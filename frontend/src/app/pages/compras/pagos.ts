@@ -50,7 +50,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Pagos a proveedores</div>
-                <div class="text-muted-color">El dinero sale de caja al pagar. Una compra pendiente no es un egreso.</div>
+                <div class="text-muted-color">Amortiza una compra o servicio ya registrado. La entrega de chala no registra pago aquí.</div>
             </div>
             <p-button label="Registrar pago" icon="pi pi-plus" (onClick)="abrirNueva()" />
         </div>
