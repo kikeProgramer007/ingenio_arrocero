@@ -33,6 +33,8 @@ export interface Venta {
     plazo_dias?: number | null;
     fecha_vencimiento?: string | null;
     vencida?: boolean;
+    dias_vencimiento?: number | null;
+    situacion?: string;
     cliente: { id: number; nombre: string } | null;
     usuario: { id: number; username: string } | null;
     detalles?: LineaVenta[];

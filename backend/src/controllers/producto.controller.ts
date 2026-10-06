@@ -27,6 +27,35 @@ function mapProducto(item: any) {
     };
 }
 
+/** Entradas y salidas acumuladas por producto. El tipo del movimiento define el signo. */
+async function totalesPorProducto(ids: number[]): Promise<Map<number, { entradas: number; salidas: number }>> {
+    const totales = new Map<number, { entradas: number; salidas: number }>();
+    if (!ids.length) {
+        return totales;
+    }
+    const filas = await MovimientoInventario.findAll({
+        attributes: [
+            'id_producto',
+            'tipo',
+            [sequelize.fn('SUM', sequelize.col('cantidad')), 'total']
+        ],
+        where: { id_producto: { [Op.in]: ids } },
+        group: ['id_producto', 'tipo'],
+        raw: true
+    });
+    for (const fila of filas as any[]) {
+        const id = Number(fila.id_producto);
+        const acum = totales.get(id) || { entradas: 0, salidas: 0 };
+        if (fila.tipo === TIPO_INVENTARIO.SALIDA) {
+            acum.salidas = toQty(acum.salidas + toQty(fila.total));
+        } else if (fila.tipo === TIPO_INVENTARIO.ENTRADA) {
+            acum.entradas = toQty(acum.entradas + toQty(fila.total));
+        }
+        totales.set(id, acum);
+    }
+    return totales;
+}
+
 export class ProductoController {
     public static async categorias(_req: Request, res: Response): Promise<void> {
         try {
@@ -43,12 +72,21 @@ export class ProductoController {
             if (typeof req.query.q === 'string' && req.query.q.trim()) {
                 where.nombre = { [Op.like]: `%${req.query.q.trim()}%` };
             }
+            if (typeof req.query.id_categoria === 'string' && req.query.id_categoria) {
+                where.id_categoria = Number(req.query.id_categoria);
+            }
             const productos = await Productos.findAll({
                 where,
                 include: [{ model: CategoriaProducto, as: 'categoria' }],
                 order: [['nombre', 'ASC']]
             });
-            res.status(200).json(productos.map(mapProducto));
+            const lista = productos.map(mapProducto);
+            if (req.query.totales === '1') {
+                const totales = await totalesPorProducto(lista.map((p) => p.id));
+                res.status(200).json(lista.map((p) => ({ ...p, ...(totales.get(p.id) || { entradas: 0, salidas: 0 }) })));
+                return;
+            }
+            res.status(200).json(lista);
         } catch (error) {
             handleError(res, error, 'Error al listar productos');
         }
@@ -132,7 +170,7 @@ export class ProductoController {
                 transaction,
                 idProducto: Number(req.params.id),
                 delta: cantidad,
-                tipo: TIPO_INVENTARIO.AJUSTE,
+                tipo: cantidad > 0 ? TIPO_INVENTARIO.ENTRADA : TIPO_INVENTARIO.SALIDA,
                 origen: 'AJUSTE',
                 origenId: Number(req.params.id),
                 idUsuario: usuario.id,

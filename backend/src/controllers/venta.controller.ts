@@ -2,14 +2,15 @@ import { Request, Response } from 'express';
 import { Cliente, Cobranza, Productos, sequelize, User, Venta, VentaDetalle } from '../models';
 import { Op } from 'sequelize';
 import { handleError } from '../utils/error.handler';
-import { parseFechaLocal, agregarDias, diasEntre, inicioDia, ymdLocal } from '../utils/fecha';
+import { parseFechaLocal, ymdLocal } from '../utils/fecha';
+import { resolverPlazoCredito } from '../utils/credito';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
 import { obtenerCajaAbierta, registrarEgresoCaja, registrarIngresosPartidos } from '../utils/caja-ingreso';
 import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
 import { CATEGORIA_EGRESO, CATEGORIA_INGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
-import { cobradoVenta, ESTADO_VENTA, estadoVentaPorSaldo, esVentaVencida } from '../constants/venta.constants';
+import { cobradoVenta, diasParaVencer, ESTADO_VENTA, estadoVentaPorSaldo, esVentaVencida, situacionCobranza } from '../constants/venta.constants';
 import { CrearCobranzaDTO, CrearVentaDTO } from '../dtos/venta.dto';
 import { camposPagoDocumento, conceptoPorCanal, partesDesdeDocumento } from '../utils/metodo-pago';
 
@@ -24,36 +25,6 @@ function mapLinea(detalle: any) {
         precio_unitario: toMoney(detalle.precio_unitario),
         subtotal: toMoney(detalle.subtotal)
     };
-}
-
-function resolverPlazoCredito(
-    saldoPendiente: number,
-    plazoDias?: number,
-    fechaVencimiento?: string
-): { ok: true; plazo_dias: number | null; fecha_vencimiento: string | null } | { ok: false; mensaje: string } {
-    if (saldoPendiente <= 0) {
-        return { ok: true, plazo_dias: null, fecha_vencimiento: null };
-    }
-    const hoy = inicioDia();
-    if (fechaVencimiento) {
-        const venc = parseFechaLocal(fechaVencimiento);
-        if (Number.isNaN(venc.getTime())) {
-            return { ok: false, mensaje: 'La fecha de vencimiento no es válida' };
-        }
-        if (inicioDia(venc).getTime() < hoy.getTime()) {
-            return { ok: false, mensaje: 'La fecha de vencimiento no puede ser anterior a hoy' };
-        }
-        return {
-            ok: true,
-            plazo_dias: Math.max(1, diasEntre(hoy, venc)),
-            fecha_vencimiento: ymdLocal(venc)
-        };
-    }
-    if (plazoDias) {
-        const venc = agregarDias(hoy, plazoDias);
-        return { ok: true, plazo_dias: plazoDias, fecha_vencimiento: ymdLocal(venc) };
-    }
-    return { ok: true, plazo_dias: null, fecha_vencimiento: null };
 }
 
 function mapVenta(venta: any) {
@@ -71,6 +42,8 @@ function mapVenta(venta: any) {
         plazo_dias: venta.plazo_dias != null ? Number(venta.plazo_dias) : null,
         fecha_vencimiento: venta.fecha_vencimiento || null,
         vencida: esVentaVencida(venta.fecha_vencimiento, saldo, venta.estado),
+        dias_vencimiento: diasParaVencer(venta.fecha_vencimiento),
+        situacion: situacionCobranza(venta.fecha_vencimiento, saldo, venta.estado),
         cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,
         usuario: venta.usuario ? { id: venta.usuario.id, username: venta.usuario.username } : null,
         detalles: (venta.detalles || []).map(mapLinea),

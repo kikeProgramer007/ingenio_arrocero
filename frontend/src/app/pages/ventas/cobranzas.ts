@@ -8,7 +8,7 @@ import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
+import { etiquetaPago, formatBs, formatFecha, formatFechaCorta, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Cobranza, Venta } from './ventas.models';
 import { VentasService } from './ventas.service';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
@@ -59,6 +59,75 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         </div>
 
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" />
+
+        <div class="card">
+            <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+                <div class="min-w-0">
+                    <div class="font-semibold text-lg">Por cobrar</div>
+                    <div class="text-muted-color text-sm">Quién debe, cuánto y cuándo vence. "Por vencer" = faltan {{ diasAviso }} días o menos.</div>
+                </div>
+                <div class="w-full sm:w-[14rem] min-w-0">
+                    <label class="block font-bold mb-1 text-sm">Ver</label>
+                    <p-select [options]="filtrosSituacion" optionLabel="label" optionValue="value" [(ngModel)]="filtroSituacion" fluid />
+                </div>
+            </div>
+            <p-table
+                #dtPendientes
+                [value]="porCobrar"
+                [paginator]="porCobrar.length > 8"
+                [rows]="8"
+                [rowsPerPageOptions]="filasTabla"
+                [globalFilterFields]="['id', 'cliente.nombre', 'situacion']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold">Saldo total: {{ formatBs(saldoFiltrado) }}</span>
+                        <app-tabla-busqueda placeholder="Buscar cliente" (buscar)="filtrarTabla(dtPendientes, $event)" />
+                    </div>
+                </ng-template>
+                <ng-template #header>
+                    <tr>
+                        <th>Venta</th>
+                        <th>Cliente</th>
+                        <th>Fecha</th>
+                        <th>Total</th>
+                        <th>Cobrado</th>
+                        <th>Saldo</th>
+                        <th>Vence</th>
+                        <th>Días</th>
+                        <th>Situación</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </ng-template>
+                <ng-template #body let-v>
+                    <tr>
+                        <td>#{{ v.id }}</td>
+                        <td>{{ v.cliente?.nombre || '-' }}</td>
+                        <td>{{ formatFecha(v.fecha) }}</td>
+                        <td>{{ formatBs(v.total) }}</td>
+                        <td>{{ formatBs(v.pagado) }}</td>
+                        <td class="font-medium">{{ formatBs(v.saldo_pendiente) }}</td>
+                        <td>{{ v.fecha_vencimiento ? formatFechaCorta(v.fecha_vencimiento) : '-' }}</td>
+                        <td>{{ textoDias(v) }}</td>
+                        <td><p-tag [value]="etiquetaSituacion(v.situacion)" [severity]="severidadSituacion(v.situacion)" /></td>
+                        <td><p-tag [value]="v.estado" [severity]="v.estado === 'PARCIAL' ? 'warn' : 'info'" /></td>
+                        <td>
+                            <p-button label="Cobrar" size="small" [outlined]="true" (onClick)="abrirCobro(v)" />
+                        </td>
+                    </tr>
+                </ng-template>
+                <ng-template #emptymessage>
+                    <tr>
+                        <td colspan="11">
+                            <div class="text-center py-6 text-muted-color">No hay ventas con saldo en este filtro.</div>
+                        </td>
+                    </tr>
+                </ng-template>
+            </p-table>
+        </div>
 
         <div class="card">
             <div class="flex flex-wrap items-end gap-2 mb-4">
@@ -167,6 +236,16 @@ export class CobranzasPage implements OnInit {
     filtrarTabla = filtrarTabla;
     cobranzas: Cobranza[] = [];
     pendientes: Venta[] = [];
+    diasAviso = 7;
+    filtroSituacion = '';
+    filtrosSituacion = [
+        { label: 'Todas con saldo', value: '' },
+        { label: 'Vencidas', value: 'VENCIDA' },
+        { label: 'Vencen hoy', value: 'VENCE HOY' },
+        { label: 'Próximo a vencer', value: 'POR VENCER' },
+        { label: 'Al día', value: 'AL DIA' },
+        { label: 'Sin plazo', value: 'SIN PLAZO' }
+    ];
     cargando = false;
     guardando = false;
     dialog = false;
@@ -181,7 +260,52 @@ export class CobranzasPage implements OnInit {
     pendientePorCobrar = 0;
     formatBs = formatBs;
     formatFecha = formatFecha;
+    formatFechaCorta = formatFechaCorta;
     etiquetaPago = etiquetaPago;
+
+    get porCobrar(): Venta[] {
+        const ordenSituacion: Record<string, number> = { 'VENCIDA': 0, 'VENCE HOY': 1, 'POR VENCER': 2, 'AL DIA': 3, 'SIN PLAZO': 4 };
+        return this.pendientes
+            .filter((v) => !this.filtroSituacion || v.situacion === this.filtroSituacion)
+            .sort((a, b) => (ordenSituacion[a.situacion || ''] ?? 9) - (ordenSituacion[b.situacion || ''] ?? 9));
+    }
+
+    get saldoFiltrado(): number {
+        return this.porCobrar.reduce((acc, v) => acc + Number(v.saldo_pendiente || 0), 0);
+    }
+
+    etiquetaSituacion(situacion?: string): string {
+        if (situacion === 'VENCIDA') return 'Vencido';
+        if (situacion === 'VENCE HOY') return 'Vence hoy';
+        if (situacion === 'POR VENCER') return 'Próximo a vencer';
+        if (situacion === 'AL DIA') return 'Al día';
+        if (situacion === 'PAGADA') return 'Pagado';
+        if (situacion === 'SIN PLAZO') return 'Sin plazo';
+        return situacion || '-';
+    }
+
+    textoDias(venta: Venta): string {
+        const dias = venta.dias_vencimiento;
+        if (dias === null || dias === undefined) {
+            return '-';
+        }
+        if (dias < 0) {
+            return `${Math.abs(dias)} vencidos`;
+        }
+        if (dias === 0) {
+            return 'hoy';
+        }
+        return `faltan ${dias}`;
+    }
+
+    severidadSituacion(situacion?: string): 'danger' | 'warn' | 'success' | 'info' | 'secondary' {
+        if (situacion === 'VENCIDA') return 'danger';
+        if (situacion === 'VENCE HOY') return 'warn';
+        if (situacion === 'POR VENCER') return 'warn';
+        if (situacion === 'AL DIA') return 'success';
+        if (situacion === 'PAGADA') return 'success';
+        return 'secondary';
+    }
 
     get kpis(): KpiItem[] {
         return [
@@ -211,9 +335,8 @@ export class CobranzasPage implements OnInit {
         });
         this.ventasService.listar().subscribe({
             next: (ventas) => {
-                this.pendientePorCobrar = ventas
-                    .filter((v) => v.estado === 'PENDIENTE' || v.estado === 'PARCIAL')
-                    .reduce((acc, v) => acc + Number(v.saldo_pendiente || 0), 0);
+                this.pendientes = ventas.filter((v) => v.estado === 'PENDIENTE' || v.estado === 'PARCIAL');
+                this.pendientePorCobrar = this.pendientes.reduce((acc, v) => acc + Number(v.saldo_pendiente || 0), 0);
             }
         });
     }
@@ -235,18 +358,25 @@ export class CobranzasPage implements OnInit {
         this.ventasService.listar().subscribe({
             next: (ventas) => {
                 this.pendientes = ventas.filter((v) => v.estado === 'PENDIENTE' || v.estado === 'PARCIAL');
-                this.idVenta = this.pendientes[0]?.id ?? null;
-                const sel = this.pendientes[0];
-                this.monto = sel ? sel.saldo_pendiente : 0;
-                this.metodoPago = 'EFECTIVO';
-                this.montoEfectivo = 0;
-                this.montoQr = 0;
-                this.referencia = '';
-                this.observacion = '';
-                this.dialog = true;
+                this.prepararCobro(this.pendientes[0]);
             },
             error: (err) => this.aviso.error(err, 'No se pudieron cargar ventas pendientes')
         });
+    }
+
+    abrirCobro(venta: Venta): void {
+        this.prepararCobro(venta);
+    }
+
+    private prepararCobro(venta?: Venta): void {
+        this.idVenta = venta?.id ?? null;
+        this.monto = venta ? venta.saldo_pendiente : 0;
+        this.metodoPago = 'EFECTIVO';
+        this.montoEfectivo = 0;
+        this.montoQr = 0;
+        this.referencia = '';
+        this.observacion = '';
+        this.dialog = true;
     }
 
     guardar(): void {

@@ -15,10 +15,48 @@ export async function asegurarEsquemaGastos(): Promise<void> {
         );
     }
 
+    const faltantes: { nombre: string; ddl: string }[] = [
+        { nombre: 'persona', ddl: 'ADD COLUMN persona VARCHAR(120) NULL' },
+        { nombre: 'condicion', ddl: "ADD COLUMN condicion VARCHAR(10) NOT NULL DEFAULT 'CONTADO'" },
+        { nombre: 'saldo_pendiente', ddl: 'ADD COLUMN saldo_pendiente DECIMAL(12,2) NOT NULL DEFAULT 0' },
+        { nombre: 'estado', ddl: "ADD COLUMN estado VARCHAR(20) NOT NULL DEFAULT 'PAGADO'" },
+        { nombre: 'plazo_dias', ddl: 'ADD COLUMN plazo_dias INT NULL' },
+        { nombre: 'fecha_vencimiento', ddl: 'ADD COLUMN fecha_vencimiento DATE NULL' }
+    ];
+    for (const col of faltantes) {
+        if (!porNombre.has(col.nombre)) {
+            await sequelize.query(`ALTER TABLE gastos ${col.ddl}`);
+        }
+    }
+
     const idCaja = porNombre.get('id_caja');
     if (idCaja && String(idCaja.Null).toUpperCase() === 'NO') {
         await sequelize.query('ALTER TABLE gastos MODIFY COLUMN id_caja INT NULL');
     }
+}
+
+/** Amortizaciones de gastos a crédito. Se crea aquí porque el sync de TiDB puede abortar. */
+export async function asegurarEsquemaPagosGasto(): Promise<void> {
+    await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS pagos_gasto (
+            id INT NOT NULL AUTO_INCREMENT,
+            id_gasto INT NOT NULL,
+            id_caja INT NOT NULL,
+            monto DECIMAL(12,2) NOT NULL,
+            metodo_pago VARCHAR(30) NOT NULL,
+            monto_efectivo DECIMAL(12,2) NULL,
+            monto_qr DECIMAL(12,2) NULL,
+            referencia VARCHAR(100) NULL,
+            observacion TEXT NULL,
+            fecha DATETIME NOT NULL,
+            id_usuario INT NOT NULL,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL,
+            PRIMARY KEY (id),
+            KEY pagos_gasto_id_gasto (id_gasto),
+            KEY pagos_gasto_fecha (fecha)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 }
 
 const TABLAS_PAGO_MIXTO: { tabla: string; columnaMonto: string }[] = [

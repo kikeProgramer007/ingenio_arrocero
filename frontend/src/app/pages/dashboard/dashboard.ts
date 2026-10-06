@@ -97,7 +97,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                             </div>
                         </ng-template>
                         <ng-template #header>
-                            <tr><th>Venta</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Vence</th><th>Estado</th></tr>
+                            <tr><th>Venta</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Vence</th><th>Días</th><th>Situación</th><th>Estado</th></tr>
                         </ng-template>
                         <ng-template #body let-item>
                             <tr>
@@ -107,18 +107,17 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                                 <td>{{ formatBs(item.cobrado) }}</td>
                                 <td class="font-medium">{{ formatBs(item.pendiente) }}</td>
                                 <td>{{ item.fecha_vencimiento ? formatFechaCorta(item.fecha_vencimiento) : '-' }}</td>
-                                <td>
-                                    <p-tag [value]="item.estado" [severity]="item.estado === 'PARCIAL' ? 'info' : 'warn'" />
-                                    <p-tag *ngIf="item.vencida" value="Vencida" severity="danger" class="ml-1" />
-                                </td>
+                                <td>{{ textoDias(item) }}</td>
+                                <td><p-tag [value]="etiquetaSituacion(item.situacion)" [severity]="severidadSituacion(item.situacion)" /></td>
+                                <td><p-tag [value]="item.estado" [severity]="item.estado === 'PARCIAL' ? 'info' : 'warn'" /></td>
                             </tr>
                         </ng-template>
                         <ng-template #loadingbody>
-                            <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="7" [fila]="f"></tr>
+                            <tr *ngFor="let f of [0,1,2,3,4,5,6,7,8]" app-tabla-esqueleto [columnas]="9" [fila]="f"></tr>
                         </ng-template>
                         <ng-template #emptymessage>
                             <tr>
-                                <td colspan="7">
+                                <td colspan="9">
                                     <app-estado-vacio icono="pi pi-check-circle" titulo="No hay saldos pendientes" mensaje="Las ventas parcialmente cobradas aparecerán aquí." />
                                 </td>
                             </tr>
@@ -141,6 +140,34 @@ export class Dashboard implements OnInit {
     cobranzasRoute = APP_ROUTES.cobranzas;
     cajaRoute = APP_ROUTES.caja;
     empresa = inject(EmpresaService);
+
+    etiquetaSituacion(situacion?: string): string {
+        if (situacion === 'VENCIDA') return 'Vencido';
+        if (situacion === 'VENCE HOY') return 'Vence hoy';
+        if (situacion === 'POR VENCER') return 'Próximo a vencer';
+        if (situacion === 'AL DIA') return 'Al día';
+        if (situacion === 'PAGADA') return 'Pagado';
+        if (situacion === 'SIN PLAZO') return 'Sin plazo';
+        return situacion || '-';
+    }
+
+    textoDias(item: { dias_vencimiento?: number | null }): string {
+        const dias = item.dias_vencimiento;
+        if (dias === null || dias === undefined) {
+            return '-';
+        }
+        if (dias < 0) {
+            return `${Math.abs(dias)} vencidos`;
+        }
+        return dias === 0 ? 'hoy' : `faltan ${dias}`;
+    }
+
+    severidadSituacion(situacion?: string): 'danger' | 'warn' | 'success' | 'secondary' {
+        if (situacion === 'VENCIDA') return 'danger';
+        if (situacion === 'VENCE HOY' || situacion === 'POR VENCER') return 'warn';
+        if (situacion === 'AL DIA' || situacion === 'PAGADA') return 'success';
+        return 'secondary';
+    }
 
     constructor(private cajaService: CajaService, private aviso: AvisoService) {}
 

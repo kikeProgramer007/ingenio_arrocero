@@ -1,6 +1,7 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../db/connection';
 import { CATEGORIA_EGRESO } from '../constants/caja.constants';
+import { CONDICION_GASTO, ESTADO_GASTO } from '../constants/gasto.constants';
 
 export const TIPO_GASTO = {
     GASTO_EMPRESA: CATEGORIA_EGRESO.GASTO_EMPRESA,
@@ -28,9 +29,36 @@ export const Gasto = sequelize.define('gasto', {
         type: DataTypes.STRING(40),
         allowNull: true
     },
+    persona: {
+        type: DataTypes.STRING(120),
+        allowNull: true
+    },
     monto: {
         type: DataTypes.DECIMAL(12, 2),
         allowNull: false
+    },
+    condicion: {
+        type: DataTypes.STRING(10),
+        allowNull: false,
+        defaultValue: CONDICION_GASTO.CONTADO
+    },
+    saldo_pendiente: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: false,
+        defaultValue: 0
+    },
+    estado: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: ESTADO_GASTO.PAGADO
+    },
+    plazo_dias: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
+    fecha_vencimiento: {
+        type: DataTypes.DATEONLY,
+        allowNull: true
     },
     metodo_pago: {
         type: DataTypes.STRING(30),

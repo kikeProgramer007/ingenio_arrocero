@@ -15,6 +15,7 @@ export const APP_RUTAS = {
     RETIROS: '/retiros',
     INGRESOS_EGRESOS: '/ingresos-egresos',
     INVENTARIO: '/inventario',
+    EMPAQUES: '/empaques',
     CAMPANAS: '/campanas',
     PRODUCCION: '/produccion',
     REPORTES: '/reportes',
@@ -112,6 +113,13 @@ export const PROGRAMAS_SEED = [
         class_icon: 'pi pi-th-large',
         es_expandible: false,
         nro_posicion: 60
+    },
+    {
+        nombre_programa: 'Bolsas y empaques',
+        url: APP_RUTAS.EMPAQUES,
+        class_icon: 'pi pi-inbox',
+        es_expandible: false,
+        nro_posicion: 61
     },
     {
         nombre_programa: 'Campañas de acopio',

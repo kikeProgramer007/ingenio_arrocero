@@ -126,6 +126,8 @@ export interface DashboardResumen {
         estado: string;
         fecha_vencimiento?: string | null;
         vencida?: boolean;
+        dias_vencimiento?: number | null;
+        situacion?: string;
     }>;
     ingresos_recientes: MovimientoResumen[];
     egresos_recientes: MovimientoResumen[];

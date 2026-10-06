@@ -19,7 +19,7 @@ import { seedProgramasCaja } from '../seed/programas-caja.seed';
 import { seedInventarioBase } from '../seed/inventario.seed';
 import { sequelize } from '../models';
 import { assertBaseDeUsuario, shouldAlterSchema } from '../utils/db-sync';
-import { asegurarEsquemaClientes, asegurarEsquemaCompras, asegurarEsquemaEmpresa, asegurarEsquemaGastos, asegurarEsquemaPagoMixto, asegurarEsquemaVentas } from '../utils/ensure-schema';
+import { asegurarEsquemaClientes, asegurarEsquemaCompras, asegurarEsquemaEmpresa, asegurarEsquemaGastos, asegurarEsquemaPagoMixto, asegurarEsquemaPagosGasto, asegurarEsquemaVentas } from '../utils/ensure-schema';
 import { asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
 import { asegurarEmpresa } from '../utils/empresa';
 
@@ -80,6 +80,7 @@ class Server {
                 console.error('Sequelize sync incompleto (TiDB puede rechazar ALTER de UNIQUE):', syncError);
             }
             await asegurarEsquemaGastos();
+            await asegurarEsquemaPagosGasto();
             await asegurarEsquemaPagoMixto();
             await asegurarEsquemaEmpresa();
             await asegurarEsquemaClientes();

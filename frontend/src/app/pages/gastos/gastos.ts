@@ -7,13 +7,14 @@ import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { ChartModule } from 'primeng/chart';
 import { CheckboxModule } from 'primeng/checkbox';
+import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
+import { etiquetaPago, formatBs, formatFecha, formatFechaCorta, esErrorCajaCerrada } from '../caja/caja.utils';
 import { apiUrl } from '../../core/utils/api-url';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
@@ -32,7 +33,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
 @Component({
     selector: 'app-gastos',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -54,6 +55,62 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                     <app-botones-exportar tipo="egresos" [tipoGasto]="filtroTipo || undefined" />
                 </div>
             </div>
+        </div>
+        <div class="card mb-4" *ngIf="porPagar.length">
+            <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+                <div class="min-w-0">
+                    <div class="font-semibold text-lg">Cuentas por pagar</div>
+                    <div class="text-muted-color text-sm">Lo que debemos por gastos y servicios registrados a crédito. Cada pago que registres sí sale de caja.</div>
+                </div>
+                <span class="font-semibold">Total pendiente: {{ formatBs(totalPorPagar) }}</span>
+            </div>
+            <p-table
+                #dtPorPagar
+                [value]="porPagar"
+                [paginator]="porPagar.length > 8"
+                [rows]="8"
+                [rowsPerPageOptions]="filasTabla"
+                [globalFilterFields]="['concepto', 'persona', 'categoria']"
+                [rowHover]="true"
+                responsiveLayout="scroll"
+            >
+                <ng-template #caption>
+                    <div class="flex justify-end">
+                        <app-tabla-busqueda placeholder="Buscar persona o concepto" (buscar)="filtrarTabla(dtPorPagar, $event)" />
+                    </div>
+                </ng-template>
+                <ng-template #header>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>A quién debemos</th>
+                        <th>Concepto</th>
+                        <th>Importe</th>
+                        <th>Pagado</th>
+                        <th>Pendiente</th>
+                        <th>Vence</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </ng-template>
+                <ng-template #body let-item>
+                    <tr>
+                        <td>{{ formatFecha(item.fecha) }}</td>
+                        <td>{{ item.persona || '-' }}</td>
+                        <td>{{ item.concepto }}</td>
+                        <td>{{ formatBs(item.monto) }}</td>
+                        <td>{{ formatBs(item.pagado) }}</td>
+                        <td class="font-medium">{{ formatBs(item.saldo_pendiente) }}</td>
+                        <td>{{ item.fecha_vencimiento ? formatFechaCorta(item.fecha_vencimiento) : '-' }}</td>
+                        <td>
+                            <p-tag [value]="item.vencido ? 'VENCIDO' : item.estado" [severity]="item.vencido ? 'danger' : item.estado === 'PARCIAL' ? 'warn' : 'info'" />
+                        </td>
+                        <td><p-button label="Pagar" size="small" [outlined]="true" (onClick)="abrirPago(item)" /></td>
+                    </tr>
+                </ng-template>
+                <ng-template #emptymessage>
+                    <tr><td colspan="9"><div class="text-center py-6 text-muted-color">No hay cuentas por pagar.</div></td></tr>
+                </ng-template>
+            </p-table>
         </div>
         <div class="grid grid-cols-12 gap-4 mb-4 min-w-0" *ngIf="listandoEmpresa">
             <div class="col-span-12 xl:col-span-5 min-w-0">
@@ -86,23 +143,26 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                             </div>
                         </ng-template>
                         <ng-template #header>
-                            <tr><th>Fecha</th><th>Categoría</th><th>Concepto</th><th>Monto</th><th>Método</th><th>Usuario</th></tr>
+                            <tr><th>Fecha</th><th>Categoría</th><th>Concepto</th><th>Persona</th><th>Monto</th><th>Pendiente</th><th>Estado</th></tr>
                         </ng-template>
                         <ng-template #body let-item>
                             <tr>
                                 <td>{{ formatFecha(item.fecha) }}</td>
                                 <td>{{ item.categoria || 'Otros' }}</td>
                                 <td>{{ item.concepto }}</td>
+                                <td>{{ item.persona || '-' }}</td>
                                 <td>{{ formatBs(item.monto) }}</td>
-                                <td>{{ etiquetaPago(item) }}</td>
-                                <td>{{ item.usuario?.username || '-' }}</td>
+                                <td>{{ item.saldo_pendiente ? formatBs(item.saldo_pendiente) : '-' }}</td>
+                                <td>
+                                    <p-tag [value]="etiquetaEstado(item)" [severity]="severidadEstado(item)" />
+                                </td>
                             </tr>
                         </ng-template>
                         <ng-template #loadingbody>
-                            <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="6" [fila]="f"></tr>
+                            <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="7" [fila]="f"></tr>
                         </ng-template>
                         <ng-template #emptymessage>
-                            <tr><td colspan="6"><app-estado-vacio [icono]="iconoVacio" [titulo]="tituloVacio" [mensaje]="mensajeVacio" /></td></tr>
+                            <tr><td colspan="7"><app-estado-vacio [icono]="iconoVacio" [titulo]="tituloVacio" [mensaje]="mensajeVacio" /></td></tr>
                         </ng-template>
                     </p-table>
                 </div>
@@ -134,9 +194,11 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                         <th>Fecha</th>
                         <th *ngIf="filtroTipo === ''">Tipo</th>
                         <th>Concepto</th>
+                        <th>Persona</th>
                         <th>Monto</th>
+                        <th>Pendiente</th>
                         <th>Caja</th>
-                        <th>Método</th>
+                        <th>Estado</th>
                         <th>Usuario</th>
                     </tr>
                 </ng-template>
@@ -145,36 +207,56 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                         <td>{{ formatFecha(item.fecha) }}</td>
                         <td *ngIf="filtroTipo === ''">{{ etiquetaTipo(item.tipo) }}</td>
                         <td>{{ item.concepto }}</td>
+                        <td>{{ item.persona || '-' }}</td>
                         <td>{{ formatBs(item.monto) }}</td>
+                        <td>{{ item.saldo_pendiente ? formatBs(item.saldo_pendiente) : '-' }}</td>
                         <td><p-tag [value]="item.descontar_caja ? 'Descontado' : 'Sin descontar'" [severity]="item.descontar_caja ? 'danger' : 'secondary'" /></td>
-                        <td>{{ etiquetaPago(item) }}</td>
+                        <td><p-tag [value]="etiquetaEstado(item)" [severity]="severidadEstado(item)" /></td>
                         <td>{{ item.usuario?.username || '-' }}</td>
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
-                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="filtroTipo === '' ? 7 : 6" [fila]="f"></tr>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="columnasLista" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
-                    <tr><td [attr.colspan]="filtroTipo === '' ? 7 : 6"><app-estado-vacio [icono]="iconoVacio" [titulo]="tituloVacio" [mensaje]="mensajeVacio" /></td></tr>
+                    <tr><td [attr.colspan]="columnasLista"><app-estado-vacio [icono]="iconoVacio" [titulo]="tituloVacio" [mensaje]="mensajeVacio" /></td></tr>
                 </ng-template>
             </p-table>
         </div>
         <p-dialog [header]="titulo" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
-                <p class="text-muted-color text-sm" *ngIf="esEmpresa">Este gasto sale de caja al guardar. Si te fiaron el servicio (taller, flete), ve a Compras: línea sin producto y pago inicial 0. Queda como SERVICIO en la cuenta del productor.</p>
+                <p class="text-muted-color text-sm" *ngIf="esEmpresa">Al contado sale de caja al guardar. A crédito solo queda como cuenta por pagar y la caja no se mueve hasta que registres el pago. Los servicios de un productor (flete, trilla) van en Compras para que carguen a su cuenta.</p>
                 <div *ngIf="esEmpresa">
                     <label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Clasifica el gasto (combustible, energía, etc.) para el reporte." posicion="right" /></label>
                     <p-select [options]="categorias" [(ngModel)]="categoria" placeholder="Categoría" fluid />
                 </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Concepto <app-ayuda-campo texto="Ej.: Combustible camión, almuerzo cuadrilla, luz planta." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="concepto" /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Sale de caja al registrar. Debe haber caja abierta. Un servicio a crédito no va aquí: va a Compras." posicion="right" /></label><app-input-numero [(ngModel)]="monto" /></div>
+                <div *ngIf="esEmpresa">
+                    <label class="flex items-center gap-1 font-bold mb-2">Persona o proveedor <app-ayuda-campo texto="A quién le pagamos: taller, mecánico, electricista. Opcional." posicion="right" /></label>
+                    <input pInputText class="w-full" [(ngModel)]="persona" />
+                </div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Importe total del gasto, aunque lo paguemos después." posicion="right" /></label><app-input-numero [(ngModel)]="monto" /></div>
+                <div *ngIf="esEmpresa">
+                    <label class="flex items-center gap-1 font-bold mb-2">¿Cómo se paga? <app-ayuda-campo texto="Contado: sale de caja ahora. Crédito: queda por pagar y no mueve caja." posicion="right" /></label>
+                    <p-select [options]="condiciones" optionLabel="label" optionValue="value" [(ngModel)]="condicion" fluid />
+                </div>
+                <div *ngIf="aCredito">
+                    <label class="flex items-center gap-1 font-bold mb-2">Plazo de pago <app-ayuda-campo texto="Hasta cuándo tenemos para pagar. Opcional." posicion="right" /></label>
+                    <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid />
+                    <small class="block text-muted-color mt-1" *ngIf="plazoDias > 0">Vence el {{ vencimientoEstimado }}</small>
+                </div>
+                <div *ngIf="aCredito && plazoDias === -1">
+                    <label class="flex items-center gap-1 font-bold mb-2">Fecha de vencimiento <app-ayuda-campo texto="Día en que debemos cancelar el saldo." posicion="right" /></label>
+                    <p-datepicker [(ngModel)]="fechaVencimiento" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [minDate]="hoy" [readonlyInput]="true" fluid />
+                </div>
+                <small class="text-muted-color" *ngIf="aCredito">No sale dinero de caja ahora. Queda en Cuentas por pagar por {{ formatBs(monto) }}.</small>
                 <div class="flex items-center gap-2" *ngIf="esRetiro">
                     <p-checkbox [(ngModel)]="descontarCaja" [binary]="true" inputId="descontarCaja" />
                     <label for="descontarCaja">Descontar de la caja</label>
                     <app-ayuda-campo texto="Si está marcado, el retiro sale de la caja abierta. Si no, solo se anota." posicion="right" />
                 </div>
                 <small class="text-muted-color" *ngIf="esRetiro && !descontarCaja">Se registra el retiro, pero no sale dinero de caja.</small>
-                <div *ngIf="!esRetiro || descontarCaja">
+                <div *ngIf="descuentaCaja">
                     <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR sale del banco. Efectivo del cajón. Mixto parte el egreso." posicion="right" /></label>
                     <app-metodo-pago [(ngModel)]="metodo" [montoTotal]="monto" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
                 </div>
@@ -184,6 +266,28 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
             <ng-template #footer>
                 <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialog = false" />
                 <p-button label="Guardar" [loading]="guardando" (onClick)="guardar()" />
+            </ng-template>
+        </p-dialog>
+        <p-dialog header="Pagar cuenta" [(visible)]="dialogPago" [modal]="true" [style]="{ width: '30rem' }" [breakpoints]="{ '960px': '95vw' }">
+            <div class="flex flex-col gap-4" *ngIf="gastoPago">
+                <div class="text-sm">
+                    <div class="font-semibold">{{ gastoPago.concepto }}</div>
+                    <div class="text-muted-color">{{ gastoPago.persona || 'Sin persona registrada' }} · Pendiente {{ formatBs(gastoPago.saldo_pendiente) }}</div>
+                </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Monto a pagar <app-ayuda-campo texto="Puede ser un pago parcial. No puede superar el pendiente." posicion="right" /></label>
+                    <app-input-numero [(ngModel)]="montoPago" />
+                </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="Este pago sí sale de caja. Debe haber caja abierta." posicion="right" /></label>
+                    <app-metodo-pago [(ngModel)]="metodoPagoCuenta" [montoTotal]="montoPago" [(montoEfectivo)]="efectivoPago" [(montoQr)]="qrPago" />
+                </div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Nro. de transferencia o recibo. Opcional." posicion="top" /></label><input pInputText class="w-full" [(ngModel)]="referenciaPago" /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Detalle interno del pago." posicion="top" /></label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacionPago"></textarea></div>
+            </div>
+            <ng-template #footer>
+                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogPago = false" />
+                <p-button label="Registrar pago" [loading]="pagando" (onClick)="pagar()" />
             </ng-template>
         </p-dialog>
     `
@@ -199,7 +303,7 @@ export class GastosPage implements OnInit {
         { label: 'Todos', value: '' }
     ];
     titulo = 'Gastos de empresa';
-    subtitulo = 'Egresos que salen de caja ahora. Si un proveedor te fió el servicio, registralo en Compras (sin producto), no aquí.';
+    subtitulo = 'Gastos y servicios al contado o a crédito. A crédito la caja no se mueve hasta que registres el pago.';
     items: any[] = [];
     cargando = false;
     guardando = false;
@@ -207,7 +311,23 @@ export class GastosPage implements OnInit {
     dialog = false;
     concepto = '';
     categoria = 'Otros';
+    persona = '';
     monto = 0;
+    condicion = 'CONTADO';
+    condiciones = [
+        { label: 'Al contado (sale de caja ahora)', value: 'CONTADO' },
+        { label: 'A crédito (queda por pagar)', value: 'CREDITO' }
+    ];
+    plazosCredito = [
+        { label: 'Sin plazo', value: 0 },
+        { label: '7 días', value: 7 },
+        { label: '15 días', value: 15 },
+        { label: '30 días', value: 30 },
+        { label: 'Fecha exacta', value: -1 }
+    ];
+    plazoDias = 0;
+    fechaVencimiento: Date | null = null;
+    hoy = new Date();
     metodo = 'EFECTIVO';
     montoEfectivo = 0;
     montoQr = 0;
@@ -215,10 +335,20 @@ export class GastosPage implements OnInit {
     referencia = '';
     observacion = '';
     categorias = CATEGORIAS;
+    dialogPago = false;
+    pagando = false;
+    gastoPago: any = null;
+    montoPago = 0;
+    metodoPagoCuenta = 'EFECTIVO';
+    efectivoPago = 0;
+    qrPago = 0;
+    referenciaPago = '';
+    observacionPago = '';
     chartData: any;
     chartOptions: any = { plugins: { legend: { position: 'bottom' } } };
     formatBs = formatBs;
     formatFecha = formatFecha;
+    formatFechaCorta = formatFechaCorta;
     etiquetaPago = etiquetaPago;
 
     constructor(private route: ActivatedRoute, private http: HttpClient, private aviso: AvisoService) {}
@@ -239,6 +369,59 @@ export class GastosPage implements OnInit {
 
     get esEmpresa(): boolean {
         return this.tipo === 'GASTO_EMPRESA';
+    }
+
+    get aCredito(): boolean {
+        return this.esEmpresa && this.condicion === 'CREDITO';
+    }
+
+    /** Solo un gasto al contado (o un retiro marcado) mueve la caja al registrarse. */
+    get descuentaCaja(): boolean {
+        if (this.aCredito) {
+            return false;
+        }
+        return this.esEmpresa || this.descontarCaja;
+    }
+
+    get columnasLista(): number {
+        return this.filtroTipo === '' ? 9 : 8;
+    }
+
+    get porPagar(): any[] {
+        return this.items.filter((item) => item.condicion === 'CREDITO' && Number(item.saldo_pendiente || 0) > 0);
+    }
+
+    get totalPorPagar(): number {
+        return this.porPagar.reduce((acc, item) => acc + Number(item.saldo_pendiente || 0), 0);
+    }
+
+    get vencimientoEstimado(): string {
+        if (this.plazoDias <= 0) {
+            return '';
+        }
+        const fecha = new Date();
+        fecha.setDate(fecha.getDate() + this.plazoDias);
+        return formatFechaCorta(fecha);
+    }
+
+    etiquetaEstado(item: any): string {
+        if (item.condicion !== 'CREDITO') {
+            return 'Contado';
+        }
+        return item.vencido ? 'VENCIDO' : item.estado;
+    }
+
+    severidadEstado(item: any): 'success' | 'danger' | 'warn' | 'info' {
+        if (item.condicion !== 'CREDITO') {
+            return 'success';
+        }
+        if (item.vencido) {
+            return 'danger';
+        }
+        if (item.estado === 'PAGADO') {
+            return 'success';
+        }
+        return item.estado === 'PARCIAL' ? 'warn' : 'info';
     }
 
     etiquetaTipo(tipo: string): string {
@@ -294,7 +477,12 @@ export class GastosPage implements OnInit {
     abrir(): void {
         this.concepto = '';
         this.categoria = 'Otros';
+        this.persona = '';
         this.monto = 0;
+        this.condicion = 'CONTADO';
+        this.plazoDias = 0;
+        this.fechaVencimiento = null;
+        this.hoy = new Date();
         this.metodo = 'EFECTIVO';
         this.montoEfectivo = 0;
         this.montoQr = 0;
@@ -302,6 +490,56 @@ export class GastosPage implements OnInit {
         this.referencia = '';
         this.observacion = '';
         this.dialog = true;
+    }
+
+    abrirPago(item: any): void {
+        this.gastoPago = item;
+        this.montoPago = Number(item.saldo_pendiente || 0);
+        this.metodoPagoCuenta = 'EFECTIVO';
+        this.efectivoPago = 0;
+        this.qrPago = 0;
+        this.referenciaPago = '';
+        this.observacionPago = '';
+        this.dialogPago = true;
+    }
+
+    pagar(): void {
+        if (!this.gastoPago || !this.montoPago) {
+            this.aviso.aviso('Validación', 'Indique el monto a pagar');
+            return;
+        }
+        if (this.montoPago > Number(this.gastoPago.saldo_pendiente || 0)) {
+            this.aviso.aviso('Validación', 'El monto supera el saldo pendiente');
+            return;
+        }
+        const mixto = mensajePagoMixto(this.metodoPagoCuenta, this.montoPago, this.efectivoPago, this.qrPago);
+        if (mixto) {
+            this.aviso.aviso('Validación', mixto);
+            return;
+        }
+        this.pagando = true;
+        this.http.post<{ mensaje: string }>(apiUrl(`/api/gastos/${this.gastoPago.id}/pagos`), {
+            monto: this.montoPago,
+            metodo_pago: this.metodoPagoCuenta,
+            referencia: this.referenciaPago || undefined,
+            observacion: this.observacionPago || undefined,
+            ...extrasPagoMixto(this.metodoPagoCuenta, this.efectivoPago, this.qrPago)
+        }).subscribe({
+            next: (res) => {
+                this.pagando = false;
+                this.dialogPago = false;
+                this.aviso.ok('Listo', res.mensaje);
+                this.cargar();
+            },
+            error: (err) => {
+                this.pagando = false;
+                if (esErrorCajaCerrada(err)) {
+                    this.dialogCajaCerrada = true;
+                    return;
+                }
+                this.aviso.error(err, 'No se pudo registrar el pago');
+            }
+        });
     }
 
     cargar(): void {
@@ -325,10 +563,14 @@ export class GastosPage implements OnInit {
             this.aviso.aviso('Validación', 'Concepto y monto son obligatorios');
             return;
         }
-        const descuenta = this.esEmpresa || this.descontarCaja;
+        const descuenta = this.descuentaCaja;
         const mixto = descuenta ? mensajePagoMixto(this.metodo, this.monto, this.montoEfectivo, this.montoQr) : null;
         if (mixto) {
             this.aviso.aviso('Validación', mixto);
+            return;
+        }
+        if (this.aCredito && this.plazoDias === -1 && !this.fechaVencimiento) {
+            this.aviso.aviso('Validación', 'Indique la fecha de vencimiento o elija un plazo en días');
             return;
         }
         this.guardando = true;
@@ -336,12 +578,15 @@ export class GastosPage implements OnInit {
             tipo: this.tipo,
             concepto: this.concepto.trim(),
             categoria: this.esEmpresa ? this.categoria : undefined,
+            persona: this.esEmpresa ? this.persona.trim() || undefined : undefined,
             monto: this.monto,
-            descontar_caja: this.esEmpresa ? true : this.descontarCaja,
+            condicion: this.esEmpresa ? this.condicion : 'CONTADO',
+            descontar_caja: this.esEmpresa ? !this.aCredito : this.descontarCaja,
             metodo_pago: descuenta ? this.metodo : undefined,
             referencia: this.referencia || undefined,
             observacion: this.observacion || undefined,
-            ...(descuenta ? extrasPagoMixto(this.metodo, this.montoEfectivo, this.montoQr) : {})
+            ...(descuenta ? extrasPagoMixto(this.metodo, this.montoEfectivo, this.montoQr) : {}),
+            ...this.plazoPayload()
         }).subscribe({
             next: (res) => {
                 this.guardando = false;
@@ -358,6 +603,22 @@ export class GastosPage implements OnInit {
                 this.aviso.error(err, 'No se pudo guardar');
             }
         });
+    }
+
+    private plazoPayload(): { plazo_dias?: number; fecha_vencimiento?: string } {
+        if (!this.aCredito) {
+            return {};
+        }
+        if (this.plazoDias === -1 && this.fechaVencimiento) {
+            const f = this.fechaVencimiento;
+            const mes = String(f.getMonth() + 1).padStart(2, '0');
+            const dia = String(f.getDate()).padStart(2, '0');
+            return { fecha_vencimiento: `${f.getFullYear()}-${mes}-${dia}` };
+        }
+        if (this.plazoDias > 0) {
+            return { plazo_dias: this.plazoDias };
+        }
+        return {};
     }
 
     private sumaPeriodo(tipo: 'dia' | 'mes'): number {

@@ -16,6 +16,7 @@ import { Compra } from './compra.model';
 import { CompraDetalle } from './compra-detalle.model';
 import { PagoProveedor } from './pago-proveedor.model';
 import { Gasto } from './gasto.model';
+import { PagoGasto } from './pago-gasto.model';
 import { CategoriaProducto } from './categoria-producto.model';
 import { MovimientoInventario } from './movimiento-inventario.model';
 import { Campana, Acopio } from './campana.model';
@@ -82,6 +83,11 @@ Proveedor.hasMany(PagoProveedor, { foreignKey: 'id_proveedor', as: 'pagos' });
 Gasto.belongsTo(User, { foreignKey: 'id_usuario', as: 'usuario' });
 Gasto.belongsTo(Caja, { foreignKey: 'id_caja', as: 'caja' });
 
+Gasto.hasMany(PagoGasto, { foreignKey: 'id_gasto', as: 'pagos' });
+PagoGasto.belongsTo(Gasto, { foreignKey: 'id_gasto', as: 'gasto' });
+PagoGasto.belongsTo(Caja, { foreignKey: 'id_caja', as: 'caja' });
+PagoGasto.belongsTo(User, { foreignKey: 'id_usuario', as: 'usuario' });
+
 CategoriaProducto.hasMany(Productos, { foreignKey: 'id_categoria', as: 'productos' });
 Productos.belongsTo(CategoriaProducto, { foreignKey: 'id_categoria', as: 'categoria' });
 Productos.hasMany(MovimientoInventario, { foreignKey: 'id_producto', as: 'movimientos' });
@@ -117,6 +123,7 @@ export {
   CompraDetalle,
   PagoProveedor,
   Gasto,
+  PagoGasto,
   CategoriaProducto,
   MovimientoInventario,
   Campana,

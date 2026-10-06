@@ -195,23 +195,60 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
         { title: 'Imp. Neto', w: colImporte, align: 'right' as const }
     ];
     const headerH = g.headerH;
-    doc.save();
-    doc.lineWidth(0.8).strokeColor('#000000');
-    doc.rect(left, tableTop, width, headerH).stroke();
-    let x = left;
-    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(g.metaSize);
-    cols.forEach((col, i) => {
-        doc.text(col.title, x + 4, tableTop + (g.compacto ? 3 : 5), { width: col.w - 8, align: col.align, lineBreak: false });
-        if (i < cols.length - 1) {
-            doc.moveTo(x + col.w, tableTop).lineTo(x + col.w, tableTop + headerH).stroke();
-        }
-        x += col.w;
-    });
-    doc.restore();
+    const totStep = g.compacto ? 12 : 14;
+    let extraTotPrev = 0;
+    if (datos.cobrado != null) extraTotPrev += totStep;
+    if (datos.pendiente != null) extraTotPrev += totStep;
+    const altoPie = 6 + totStep + extraTotPrev + (g.compacto ? 8 : 14) + (g.compacto ? 4 : 10) + g.firmaLabel + 10;
+    const limiteFilas = () => doc.page.height - doc.page.margins.bottom - altoPie;
 
+    const pintarCabeceraTabla = (origenY: number) => {
+        doc.save();
+        doc.lineWidth(0.8).strokeColor('#000000');
+        doc.rect(left, origenY, width, headerH).stroke();
+        let hx = left;
+        doc.fillColor('#000000').font('Helvetica-Bold').fontSize(g.metaSize);
+        cols.forEach((col, i) => {
+            doc.text(col.title, hx + 4, origenY + (g.compacto ? 3 : 5), { width: col.w - 8, align: col.align, lineBreak: false });
+            if (i < cols.length - 1) {
+                doc.moveTo(hx + col.w, origenY).lineTo(hx + col.w, origenY + headerH).stroke();
+            }
+            hx += col.w;
+        });
+        doc.restore();
+    };
+
+    const cerrarMarcoTabla = (origenY: number, hastaY: number) => {
+        doc.strokeColor('#000000').lineWidth(0.8);
+        doc.rect(left, origenY, width, hastaY - origenY).stroke();
+        let vx = left;
+        cols.forEach((col, i) => {
+            if (i < cols.length - 1) {
+                doc.moveTo(vx + col.w, origenY).lineTo(vx + col.w, hastaY).stroke();
+            }
+            vx += col.w;
+        });
+    };
+
+    pintarCabeceraTabla(tableTop);
+    let tableStartY = tableTop;
     let rowY = tableTop + headerH;
+    let pagina = 1;
     doc.font('Helvetica').fontSize(g.metaSize).fillColor('#000000');
     let cantTotal = 0;
+
+    const pasarPagina = () => {
+        cerrarMarcoTabla(tableStartY, rowY);
+        doc.addPage();
+        pagina += 1;
+        const topNueva = doc.page.margins.top;
+        doc.font('Helvetica').fontSize(g.metaSize).fillColor('#000000');
+        doc.text(`${datos.tipoDocumento} Nº ${padNumero(datos.numero)}  ·  continuación pág. ${pagina}`, left, topNueva, { width });
+        tableStartY = topNueva + (g.compacto ? 14 : 18);
+        pintarCabeceraTabla(tableStartY);
+        rowY = tableStartY + headerH;
+    };
+
     datos.lineas.forEach((linea) => {
         cantTotal += Number(linea.cantidad) || 0;
         const celdas = [
@@ -225,7 +262,10 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
             Math.max(9, doc.heightOfString(celdas[i], { width: col.w - 8, align: col.align }))
         );
         const rowH = Math.max(g.rowMin, Math.max(...altos) + (g.compacto ? 4 : 6));
-        x = left;
+        if (rowY + rowH > limiteFilas()) {
+            pasarPagina();
+        }
+        let x = left;
         doc.fillColor('#000000').font('Helvetica').fontSize(g.metaSize);
         cols.forEach((col, i) => {
             doc.text(celdas[i], x + 4, rowY + 2, { width: col.w - 8, align: col.align });
@@ -235,20 +275,19 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
         doc.moveTo(left, rowY + rowH).lineTo(right, rowY + rowH).stroke();
         rowY += rowH;
     });
-    doc.strokeColor('#000000').lineWidth(0.8);
-    doc.rect(left, tableTop, width, rowY - tableTop).stroke();
-    x = left;
-    cols.forEach((col, i) => {
-        if (i < cols.length - 1) {
-            doc.moveTo(x + col.w, tableTop).lineTo(x + col.w, rowY).stroke();
-        }
-        x += col.w;
-    });
+    cerrarMarcoTabla(tableStartY, rowY);
 
-    const totY = rowY + (g.compacto ? 4 : 8);
+    let totY = rowY + (g.compacto ? 4 : 8);
+    if (totY + altoPie > doc.page.height - doc.page.margins.bottom) {
+        doc.addPage();
+        pagina += 1;
+        const topNueva = doc.page.margins.top;
+        doc.font('Helvetica').fontSize(g.metaSize).fillColor('#000000');
+        doc.text(`${datos.tipoDocumento} Nº ${padNumero(datos.numero)}  ·  continuación pág. ${pagina}`, left, topNueva, { width });
+        totY = topNueva + (g.compacto ? 16 : 22);
+    }
     const colVal = g.compacto ? 80 : 88;
     const colLbl = g.compacto ? 96 : 110;
-    const totStep = g.compacto ? 12 : 14;
     doc.strokeColor('#000000').lineWidth(0.8);
     doc.moveTo(left, totY).lineTo(right, totY).stroke();
     doc.fillColor('#000000').font('Helvetica-Bold').fontSize(g.compacto ? 8 : 9);
@@ -278,7 +317,10 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
     doc.text(`DETALLE: ${datos.detalle || ''}`, left, totY + 6 + totStep * 2, { width: width - colLbl - colVal - 8 });
 
     const ultimoTotales = totY + 6 + totStep + extraTot + (g.compacto ? 8 : 14);
-    const firmasY = ultimoTotales + (g.compacto ? 4 : 10);
+    const firmasY = Math.min(
+        ultimoTotales + (g.compacto ? 4 : 10),
+        doc.page.height - doc.page.margins.bottom - g.firmaLabel - 8
+    );
     const firmaW = width / 4;
     const etiquetas = ['VENDEDOR(a)', 'Pagado por', 'Recibido Por', 'CLIENTE'];
     doc.strokeColor('#000000').lineWidth(0.7).font('Helvetica').fontSize(g.metaSize).fillColor('#000000');

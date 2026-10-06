@@ -23,6 +23,7 @@ export const appRoutes: Routes = [
             { path: 'gastos', loadChildren: () => import('./app/pages/gastos/gastos.routes'), canActivate: [AuthGuard] },
             { path: 'retiros', loadChildren: () => import('./app/pages/gastos/retiros.routes'), canActivate: [AuthGuard] },
             { path: 'inventario', loadChildren: () => import('./app/pages/inventario/inventario.routes'), canActivate: [AuthGuard] },
+            { path: 'empaques', loadChildren: () => import('./app/pages/inventario/empaques.routes'), canActivate: [AuthGuard] },
             { path: 'campanas', loadChildren: () => import('./app/pages/campanas/campanas.routes'), canActivate: [AuthGuard] },
             { path: 'produccion', loadChildren: () => import('./app/pages/produccion/produccion.routes'), canActivate: [AuthGuard] },
             { path: 'reportes', loadChildren: () => import('./app/pages/reportes/reportes.routes'), canActivate: [AuthGuard] },
