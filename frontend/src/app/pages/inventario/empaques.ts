@@ -33,27 +33,31 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <p-button label="Nuevo tipo de bolsa" icon="pi pi-plus" (onClick)="abrirNuevo()" />
         </div>
 
-        <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" />
+        <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" [compact]="true" />
 
         <div class="card">
+            <div class="flex flex-wrap items-end gap-3 mb-4">
+                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                    <label class="block font-bold mb-1 text-sm">Buscar</label>
+                    <app-tabla-busqueda placeholder="Buscar tipo de bolsa" (buscar)="filtrarTabla(dt, $event)" />
+                </div>
+            </div>
             <p-table
                 #dt
                 [value]="cargando ? [] : items"
                 [loading]="cargando"
                 [showLoader]="false"
-                [paginator]="items.length > 10"
+                [paginator]="true"
+                [alwaysShowPaginator]="true"
                 [rows]="10"
                 [rowsPerPageOptions]="filasTabla"
+                [showCurrentPageReport]="true"
+                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} tipos"
                 [globalFilterFields]="['nombre', 'unidad_medida']"
                 [rowHover]="true"
+                sortMode="single"
                 responsiveLayout="scroll"
             >
-                <ng-template #caption>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <span class="font-semibold">Existencia por tipo de bolsa</span>
-                        <app-tabla-busqueda placeholder="Buscar tipo de bolsa" (buscar)="filtrarTabla(dt, $event)" />
-                    </div>
-                </ng-template>
                 <ng-template #header>
                     <tr><th>Tipo de bolsa</th><th>Unidad</th><th>Entradas</th><th>Salidas</th><th>Existencia</th><th>Mínimo</th><th></th></tr>
                 </ng-template>

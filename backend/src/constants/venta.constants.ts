@@ -62,6 +62,24 @@ export function esVentaVencida(fechaVencimiento: unknown, saldoPendiente: unknow
     return venc.getTime() < inicioDia().getTime();
 }
 
+/**
+ * Días de atraso para el reporte de cuentas por cobrar.
+ * 0 si aún no vence o vence hoy. Null si no hay plazo. No usa la fecha de venta.
+ */
+export function diasAtraso(fechaVencimiento: unknown, saldoPendiente?: unknown, estado?: string): number | null {
+    if (estado === ESTADO_VENTA.PAGADA || estado === ESTADO_VENTA.ANULADA) {
+        return 0;
+    }
+    if (saldoPendiente !== undefined && toMoney(saldoPendiente) <= 0) {
+        return 0;
+    }
+    const dias = diasParaVencer(fechaVencimiento);
+    if (dias === null) {
+        return null;
+    }
+    return dias < 0 ? Math.abs(dias) : 0;
+}
+
 /** Días hasta el vencimiento: negativo si ya pasó, null si no hay plazo. */
 export function diasParaVencer(fechaVencimiento: unknown): number | null {
     const venc = fechaComoDia(fechaVencimiento);

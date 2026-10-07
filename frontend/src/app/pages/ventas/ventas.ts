@@ -71,10 +71,10 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <p-button label="Nueva venta" icon="pi pi-plus" pTooltip="Registrar una venta" tooltipPosition="left" (onClick)="abrirNueva()" />
         </div>
 
-        <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="4" />
+        <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="4" [compact]="true" />
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-2 mb-4">
+            <div class="flex flex-wrap items-end gap-3 mb-4">
                 <div class="w-[calc(50%-0.25rem)] sm:w-[9.5rem] min-w-0">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Estado <app-ayuda-campo texto="Pendiente o parcial: aún hay saldo. Pagada: cobrada. Anulada: no suma y se devolvió el stock." posicion="bottom" /></label>
                     <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid />
@@ -87,10 +87,12 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Período <app-ayuda-campo texto="Rango de fechas de la venta. La venta siempre se registra con la fecha de hoy." posicion="left" /></label>
                     <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
                 </div>
-                <p-button label="Filtrar" icon="pi pi-filter" pTooltip="Aplicar filtros" tooltipPosition="top" (onClick)="cargar()" [loading]="cargando" />
-                <div class="ml-auto flex items-end gap-2 shrink-0">
-                    <app-botones-exportar tipo="ventas" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" [idCliente]="filtroCliente" [estado]="filtroEstado" />
+                <p-button label="Consultar" icon="pi pi-filter" pTooltip="Aplicar filtros" tooltipPosition="top" (onClick)="cargar()" [loading]="cargando" />
+                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                    <label class="block font-bold mb-1 text-sm">Buscar</label>
+                    <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
+                <app-botones-exportar tipo="ventas" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" [idCliente]="filtroCliente" [estado]="filtroEstado" />
             </div>
             <p-table
                 #dt
@@ -98,20 +100,16 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
+                [alwaysShowPaginator]="true"
                 [rows]="10"
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} ventas"
                 [globalFilterFields]="['id', 'fecha', 'cliente.nombre', 'estado']"
                 [rowHover]="true"
+                sortMode="single"
                 responsiveLayout="scroll"
             >
-                <ng-template #caption>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <span class="font-semibold">Listado de ventas</span>
-                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
-                    </div>
-                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>#</th>

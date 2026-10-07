@@ -142,26 +142,28 @@ import { ExportarService } from '../../shared/services/exportar.service';
             </div>
 
             <div class="card">
+                <div class="flex flex-wrap items-end gap-3 mb-4">
+                    <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                        <label class="block font-bold mb-1 text-sm">Buscar</label>
+                        <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
+                    </div>
+                </div>
                 <p-table
                     #dt
                     [value]="cargandoTabla ? [] : (caja.movimientos || [])"
                     [loading]="cargandoTabla"
                     [showLoader]="false"
                     [paginator]="true"
+                    [alwaysShowPaginator]="true"
                     [rows]="10"
                     [rowsPerPageOptions]="filasTabla"
                     [showCurrentPageReport]="true"
                     currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} movimientos"
                     [globalFilterFields]="['tipo', 'categoria', 'concepto', 'metodo_pago', 'usuario.username']"
                     [rowHover]="true"
+                    sortMode="single"
                     responsiveLayout="scroll"
                 >
-                    <ng-template #caption>
-                        <div class="flex flex-wrap items-center justify-between gap-3">
-                            <span class="font-semibold">Movimientos de caja</span>
-                            <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
-                        </div>
-                    </ng-template>
                     <ng-template #header>
                         <tr>
                             <th>Hora</th>

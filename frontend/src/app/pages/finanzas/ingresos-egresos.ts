@@ -37,20 +37,17 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
                     <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Período" fluid />
                 </div>
                 <p-button label="Consultar" icon="pi pi-search" (onClick)="cargar()" [loading]="cargando" />
-                <div class="ml-auto flex items-end gap-2 shrink-0">
-                    <app-botones-exportar tipo="movimientos" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
-                </div>
             </div>
         </div>
 
         <div class="grid grid-cols-12 gap-4 mb-6">
             <div class="col-span-12">
-                <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" />
+                <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" [compact]="true" />
             </div>
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-2 mb-4">
+            <div class="flex flex-wrap items-end gap-3 mb-4">
                 <div class="w-[calc(50%-0.25rem)] sm:w-[11rem] min-w-0">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Tipo <app-ayuda-campo texto="Ingreso: dinero que entra. Egreso: dinero que sale. Una venta a crédito no aparece hasta el cobro." posicion="bottom" /></label>
                     <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" [showClear]="true" fluid />
@@ -63,6 +60,11 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Método <app-ayuda-campo texto="En el libro, Mixto se parte: un asiento de efectivo y otro de QR." posicion="left" /></label>
                     <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid />
                 </div>
+                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                    <label class="block font-bold mb-1 text-sm">Buscar</label>
+                    <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
+                </div>
+                <app-botones-exportar tipo="movimientos" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
             </div>
             <p-table
                 #dt
@@ -70,20 +72,16 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
+                [alwaysShowPaginator]="true"
                 [rows]="10"
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} movimientos"
                 [globalFilterFields]="['tipo', 'origen', 'concepto', 'contraparte', 'metodo_pago', 'usuario.username']"
                 [rowHover]="true"
+                sortMode="single"
                 responsiveLayout="scroll"
             >
-                <ng-template #caption>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <span class="font-semibold">Movimientos</span>
-                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
-                    </div>
-                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>

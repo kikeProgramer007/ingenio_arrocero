@@ -58,7 +58,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <p-button label="Registrar cobranza" icon="pi pi-plus" (onClick)="abrirNueva()" />
         </div>
 
-        <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" />
+        <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" [compact]="true" />
 
         <div class="card">
             <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
@@ -130,10 +130,12 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-2 mb-4">
-                <div class="ml-auto flex items-end gap-2 shrink-0">
-                    <app-botones-exportar tipo="cobranzas" />
+            <div class="flex flex-wrap items-end gap-3 mb-4">
+                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                    <label class="block font-bold mb-1 text-sm">Buscar</label>
+                    <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
+                <app-botones-exportar tipo="cobranzas" />
             </div>
             <p-table
                 #dt
@@ -141,20 +143,16 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
+                [alwaysShowPaginator]="true"
                 [rows]="10"
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} cobranzas"
                 [globalFilterFields]="['fecha', 'cliente.nombre', 'id_venta', 'usuario.username']"
                 [rowHover]="true"
+                sortMode="single"
                 responsiveLayout="scroll"
             >
-                <ng-template #caption>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <span class="font-semibold">Listado de cobranzas</span>
-                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
-                    </div>
-                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>

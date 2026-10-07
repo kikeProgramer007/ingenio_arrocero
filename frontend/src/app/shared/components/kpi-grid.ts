@@ -15,7 +15,29 @@ export interface KpiItem {
     standalone: true,
     imports: [CommonModule, SkeletonModule],
     template: `
-        <div class="grid grid-cols-12 gap-4 w-full mb-6 min-w-0">
+        <div class="card !mb-2 !py-2 !px-2" *ngIf="compact">
+            <div class="grid grid-cols-12 min-w-0">
+                <div
+                    class="col-span-12 min-w-0 px-4 py-2 border-surface-200 dark:border-surface-700"
+                    [ngClass]="compactCol"
+                    [class.sm:border-l]="i > 0"
+                    *ngFor="let kpi of items; let i = index"
+                >
+                    <div class="flex items-center gap-3 min-w-0" *ngIf="!loading">
+                        <div class="flex items-center justify-center rounded-border shrink-0" [ngClass]="fondo(kpi.tone)" style="width: 2.25rem; height: 2.25rem">
+                            <i [ngClass]="[kpi.icon, color(kpi.tone)]"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-muted-color text-xs font-medium truncate">{{ kpi.label }}</div>
+                            <div class="text-surface-900 dark:text-surface-0 font-semibold text-lg leading-tight truncate">{{ kpi.value }}</div>
+                            <div class="text-muted-color text-xs truncate" *ngIf="kpi.hint">{{ kpi.hint }}</div>
+                        </div>
+                    </div>
+                    <p-skeleton *ngIf="loading" width="70%" height="1.4rem" />
+                </div>
+            </div>
+        </div>
+        <div class="grid grid-cols-12 gap-4 w-full mb-6 min-w-0" *ngIf="!compact">
         <ng-container *ngIf="loading">
             <div [class]="colClass" *ngFor="let i of placeholders">
                 <div class="card mb-0 h-full min-w-0 overflow-hidden">
@@ -47,9 +69,16 @@ export class KpiGridComponent {
     @Input() items: KpiItem[] = [];
     @Input() loading = false;
     @Input() columns: 3 | 4 | 6 = 4;
+    @Input() compact = false;
 
     get placeholders(): number[] {
         return Array.from({ length: this.columns }, (_, i) => i);
+    }
+
+    get compactCol(): string {
+        if (this.items.length === 2) return 'sm:col-span-6';
+        if (this.items.length === 4) return 'sm:col-span-3';
+        return 'sm:col-span-4';
     }
 
     get colClass(): string {

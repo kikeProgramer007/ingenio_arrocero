@@ -43,14 +43,14 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
             </div>
             <p-button [label]="esRetiro ? 'Registrar retiro' : 'Registrar gasto'" icon="pi pi-plus" (onClick)="abrir()" />
         </div>
-        <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" />
+        <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" [compact]="true" />
         <div class="card mb-4">
-            <div class="flex flex-wrap items-end gap-2">
+            <div class="flex flex-wrap items-end gap-3">
                 <div class="w-full sm:w-[14rem] min-w-0">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Ver <app-ayuda-campo texto="Empresa: gastos operativos. Personal: retiros. Todo: ambos." posicion="bottom" /></label>
                     <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Tipo" fluid />
                 </div>
-                <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
                 <div class="ml-auto flex items-end gap-2 shrink-0">
                     <app-botones-exportar tipo="egresos" [tipoGasto]="filtroTipo || undefined" />
                 </div>
@@ -63,22 +63,23 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                     <div class="text-muted-color text-sm">Lo que debemos por gastos y servicios registrados a crédito. Cada pago que registres sí sale de caja.</div>
                 </div>
                 <span class="font-semibold">Total pendiente: {{ formatBs(totalPorPagar) }}</span>
+                <div class="w-full sm:w-[18rem] min-w-0">
+                    <label class="block font-bold mb-1 text-sm">Buscar</label>
+                    <app-tabla-busqueda placeholder="Buscar persona o concepto" (buscar)="filtrarTabla(dtPorPagar, $event)" />
+                </div>
             </div>
             <p-table
                 #dtPorPagar
                 [value]="porPagar"
-                [paginator]="porPagar.length > 8"
+                [paginator]="true"
+                [alwaysShowPaginator]="true"
                 [rows]="8"
                 [rowsPerPageOptions]="filasTabla"
                 [globalFilterFields]="['concepto', 'persona', 'categoria']"
                 [rowHover]="true"
+                sortMode="single"
                 responsiveLayout="scroll"
             >
-                <ng-template #caption>
-                    <div class="flex justify-end">
-                        <app-tabla-busqueda placeholder="Buscar persona o concepto" (buscar)="filtrarTabla(dtPorPagar, $event)" />
-                    </div>
-                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
@@ -122,26 +123,28 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
             </div>
             <div class="col-span-12 xl:col-span-7 min-w-0">
                 <div class="card">
+                    <div class="flex flex-wrap items-end gap-3 mb-4">
+                        <div class="w-full sm:w-[18rem] min-w-0 sm:ml-auto">
+                            <label class="block font-bold mb-1 text-sm">Buscar</label>
+                            <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dtEmpresa, $event)" />
+                        </div>
+                    </div>
                     <p-table
                         #dtEmpresa
                         [value]="cargando ? [] : items"
                         [loading]="cargando"
                         [showLoader]="false"
                         [paginator]="true"
+                        [alwaysShowPaginator]="true"
                         [rows]="10"
                         [rowsPerPageOptions]="filasTabla"
                         [showCurrentPageReport]="true"
                         currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} gastos"
                         [globalFilterFields]="['fecha', 'categoria', 'concepto', 'usuario.username']"
                         [rowHover]="true"
+                        sortMode="single"
                         responsiveLayout="scroll"
                     >
-                        <ng-template #caption>
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <span class="font-semibold">Listado de gastos</span>
-                                <app-tabla-busqueda (buscar)="filtrarTabla(dtEmpresa, $event)" />
-                            </div>
-                        </ng-template>
                         <ng-template #header>
                             <tr><th>Fecha</th><th>Categoría</th><th>Concepto</th><th>Persona</th><th>Monto</th><th>Pendiente</th><th>Estado</th></tr>
                         </ng-template>
@@ -169,26 +172,28 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
             </div>
         </div>
         <div class="card" *ngIf="!listandoEmpresa">
+            <div class="flex flex-wrap items-end gap-3 mb-4">
+                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                    <label class="block font-bold mb-1 text-sm">Buscar</label>
+                    <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dtLista, $event)" />
+                </div>
+            </div>
             <p-table
                 #dtLista
                 [value]="cargando ? [] : items"
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
+                [alwaysShowPaginator]="true"
                 [rows]="10"
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} registros"
                 [globalFilterFields]="['fecha', 'concepto', 'tipo', 'usuario.username']"
                 [rowHover]="true"
+                sortMode="single"
                 responsiveLayout="scroll"
             >
-                <ng-template #caption>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <span class="font-semibold">Listado</span>
-                        <app-tabla-busqueda (buscar)="filtrarTabla(dtLista, $event)" />
-                    </div>
-                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>

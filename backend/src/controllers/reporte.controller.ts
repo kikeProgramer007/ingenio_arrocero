@@ -6,10 +6,12 @@ import { clasificarDiferencia, formatBs, roundMoney, toMoney } from '../utils/mo
 import { enviarExcel, enviarPdf, HojaExport } from '../utils/exportar';
 import { DatosVoucher, enviarVoucherPdf, LineaVoucher } from '../utils/pdf-voucher';
 import { ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
-import { cobradoVenta, ESTADO_VENTA, esVentaVencida, saldoVenta } from '../constants/venta.constants';
-import { parseFechaLocal } from '../utils/fecha';
+import { cobradoVenta, diasAtraso, ESTADO_VENTA, esVentaVencida, saldoVenta, situacionCobranza } from '../constants/venta.constants';
+import { parseFechaLocal, ymdLocal } from '../utils/fecha';
 import { resumirMovimientos } from '../utils/caja-resumen';
 import { armarCuentaProveedor, esCompraServicio } from '../utils/cuenta-proveedor';
+import { getAuthUser } from '../utils/auth-user';
+import { refrescarEmpresa } from '../utils/empresa';
 
 function rango(req: Request) {
     const desde = typeof req.query.fecha_desde === 'string' && req.query.fecha_desde
@@ -105,6 +107,43 @@ function periodoTexto(desde: Date, hasta: Date): string {
     return `Período: ${fmtFecha(desde)} — ${fmtFecha(hasta)}`;
 }
 
+/** Busca en las columnas textuales del documento. Misma idea que el buscador del reporte. */
+function coincideBusquedaCxC(doc: {
+    id: number;
+    fecha: Date | string | null;
+    cliente: { nombre: string } | null;
+    total: number;
+    cobrado: number;
+    saldo: number;
+    fecha_vencimiento: string | null;
+    dias_atraso: number | null;
+    estado: string;
+    situacion: string;
+    vencida: boolean;
+}, q: unknown): boolean {
+    if (typeof q !== 'string' || !q.trim()) {
+        return true;
+    }
+    const texto = [
+        doc.id,
+        `#${doc.id}`,
+        doc.cliente?.nombre,
+        doc.estado,
+        doc.situacion,
+        doc.vencida ? 'VENCIDA' : '',
+        fmtFechaDia(doc.fecha),
+        doc.fecha_vencimiento ? fmtFechaDia(doc.fecha_vencimiento) : 'Sin plazo',
+        doc.dias_atraso == null ? '-' : doc.dias_atraso,
+        doc.total,
+        doc.cobrado,
+        doc.saldo,
+        formatBs(doc.total),
+        formatBs(doc.cobrado),
+        formatBs(doc.saldo)
+    ].join(' ').toLowerCase();
+    return texto.includes(q.trim().toLowerCase());
+}
+
 export class ReporteController {
     public static async resumen(req: Request, res: Response): Promise<void> {
         try {
@@ -121,6 +160,15 @@ export class ReporteController {
             });
         } catch (error) {
             handleError(res, error, 'Error al generar el reporte');
+        }
+    }
+
+    /** Consulta de documentos a crédito. Lee saldos de ventas; no crea ni modifica nada. */
+    public static async cuentasPorCobrar(req: Request, res: Response): Promise<void> {
+        try {
+            res.status(200).json(await ReporteController.datosCuentasPorCobrar(req));
+        } catch (error) {
+            handleError(res, error, 'Error al generar cuentas por cobrar');
         }
     }
 
@@ -147,10 +195,25 @@ export class ReporteController {
                 enviarVoucherPdf(res, `nota-compra-${voucher.numero}`, voucher);
                 return;
             }
+            await refrescarEmpresa();
             const hojas = await ReporteController.construirHojas(tipo, req, desde, hasta);
             if (!hojas.length) {
                 res.status(404).json({ mensaje: 'No hay datos para exportar' });
                 return;
+            }
+            const usuario = getAuthUser(req)?.username;
+            if (usuario) {
+                for (const hoja of hojas) {
+                    if (!hoja.usuario) {
+                        hoja.usuario = usuario;
+                    }
+                }
+            }
+            if (tipo !== 'venta' && tipo !== 'compra') {
+                const consulta = ReporteController.consultaFiltros(req, desde, hasta);
+                for (const hoja of hojas) {
+                    ReporteController.aplicarPlantillaFormal(hoja, consulta);
+                }
             }
             const base = `ingenio-${tipo}-${ymd(desde)}`;
             if (formato === 'xlsx') {
@@ -196,6 +259,9 @@ export class ReporteController {
         }
         if (tipo === 'cuenta_proveedor') {
             return ReporteController.hojasCuentaProveedor(req);
+        }
+        if (tipo === 'cuentas_por_cobrar') {
+            return [ReporteController.hojaCuentasPorCobrar(await ReporteController.datosCuentasPorCobrar(req))];
         }
         const resumen = await ReporteController.datosResumen(req);
         const hojaResumen: HojaExport = {
@@ -270,6 +336,184 @@ export class ReporteController {
                 anulaciones_venta: flujo.anulaciones_venta,
                 cobrado_neto: flujo.cobrado_neto
             }
+        };
+    }
+
+    private static whereCuentasPorCobrar(req: Request): any {
+        const where: any = { estado: { [Op.ne]: ESTADO_VENTA.ANULADA } };
+        const filtro = typeof req.query.estado === 'string' && req.query.estado ? req.query.estado : 'CON_SALDO';
+        if (filtro === 'CON_SALDO' || filtro === 'VENCIDAS' || filtro === 'POR_VENCER') {
+            where.estado = { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] };
+            where.saldo_pendiente = { [Op.gt]: 0 };
+        }
+        if (filtro === 'VENCIDAS') {
+            where.fecha_vencimiento = { [Op.lt]: ymdLocal() };
+        }
+        if (typeof req.query.id_cliente === 'string' && req.query.id_cliente) {
+            where.id_cliente = Number(req.query.id_cliente);
+        }
+        if (typeof req.query.fecha_desde === 'string' && req.query.fecha_desde) {
+            const inicio = parseFechaLocal(req.query.fecha_desde);
+            if (!Number.isNaN(inicio.getTime())) {
+                inicio.setHours(0, 0, 0, 0);
+                where.fecha = { ...(where.fecha || {}), [Op.gte]: inicio };
+            }
+        }
+        if (typeof req.query.fecha_hasta === 'string' && req.query.fecha_hasta) {
+            const fin = parseFechaLocal(req.query.fecha_hasta);
+            if (!Number.isNaN(fin.getTime())) {
+                fin.setHours(23, 59, 59, 999);
+                where.fecha = { ...(where.fecha || {}), [Op.lte]: fin };
+            }
+        }
+        return { where, filtro };
+    }
+
+    private static consultaFiltros(req: Request, desde: Date, hasta: Date): { label: string; valor: string }[] {
+        const consulta: { label: string; valor: string }[] = [
+            { label: 'Período', valor: `${fmtFechaDia(desde)} - ${fmtFechaDia(hasta)}` }
+        ];
+        if (typeof req.query.estado === 'string' && req.query.estado) {
+            consulta.push({ label: 'Estado', valor: req.query.estado });
+        }
+        if (typeof req.query.tipo_gasto === 'string' && req.query.tipo_gasto) {
+            consulta.push({ label: 'Tipo', valor: req.query.tipo_gasto });
+        }
+        if (typeof req.query.q === 'string' && req.query.q.trim()) {
+            consulta.push({ label: 'Búsqueda', valor: req.query.q.trim() });
+        }
+        return consulta;
+    }
+
+    private static aplicarPlantillaFormal(hoja: HojaExport, consulta: { label: string; valor: string }[]): void {
+        hoja.plantilla = 'formal';
+        hoja.mostrarFirma = true;
+        if (!hoja.consulta?.length) {
+            hoja.consulta = consulta;
+        }
+        const primera = String(hoja.columnas[0] || '').toLowerCase().replace(/\s/g, '');
+        if (primera === 'nro' || primera === '#') {
+            hoja.columnas[0] = 'N°';
+        } else if (hoja.columnas.length > 2 && !/^n[°º]$/.test(primera)) {
+            hoja.columnas = ['N°', ...hoja.columnas];
+            hoja.filas = hoja.filas.map((fila, i) => [i + 1, ...fila]);
+        }
+        hoja.pie = undefined;
+    }
+
+    private static async datosCuentasPorCobrar(req: Request) {
+        const { where, filtro } = ReporteController.whereCuentasPorCobrar(req);
+        const ventas = await Venta.findAll({
+            where,
+            include: [{ model: Cliente, as: 'cliente', attributes: ['id', 'nombre'] }],
+            order: [['fecha', 'ASC'], ['id', 'ASC']],
+            limit: 3000
+        });
+        const documentos = ventas.map((venta: any) => {
+            const total = toMoney(venta.total);
+            const saldo = saldoVenta(venta.saldo_pendiente, venta.estado);
+            const cobrado = cobradoVenta(total, venta.saldo_pendiente, venta.estado);
+            const situacion = situacionCobranza(venta.fecha_vencimiento, saldo, venta.estado);
+            const vencida = esVentaVencida(venta.fecha_vencimiento, saldo, venta.estado);
+            return {
+                id: venta.id,
+                fecha: venta.fecha,
+                cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,
+                total,
+                cobrado,
+                saldo,
+                fecha_vencimiento: venta.fecha_vencimiento || null,
+                dias_atraso: diasAtraso(venta.fecha_vencimiento, saldo, venta.estado),
+                estado: venta.estado,
+                situacion,
+                vencida
+            };
+        }).filter((doc) => {
+            if (filtro === 'POR_VENCER') {
+                return doc.situacion === 'POR VENCER' || doc.situacion === 'VENCE HOY';
+            }
+            return true;
+        }).filter((doc) => coincideBusquedaCxC(doc, req.query.q));
+        const totales = {
+            vendido: roundMoney(documentos.reduce((acc, d) => acc + d.total, 0)),
+            cobrado: roundMoney(documentos.reduce((acc, d) => acc + d.cobrado, 0)),
+            pendiente: roundMoney(documentos.reduce((acc, d) => acc + d.saldo, 0))
+        };
+        const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+        const idCliente = typeof req.query.id_cliente === 'string' && req.query.id_cliente
+            ? Number(req.query.id_cliente)
+            : null;
+        return {
+            filtro,
+            q,
+            id_cliente: idCliente,
+            cliente: idCliente
+                ? documentos.find((d) => d.cliente?.nombre)?.cliente?.nombre || null
+                : null,
+            fecha_desde: typeof req.query.fecha_desde === 'string' ? req.query.fecha_desde : null,
+            fecha_hasta: typeof req.query.fecha_hasta === 'string' ? req.query.fecha_hasta : null,
+            documentos,
+            totales
+        };
+    }
+
+    private static hojaCuentasPorCobrar(data: Awaited<ReturnType<typeof ReporteController.datosCuentasPorCobrar>>): HojaExport {
+        const etiquetaFiltro = data.filtro === 'CON_SALDO'
+            ? 'Con saldo'
+            : data.filtro === 'POR_VENCER'
+                ? 'Por vencer'
+                : data.filtro === 'VENCIDAS'
+                    ? 'Vencidas'
+                    : data.filtro === 'TODOS'
+                        ? 'Todos'
+                        : data.filtro;
+        const hayPeriodo = Boolean(data.fecha_desde || data.fecha_hasta);
+        const periodoTexto = hayPeriodo
+            ? `Período: ${data.fecha_desde ? fmtFechaDia(data.fecha_desde) : 'inicio'} al ${data.fecha_hasta ? fmtFechaDia(data.fecha_hasta) : 'hoy'}`
+            : '';
+        const filas: (string | number)[][] = data.documentos.map((doc, i) => [
+            i + 1,
+            fmtFechaDia(doc.fecha),
+            doc.id,
+            doc.cliente?.nombre || '-',
+            doc.total,
+            doc.cobrado,
+            doc.saldo,
+            doc.fecha_vencimiento ? fmtFechaDia(doc.fecha_vencimiento) : 'Sin plazo',
+            doc.dias_atraso == null ? '-' : doc.dias_atraso,
+            doc.vencida ? 'VENCIDA' : doc.estado
+        ]);
+        const consulta: { label: string; valor: string }[] = [];
+        consulta.push({
+            label: 'Período',
+            valor: hayPeriodo
+                ? `${data.fecha_desde ? fmtFechaDia(data.fecha_desde) : 'inicio'} - ${data.fecha_hasta ? fmtFechaDia(data.fecha_hasta) : 'hoy'}`
+                : 'todos los documentos'
+        });
+        consulta.push({ label: 'Cliente', valor: data.cliente || 'Todos' });
+        consulta.push({ label: 'Estado', valor: etiquetaFiltro });
+        if (data.q) {
+            consulta.push({ label: 'Búsqueda', valor: data.q });
+        }
+        const filtrosTitulo = [
+            periodoTexto,
+            data.cliente ? `Cliente: ${data.cliente}` : ''
+        ].filter(Boolean).join('   ');
+        return {
+            nombre: 'Cuentas por cobrar',
+            titulo: 'Cuentas por cobrar',
+            tituloSecundario: 'Por documento de venta',
+            subtitulo: filtrosTitulo || undefined,
+            plantilla: 'formal',
+            mostrarFirma: true,
+            consulta,
+            columnas: ['N°', 'Fecha', 'N° Venta', 'Cliente', 'Total (Bs)', 'Cobrado (Bs)', 'Saldo (Bs)', 'Vencimiento', 'Días atraso', 'Estado'],
+            filas,
+            resumen: [
+                { label: 'Total crédito', valor: data.totales.vendido },
+                { label: 'Total cobrado', valor: data.totales.cobrado },
+                { label: 'Total pendiente', valor: data.totales.pendiente }
+            ]
         };
     }
 

@@ -2,24 +2,32 @@ import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MenuItem } from 'primeng/api';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
+import { MenubarModule } from 'primeng/menubar';
 import { apiUrl } from '../../core/utils/api-url';
 import { formatBs } from '../caja/caja.utils';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
+import { CuentasPorCobrarPage } from './cuentas-por-cobrar';
 
 @Component({
     selector: 'app-reportes',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, BotonesExportarComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, MenubarModule, BotonesExportarComponent, CuentasPorCobrarPage],
     template: `
-        <div class="mb-6">
-            <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Reportes</div>
-            <div class="text-muted-color">Resumen operativo del período. Puede bajar PDF o Excel con movimientos, ventas y egresos.</div>
+     
+        <p-menubar [model]="menuReportes"/>
+      
+           <div class="mt-3 py-2">
+            <div class="font-semibold text-2xl mb-3">{{ tituloReporte }}</div>
         </div>
+     
+        <app-cuentas-por-cobrar *ngIf="tipo === 'cuentas_por_cobrar'" />
+        <ng-container *ngIf="tipo === 'resumen'">
         <div class="card mb-4">
-            <div class="flex flex-wrap items-end gap-2">
+            <div class="flex flex-wrap items-end gap-3">
                 <div class="w-full sm:w-[15rem] min-w-0">
                     <label class="block font-bold mb-1 text-sm">Período</label>
                     <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" fluid />
@@ -38,9 +46,12 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
                 </div>
             </div>
         </div>
+        </ng-container>
     `
 })
 export class ReportesPage implements OnInit {
+    tipo = 'resumen';
+    menuReportes: MenuItem[] = [];
     rango: Date[] | null = null;
     data: any = null;
     cargando = false;
@@ -49,7 +60,44 @@ export class ReportesPage implements OnInit {
     constructor(private http: HttpClient, private aviso: AvisoService) {}
 
     ngOnInit(): void {
+        this.armarMenu();
         this.cargar();
+    }
+
+    get tituloReporte(): string {
+        return this.tipo === 'cuentas_por_cobrar' ? 'Cuentas por cobrar' : 'Resumen operativo';
+    }
+
+    elegir(tipo: string): void {
+        this.tipo = tipo;
+        this.armarMenu();
+    }
+
+    private armarMenu(): void {
+        this.menuReportes = [
+            {
+                label: 'Operación',
+                icon: 'pi pi-chart-bar',
+                items: [
+                    {
+                        label: 'Resumen operativo',
+                        icon: this.tipo === 'resumen' ? 'pi pi-check' : 'pi pi-th-large',
+                        command: () => this.elegir('resumen')
+                    }
+                ]
+            },
+            {
+                label: 'Cuentas',
+                icon: 'pi pi-wallet',
+                items: [
+                    {
+                        label: 'Cuentas por cobrar',
+                        icon: this.tipo === 'cuentas_por_cobrar' ? 'pi pi-check' : 'pi pi-money-bill',
+                        command: () => this.elegir('cuentas_por_cobrar')
+                    }
+                ]
+            }
+        ];
     }
 
     get fechaDesde(): string | undefined {

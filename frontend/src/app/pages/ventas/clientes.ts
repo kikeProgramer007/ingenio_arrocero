@@ -56,26 +56,28 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         </div>
 
         <div class="card">
+            <div class="flex flex-wrap items-end gap-3 mb-4">
+                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                    <label class="block font-bold mb-1 text-sm">Buscar</label>
+                    <app-tabla-busqueda placeholder="Buscar por nombre o NIT/CI" (buscar)="filtrarTabla(dt, $event)" />
+                </div>
+            </div>
             <p-table
                 #dt
                 [value]="cargando ? [] : clientes"
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
+                [alwaysShowPaginator]="true"
                 [rows]="10"
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} clientes"
                 [globalFilterFields]="['nombre', 'nit_ci', 'telefono', 'direccion', 'procedencia']"
                 [rowHover]="true"
+                sortMode="single"
                 responsiveLayout="scroll"
             >
-                <ng-template #caption>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <span class="font-semibold">Listado de clientes</span>
-                        <app-tabla-busqueda placeholder="Buscar por nombre o NIT/CI" (buscar)="filtrarTabla(dt, $event)" />
-                    </div>
-                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th></th>

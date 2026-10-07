@@ -10,7 +10,7 @@ import { roundMoney, toMoney } from '../utils/money';
 import { obtenerCajaAbierta, registrarEgresoCaja, registrarIngresosPartidos } from '../utils/caja-ingreso';
 import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
 import { CATEGORIA_EGRESO, CATEGORIA_INGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
-import { cobradoVenta, diasParaVencer, ESTADO_VENTA, estadoVentaPorSaldo, esVentaVencida, situacionCobranza } from '../constants/venta.constants';
+import { cobradoVenta, diasAtraso, diasParaVencer, ESTADO_VENTA, estadoVentaPorSaldo, esVentaVencida, situacionCobranza } from '../constants/venta.constants';
 import { CrearCobranzaDTO, CrearVentaDTO } from '../dtos/venta.dto';
 import { camposPagoDocumento, conceptoPorCanal, partesDesdeDocumento } from '../utils/metodo-pago';
 
@@ -43,6 +43,7 @@ function mapVenta(venta: any) {
         fecha_vencimiento: venta.fecha_vencimiento || null,
         vencida: esVentaVencida(venta.fecha_vencimiento, saldo, venta.estado),
         dias_vencimiento: diasParaVencer(venta.fecha_vencimiento),
+        dias_atraso: diasAtraso(venta.fecha_vencimiento, saldo, venta.estado),
         situacion: situacionCobranza(venta.fecha_vencimiento, saldo, venta.estado),
         cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,
         usuario: venta.usuario ? { id: venta.usuario.id, username: venta.usuario.username } : null,

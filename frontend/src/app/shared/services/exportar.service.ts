@@ -5,7 +5,7 @@ import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { apiUrl } from '../../core/utils/api-url';
 
 export type FormatoExport = 'pdf' | 'xlsx';
-export type TipoExport = 'resumen' | 'movimientos' | 'ventas' | 'egresos' | 'caja' | 'venta' | 'compras' | 'compra' | 'cobranzas' | 'pagos' | 'inventario' | 'cuenta_proveedor';
+export type TipoExport = 'resumen' | 'movimientos' | 'ventas' | 'egresos' | 'caja' | 'venta' | 'compras' | 'compra' | 'cobranzas' | 'pagos' | 'inventario' | 'cuenta_proveedor' | 'cuentas_por_cobrar';
 
 export interface ParamsExport {
     tipo: TipoExport;
@@ -17,6 +17,7 @@ export interface ParamsExport {
     tipo_gasto?: string;
     id_caja?: number | string;
     id?: number | string;
+    q?: string;
 }
 
 interface ArchivoExport {

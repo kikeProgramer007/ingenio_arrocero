@@ -29,26 +29,28 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <p-button label="Nueva producción" icon="pi pi-plus" (onClick)="dialog = true" />
         </div>
         <div class="card">
+            <div class="flex flex-wrap items-end gap-3 mb-4">
+                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                    <label class="block font-bold mb-1 text-sm">Buscar</label>
+                    <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
+                </div>
+            </div>
             <p-table
                 #dt
                 [value]="cargando ? [] : items"
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
+                [alwaysShowPaginator]="true"
                 [rows]="10"
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} producciones"
                 [globalFilterFields]="['fecha', 'producto_origen.nombre', 'producto_destino.nombre']"
                 [rowHover]="true"
+                sortMode="single"
                 responsiveLayout="scroll"
             >
-                <ng-template #caption>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <span class="font-semibold">Listado de producción</span>
-                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
-                    </div>
-                </ng-template>
                 <ng-template #header>
                     <tr><th>Fecha</th><th>Origen</th><th>Entrada</th><th>Destino</th><th>Salida</th><th>Merma</th></tr>
                 </ng-template>

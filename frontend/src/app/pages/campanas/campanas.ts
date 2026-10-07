@@ -37,26 +37,28 @@ import { MenuItem } from 'primeng/api';
             <p-button label="Nueva campaña" icon="pi pi-plus" (onClick)="dialogCampana = true" />
         </div>
         <div class="card">
+            <div class="flex flex-wrap items-end gap-3 mb-4">
+                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                    <label class="block font-bold mb-1 text-sm">Buscar</label>
+                    <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
+                </div>
+            </div>
             <p-table
                 #dt
                 [value]="cargando ? [] : campanas"
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
+                [alwaysShowPaginator]="true"
                 [rows]="10"
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} campañas"
                 [globalFilterFields]="['nombre', 'fecha_inicio', 'estado']"
                 [rowHover]="true"
+                sortMode="single"
                 responsiveLayout="scroll"
             >
-                <ng-template #caption>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <span class="font-semibold">Listado de campañas</span>
-                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
-                    </div>
-                </ng-template>
                 <ng-template #header>
                     <tr><th>Nombre</th><th>Inicio</th><th>Acopiado</th><th>Meta</th><th>Monto</th><th>Estado</th><th></th></tr>
                 </ng-template>

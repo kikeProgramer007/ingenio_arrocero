@@ -49,7 +49,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-2 mb-4">
+            <div class="flex flex-wrap items-end gap-3 mb-4">
                 <div class="w-full sm:w-[9.5rem] min-w-0">
                     <label class="block font-bold mb-1 text-sm">Estado</label>
                     <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="estado" placeholder="Estado" fluid />
@@ -58,8 +58,12 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     <label class="block font-bold mb-1 text-sm">Período</label>
                     <p-datepicker selectionMode="range" [(ngModel)]="rangoFechas" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
                 </div>
-                <p-button label="Filtrar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
                 <p-button label="Limpiar" icon="pi pi-times" severity="secondary" [outlined]="true" (onClick)="limpiar()" />
+                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                    <label class="block font-bold mb-1 text-sm">Buscar</label>
+                    <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
+                </div>
             </div>
 
             <p-table
@@ -68,20 +72,16 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
+                [alwaysShowPaginator]="true"
                 [rows]="10"
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} cajas"
                 [globalFilterFields]="['fecha_apertura', 'usuario_apertura.username', 'estado']"
                 [rowHover]="true"
+                sortMode="single"
                 responsiveLayout="scroll"
             >
-                <ng-template #caption>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <span class="font-semibold">Historial de cajas</span>
-                        <app-tabla-busqueda (buscar)="filtrarTabla(dt, $event)" />
-                    </div>
-                </ng-template>
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>

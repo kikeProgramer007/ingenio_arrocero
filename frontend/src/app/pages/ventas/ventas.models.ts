@@ -34,6 +34,7 @@ export interface Venta {
     fecha_vencimiento?: string | null;
     vencida?: boolean;
     dias_vencimiento?: number | null;
+    dias_atraso?: number | null;
     situacion?: string;
     cliente: { id: number; nombre: string } | null;
     usuario: { id: number; username: string } | null;
