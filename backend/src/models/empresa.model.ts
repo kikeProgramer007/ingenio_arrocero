@@ -53,6 +53,11 @@ export const Empresa = sequelize.define('empresa', {
         type: DataTypes.STRING(8),
         allowNull: false,
         defaultValue: '11'
+    },
+    tipo_cambio: {
+        type: DataTypes.DECIMAL(12, 4),
+        allowNull: false,
+        defaultValue: 9.96
     }
 }, {
     tableName: 'empresa',

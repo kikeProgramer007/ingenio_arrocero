@@ -6,7 +6,7 @@ import { DtoValidator } from '../utils/dto.validador';
 import { ActualizarProveedorDTO, CrearProveedorDTO } from '../dtos/proveedor.dto';
 import { imagenParaGuardar, resolverImagen } from '../utils/imagen';
 import { roundMoney, toMoney } from '../utils/money';
-import { armarCuentaProveedor, esCompraServicio } from '../utils/cuenta-proveedor';
+import { armarCuentaProveedor, esCompraServicio, extraerProductores, filtroCuentaDesdeQuery } from '../utils/cuenta-proveedor';
 import { toQty } from '../utils/inventario';
 
 function mapProveedor(proveedor: any) {
@@ -70,11 +70,13 @@ export class ProveedorController {
                 return;
             }
             const usuarioAtributos = ['id', 'username'];
+            const filtro = filtroCuentaDesdeQuery(req.query);
             const [compras, pagos, acopios] = await Promise.all([
                 Compra.findAll({
                     where: { id_proveedor: id },
                     include: [
                         { model: CompraDetalle, as: 'detalles', include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }] },
+                        { model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] },
                         { model: User, as: 'usuario', attributes: usuarioAtributos }
                     ],
                     order: [['fecha', 'DESC'], ['id', 'DESC']]
@@ -82,7 +84,12 @@ export class ProveedorController {
                 PagoProveedor.findAll({
                     where: { id_proveedor: id },
                     include: [
-                        { model: Compra, as: 'compra', attributes: ['id', 'total', 'saldo_pendiente', 'estado'] },
+                        {
+                            model: Compra,
+                            as: 'compra',
+                            attributes: ['id', 'total', 'saldo_pendiente', 'estado', 'tipo_compra', 'tipo_cambio', 'total_usd', 'id_productor'],
+                            include: [{ model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] }]
+                        },
                         { model: User, as: 'usuario', attributes: usuarioAtributos }
                     ],
                     order: [['fecha', 'DESC'], ['id', 'DESC']]
@@ -97,9 +104,11 @@ export class ProveedorController {
                     order: [['fecha', 'DESC'], ['id', 'DESC']]
                 })
             ]);
-            const cuenta = armarCuentaProveedor(compras, pagos, acopios);
+            const cuenta = armarCuentaProveedor(compras, pagos, acopios, filtro);
             res.status(200).json({
                 proveedor: mapProveedor(proveedor),
+                productores: extraerProductores(compras),
+                filtro,
                 resumen: cuenta.resumen,
                 inventario: cuenta.inventario,
                 kardex: cuenta.kardex,
@@ -136,7 +145,7 @@ export class ProveedorController {
                 }))
             });
         } catch (error) {
-            handleError(res, error, 'Error al obtener la cuenta del productor');
+            handleError(res, error, 'Error al obtener el estado de cuenta del proveedor');
         }
     }
 

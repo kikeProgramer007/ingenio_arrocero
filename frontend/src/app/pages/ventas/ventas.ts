@@ -177,7 +177,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <label class="flex items-center gap-1 font-bold">Cliente <app-ayuda-campo texto="Quien compra. Si no está en la lista, pulsa Nuevo." posicion="right" /></label>
                         <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirClienteRapido()" />
                     </div>
-                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="idCliente" placeholder="Seleccione cliente" [filter]="true" fluid />
+                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="idCliente" placeholder="Seleccione cliente" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
                 </div>
                 <div>
                     <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
@@ -199,6 +199,8 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                                     [filter]="true"
                                     [showClear]="true"
                                     fluid
+                                    appendTo="body"
+                                    [baseZIndex]="2100"
                                 />
                             </div>
                             <div class="col-span-12" *ngIf="!linea.id_producto">
@@ -234,7 +236,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     </div>
                     <div class="col-span-12 md:col-span-4">
                         <label class="flex items-center gap-1 font-bold mb-2">Plazo de cobro <app-ayuda-campo texto="Cuándo debe pagar el saldo. No cambia el precio ni los abonos. Opcional." posicion="top" /></label>
-                        <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid />
+                        <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid appendTo="body" [baseZIndex]="2100" />
                         <small class="block text-muted-color mt-1" *ngIf="plazoDias > 0">Vence el {{ vencimientoEstimado }}</small>
                     </div>
                     <div class="col-span-12 md:col-span-4" *ngIf="plazoDias === -1">
@@ -326,7 +328,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <div class="flex flex-col gap-3">
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Procedencia <app-ayuda-campo texto="De dónde viene el cliente: La Paz, Cochabamba, Oruro u otras." posicion="top" /></label>
-                    <p-select [options]="procedencias" [(ngModel)]="clienteRapido.procedencia" placeholder="Seleccione" [showClear]="true" fluid />
+                    <p-select [options]="procedencias" [(ngModel)]="clienteRapido.procedencia" placeholder="Seleccione" [showClear]="true" fluid appendTo="body" [baseZIndex]="2200" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Nombre comercial o de la persona. Ej.: Distribuidora Rojas." posicion="right" /></label>

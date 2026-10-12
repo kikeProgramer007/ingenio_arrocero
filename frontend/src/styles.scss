@@ -28,3 +28,11 @@
     box-shadow: 0 8px 24px color-mix(in srgb, var(--royal-red) 28%, transparent);
 }
 
+.compra-drawer.p-drawer-full .p-drawer-content,
+.p-drawer-full.compra-drawer .p-drawer-content {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+

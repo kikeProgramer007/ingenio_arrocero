@@ -46,7 +46,8 @@ export class EmpresaService {
             nombre_corto: (empresa?.nombre_corto || '').trim() || EMPRESA_FALLBACK.nombre_corto,
             slogan: (empresa?.slogan || '').trim() || EMPRESA_FALLBACK.slogan,
             path_logo: (empresa?.path_logo || '').trim() || EMPRESA_FALLBACK.path_logo,
-            formato_nota: empresa?.formato_nota === '5.5' ? '5.5' : '11'
+            formato_nota: empresa?.formato_nota === '5.5' ? '5.5' : '11',
+            tipo_cambio: Number(empresa?.tipo_cambio) > 0 ? Number(empresa.tipo_cambio) : EMPRESA_FALLBACK.tipo_cambio
         };
         this.datos.set(normalizada);
         const nombre = normalizada.nombre_corto || normalizada.nombre;

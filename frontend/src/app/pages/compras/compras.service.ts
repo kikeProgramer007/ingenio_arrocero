@@ -27,8 +27,21 @@ export class ProveedoresService {
         return this.http.put<ApiMensaje<Proveedor>>(apiUrl(`/api/proveedores/${id}`), payload);
     }
 
-    cuenta(id: number): Observable<CuentaProveedor> {
-        return this.http.get<CuentaProveedor>(apiUrl(`/api/proveedores/${id}/cuenta`));
+    cuenta(id: number, filtros?: { fecha_desde?: string; fecha_hasta?: string; id_productor?: number; tipo_compra?: string }): Observable<CuentaProveedor> {
+        let httpParams = new HttpParams();
+        if (filtros?.fecha_desde) {
+            httpParams = httpParams.set('fecha_desde', filtros.fecha_desde);
+        }
+        if (filtros?.fecha_hasta) {
+            httpParams = httpParams.set('fecha_hasta', filtros.fecha_hasta);
+        }
+        if (filtros?.id_productor) {
+            httpParams = httpParams.set('id_productor', String(filtros.id_productor));
+        }
+        if (filtros?.tipo_compra) {
+            httpParams = httpParams.set('tipo_compra', filtros.tipo_compra);
+        }
+        return this.http.get<CuentaProveedor>(apiUrl(`/api/proveedores/${id}/cuenta`), { params: httpParams });
     }
 }
 

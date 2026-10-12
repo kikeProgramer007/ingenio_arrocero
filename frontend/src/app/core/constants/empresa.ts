@@ -13,6 +13,7 @@ export interface Empresa {
     email: string;
     path_logo: string;
     formato_nota: FormatoNota;
+    tipo_cambio: number;
 }
 
 export const FORMATOS_NOTA: { label: string; value: FormatoNota }[] = [
@@ -32,7 +33,8 @@ export const EMPRESA_FALLBACK: Empresa = {
     ciudad: '',
     email: '',
     path_logo: 'assets/brand/logotipo.jpeg',
-    formato_nota: '11'
+    formato_nota: '11',
+    tipo_cambio: 9.96
 };
 
 /** Respaldo estático si la API aún no respondió. */

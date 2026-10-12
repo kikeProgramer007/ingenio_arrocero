@@ -11,6 +11,11 @@ import { TextareaModule } from 'primeng/textarea';
 import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
 import { Compra, PagoProveedor } from './compras.models';
 import { ComprasService } from './compras.service';
+import { ExportarService } from '../../shared/services/exportar.service';
+import { formatUsd } from '../../shared/utils/money';
+import { TooltipModule } from 'primeng/tooltip';
+import { Menu, MenuModule } from 'primeng/menu';
+import { MenuItem } from 'primeng/api';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
 import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
@@ -43,10 +48,13 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         AyudaCampoComponent,
         MetodoPagoComponent,
         InputNumeroComponent,
-        TablaBusquedaComponent
+        TablaBusquedaComponent,
+        TooltipModule,
+        MenuModule
     ],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
+        <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Pagos a proveedores</div>
@@ -91,6 +99,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <th>Saldo pendiente</th>
                         <th>Método</th>
                         <th>Usuario</th>
+                        <th></th>
                     </tr>
                 </ng-template>
                 <ng-template #body let-item>
@@ -98,19 +107,34 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <td>{{ formatFecha(item.fecha) }}</td>
                         <td>{{ item.proveedor?.nombre || '-' }}</td>
                         <td>#{{ item.id_compra }}</td>
-                        <td>{{ formatBs(item.compra?.total) }}</td>
-                        <td>{{ formatBs(item.monto) }}</td>
-                        <td>{{ formatBs(item.compra?.saldo_pendiente) }}</td>
+                        <td class="text-right">{{ formatBs(item.compra?.total) }}</td>
+                        <td class="text-right">
+                            <div>{{ formatBs(item.monto) }}</div>
+                            <div class="text-xs text-muted-color" *ngIf="item.monto_usd">{{ formatUsd(item.monto_usd) }}</div>
+                        </td>
+                        <td class="text-right">{{ formatBs(item.compra?.saldo_pendiente) }}</td>
                         <td>{{ etiquetaPago(item) }}</td>
                         <td>{{ item.usuario?.username || '-' }}</td>
+                        <td>
+                            <p-button
+                                icon="pi pi-ellipsis-v"
+                                [rounded]="true"
+                                [text]="true"
+                                severity="secondary"
+                                pTooltip="Opciones"
+                                tooltipPosition="left"
+                                ariaLabel="Opciones del pago"
+                                (onClick)="abrirAcciones($event, menuAcciones, item)"
+                            />
+                        </td>
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
-                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="9" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
                     <tr>
-                        <td colspan="8">
+                        <td colspan="9">
                             <app-estado-vacio
                                 icono="pi pi-send"
                                 titulo="No hay pagos registrados"
@@ -126,17 +150,11 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <div class="flex flex-col gap-4">
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Compra pendiente <app-ayuda-campo texto="Solo compras con saldo. El pago sale de caja; la compra no es egreso hasta pagar." posicion="right" /></label>
-                    <p-select [options]="pendientes" [(ngModel)]="idCompra" optionValue="id" placeholder="Seleccione compra" [filter]="true" fluid (onChange)="onCompra()">
-                        <ng-template #selectedItem let-sel>
-                            <span *ngIf="sel">#{{ sel.id }} · {{ sel.proveedor?.nombre }} · saldo {{ formatBs(sel.saldo_pendiente) }}</span>
-                        </ng-template>
-                        <ng-template #item let-opt>
-                            <div>#{{ opt.id }} · {{ opt.proveedor?.nombre }} · saldo {{ formatBs(opt.saldo_pendiente) }}</div>
-                        </ng-template>
-                    </p-select>
+                    <p-select [options]="pendientesOpciones" [(ngModel)]="idCompra" optionLabel="etiqueta" optionValue="id" placeholder="Seleccione compra" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" (onChange)="onCompra()" />
+                    <small class="block text-muted-color mt-1" *ngIf="usdReferencialPago()">Equiv. {{ formatUsd(usdReferencialPago()) }} al TC {{ compraSeleccionada?.tipo_cambio }} de la compra. El pago se registra en Bs.</small>
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="No puede superar el saldo. Puedes pagar una parte." posicion="right" /></label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Se paga en bolivianos. No puede superar el saldo." posicion="right" /></label>
                     <app-input-numero [(ngModel)]="monto" />
                 </div>
                 <div>
@@ -177,8 +195,21 @@ export class PagosPage implements OnInit {
     observacion = '';
     saldoPendiente = 0;
     formatBs = formatBs;
+    formatUsd = formatUsd;
     formatFecha = formatFecha;
     etiquetaPago = etiquetaPago;
+    itemsAcciones: MenuItem[] = [];
+
+    get compraSeleccionada(): Compra | undefined {
+        return this.pendientes.find((c) => c.id === this.idCompra);
+    }
+
+    get pendientesOpciones() {
+        return this.pendientes.map((c) => ({
+            ...c,
+            etiqueta: `#${c.id} · ${c.proveedor?.nombre || '-'} · saldo ${formatBs(c.saldo_pendiente)}`
+        }));
+    }
 
     get kpis(): KpiItem[] {
         return [
@@ -188,7 +219,11 @@ export class PagosPage implements OnInit {
         ];
     }
 
-    constructor(private comprasService: ComprasService, private aviso: AvisoService) {}
+    constructor(
+        private comprasService: ComprasService,
+        private exportarService: ExportarService,
+        private aviso: AvisoService
+    ) {}
 
     ngOnInit(): void {
         this.cargar();
@@ -261,6 +296,7 @@ export class PagosPage implements OnInit {
             return;
         }
         this.guardando = true;
+        const visor = this.exportarService.abrirVentanaEspera('Generando recibo de pago...');
         this.comprasService.crearPago({
             id_compra: this.idCompra,
             monto: this.monto,
@@ -274,8 +310,14 @@ export class PagosPage implements OnInit {
                 this.dialog = false;
                 this.aviso.ok('Pago', res.mensaje);
                 this.cargar();
+                if (res.data?.id) {
+                    this.exportarRecibo(res.data.id, visor);
+                } else {
+                    visor?.close();
+                }
             },
             error: (err) => {
+                visor?.close();
                 this.guardando = false;
                 if (esErrorCajaCerrada(err)) {
                     this.dialogCajaCerrada = true;
@@ -283,6 +325,33 @@ export class PagosPage implements OnInit {
                 }
                 this.aviso.error(err, 'No se pudo registrar el pago');
             }
+        });
+    }
+
+    abrirAcciones(event: Event, menu: Menu, pago: PagoProveedor): void {
+        this.itemsAcciones = [
+            {
+                label: 'Reimprimir recibo',
+                icon: 'pi pi-file-pdf menu-icon-pdf',
+                iconStyle: { color: '#ef4444' },
+                command: () => this.exportarRecibo(pago.id)
+            }
+        ];
+        menu.toggle(event);
+    }
+
+    usdReferencialPago(): number {
+        const tc = Number(this.compraSeleccionada?.tipo_cambio || 0);
+        if (!(tc > 0) || !(this.monto > 0)) {
+            return 0;
+        }
+        return Math.round((this.monto / tc) * 100) / 100;
+    }
+
+    private exportarRecibo(id: number, visor?: Window | null): void {
+        const ventana = visor ?? this.exportarService.abrirVentanaEspera('Generando recibo de pago...');
+        this.exportarService.mostrarPdf({ tipo: 'pago', formato: 'pdf', id }, ventana).subscribe({
+            error: (err) => this.aviso.error(err, 'No se pudo generar el recibo')
         });
     }
 }

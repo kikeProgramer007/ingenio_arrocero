@@ -196,7 +196,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <div class="flex flex-col gap-4">
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Venta pendiente <app-ayuda-campo texto="Solo ventas con saldo. El cobro entra a caja; la venta no es ingreso por sí sola." posicion="right" /></label>
-                    <p-select [options]="pendientes" [(ngModel)]="idVenta" optionValue="id" placeholder="Seleccione venta" [filter]="true" fluid>
+                    <p-select [options]="pendientes" [(ngModel)]="idVenta" optionValue="id" placeholder="Seleccione venta" [filter]="true" fluid appendTo="body" [baseZIndex]="2100">
                         <ng-template #selectedItem let-sel>
                             <span *ngIf="sel">#{{ sel.id }} · {{ sel.cliente?.nombre }} · saldo {{ formatBs(sel.saldo_pendiente) }}</span>
                         </ng-template>

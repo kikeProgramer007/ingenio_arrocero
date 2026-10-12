@@ -10,7 +10,14 @@ export interface ProductoLista {
     precio_compra: number;
     stock: number;
     unidad_medida: string;
+    path_imagen?: string | null;
+    id_categoria?: number | null;
     categoria?: { id: number; nombre: string } | null;
+}
+
+export interface CategoriaProducto {
+    id: number;
+    nombre: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -19,5 +26,27 @@ export class ProductosService {
 
     listar(): Observable<ProductoLista[]> {
         return this.http.get<ProductoLista[]>(apiUrl('/api/productos'));
+    }
+
+    categorias(): Observable<CategoriaProducto[]> {
+        return this.http.get<CategoriaProducto[]>(apiUrl('/api/productos/categorias'));
+    }
+
+    unidadesInvalidas(): Observable<{ mensaje: string; data: { origen: string; id: number; nombre: string; unidad: string; detalle: string }[] }> {
+        return this.http.get<{ mensaje: string; data: { origen: string; id: number; nombre: string; unidad: string; detalle: string }[] }>(apiUrl('/api/productos/unidades-invalidas'));
+    }
+
+    crear(payload: {
+        nombre: string;
+        descripcion?: string;
+        precio_venta?: number;
+        precio_compra?: number;
+        stock?: number;
+        stock_minimo?: number;
+        unidad_medida?: string;
+        path_imagen?: string;
+        id_categoria?: number;
+    }): Observable<{ mensaje: string; data: ProductoLista }> {
+        return this.http.post<{ mensaje: string; data: ProductoLista }>(apiUrl('/api/productos'), payload);
     }
 }

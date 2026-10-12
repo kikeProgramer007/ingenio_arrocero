@@ -155,7 +155,8 @@ export async function asegurarEsquemaEmpresa(): Promise<void> {
         { nombre: 'ciudad', ddl: 'ADD COLUMN ciudad VARCHAR(80) NULL' },
         { nombre: 'email', ddl: 'ADD COLUMN email VARCHAR(120) NULL' },
         { nombre: 'path_logo', ddl: 'ADD COLUMN path_logo VARCHAR(255) NULL' },
-        { nombre: 'formato_nota', ddl: "ADD COLUMN formato_nota VARCHAR(8) NULL" }
+        { nombre: 'formato_nota', ddl: "ADD COLUMN formato_nota VARCHAR(8) NULL" },
+        { nombre: 'tipo_cambio', ddl: 'ADD COLUMN tipo_cambio DECIMAL(12,4) NOT NULL DEFAULT 9.96' }
     ];
     for (const col of faltantes) {
         if (!nombres.has(col.nombre)) {
@@ -174,11 +175,32 @@ export async function asegurarEsquemaCompras(): Promise<void> {
         { nombre: 'chofer', ddl: 'ADD COLUMN chofer VARCHAR(120) NULL' },
         { nombre: 'placa', ddl: 'ADD COLUMN placa VARCHAR(30) NULL' },
         { nombre: 'fanegas', ddl: 'ADD COLUMN fanegas DECIMAL(12,3) NULL' },
-        { nombre: 'concepto', ddl: 'ADD COLUMN concepto VARCHAR(40) NULL' }
+        { nombre: 'concepto', ddl: 'ADD COLUMN concepto VARCHAR(40) NULL' },
+        { nombre: 'tipo_compra', ddl: 'ADD COLUMN tipo_compra VARCHAR(20) NULL' },
+        { nombre: 'tipo_cambio', ddl: 'ADD COLUMN tipo_cambio DECIMAL(12,4) NULL' },
+        { nombre: 'total_usd', ddl: 'ADD COLUMN total_usd DECIMAL(12,2) NULL' },
+        { nombre: 'precio_usd', ddl: 'ADD COLUMN precio_usd DECIMAL(12,4) NULL' },
+        { nombre: 'id_productor', ddl: 'ADD COLUMN id_productor INT NULL' },
+        { nombre: 'plazo_dias', ddl: 'ADD COLUMN plazo_dias INT NULL' },
+        { nombre: 'fecha_vencimiento', ddl: 'ADD COLUMN fecha_vencimiento DATE NULL' }
     ];
     for (const col of faltantes) {
         if (!nombres.has(col.nombre)) {
             await sequelize.query(`ALTER TABLE compras ${col.ddl}`);
+        }
+    }
+
+    const detallesExiste = await sequelize.query<{ c: number }>(
+        "SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'compra_detalles'",
+        { type: QueryTypes.SELECT }
+    );
+    if (Number(detallesExiste[0]?.c)) {
+        const columnasDet = await sequelize.query<ColumnRow>('SHOW COLUMNS FROM compra_detalles', {
+            type: QueryTypes.SELECT
+        });
+        const nombresDet = new Set(columnasDet.map((col) => col.Field));
+        if (!nombresDet.has('unidad')) {
+            await sequelize.query('ALTER TABLE compra_detalles ADD COLUMN unidad VARCHAR(20) NULL');
         }
     }
 }

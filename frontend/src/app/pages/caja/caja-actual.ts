@@ -211,11 +211,11 @@ import { ExportarService } from '../../shared/services/exportar.service';
             <div class="flex flex-col gap-4">
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Tipo <app-ayuda-campo texto="Ingreso suma a caja. Egreso resta. No uses esto para ventas: esas se cobran en Ventas." posicion="right" /></label>
-                    <p-select [options]="tipos" optionLabel="label" optionValue="value" [(ngModel)]="movimiento.tipo" (onChange)="onCambioTipo()" placeholder="Selecciona" fluid />
+                    <p-select [options]="tipos" optionLabel="label" optionValue="value" [(ngModel)]="movimiento.tipo" (onChange)="onCambioTipo()" placeholder="Selecciona" fluid appendTo="body" [baseZIndex]="2100" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Clasifica el movimiento. Las anulaciones de venta se generan solas; no aparecen aquí." posicion="right" /></label>
-                    <p-select [options]="categorias" optionLabel="label" optionValue="value" [(ngModel)]="movimiento.categoria" placeholder="Selecciona" fluid />
+                    <p-select [options]="categorias" optionLabel="label" optionValue="value" [(ngModel)]="movimiento.categoria" placeholder="Selecciona" fluid appendTo="body" [baseZIndex]="2100" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Concepto <app-ayuda-campo texto="Ej.: Ajuste de caja, préstamo recibido, pago suelto." posicion="right" /></label>

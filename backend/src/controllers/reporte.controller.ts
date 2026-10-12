@@ -2,14 +2,15 @@ import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { Acopio, Caja, CategoriaProducto, Cliente, Compra, CompraDetalle, Gasto, MovimientoCaja, PagoProveedor, Productos, Proveedor, User, Venta, VentaDetalle, Cobranza } from '../models';
 import { handleError } from '../utils/error.handler';
-import { clasificarDiferencia, formatBs, roundMoney, toMoney } from '../utils/money';
+import { clasificarDiferencia, formatBs, formatUsd, roundMoney, toMoney } from '../utils/money';
 import { enviarExcel, enviarPdf, HojaExport } from '../utils/exportar';
-import { DatosVoucher, enviarVoucherPdf, LineaVoucher } from '../utils/pdf-voucher';
+import { DatosVoucher, enviarReciboPagoPdf, enviarVoucherPdf, LineaVoucher } from '../utils/pdf-voucher';
 import { ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
 import { cobradoVenta, diasAtraso, ESTADO_VENTA, esVentaVencida, saldoVenta, situacionCobranza } from '../constants/venta.constants';
 import { parseFechaLocal, ymdLocal } from '../utils/fecha';
 import { resumirMovimientos } from '../utils/caja-resumen';
-import { armarCuentaProveedor, esCompraServicio } from '../utils/cuenta-proveedor';
+import { armarCuentaProveedor, esCompraServicio, extraerProductores, filtroCuentaDesdeQuery } from '../utils/cuenta-proveedor';
+import { etiquetaTipoCompra, inferirTipoCompra, TIPO_COMPRA } from '../constants/compra.constants';
 import { getAuthUser } from '../utils/auth-user';
 import { refrescarEmpresa } from '../utils/empresa';
 
@@ -195,6 +196,15 @@ export class ReporteController {
                 enviarVoucherPdf(res, `nota-compra-${voucher.numero}`, voucher);
                 return;
             }
+            if (formato === 'pdf' && tipo === 'pago') {
+                const recibo = await ReporteController.datosReciboPago(req);
+                if (!recibo) {
+                    res.status(404).json({ mensaje: 'No hay datos para exportar' });
+                    return;
+                }
+                enviarReciboPagoPdf(res, `recibo-pago-${recibo.numero}`, recibo);
+                return;
+            }
             await refrescarEmpresa();
             const hojas = await ReporteController.construirHojas(tipo, req, desde, hasta);
             if (!hojas.length) {
@@ -232,6 +242,9 @@ export class ReporteController {
         }
         if (tipo === 'compra') {
             return ReporteController.hojaCompra(req);
+        }
+        if (tipo === 'pago') {
+            return ReporteController.hojaPago(req);
         }
         if (tipo === 'caja') {
             return ReporteController.hojaCaja(req);
@@ -797,7 +810,7 @@ export class ReporteController {
                 c.id,
                 fmtFecha(c.fecha),
                 c.proveedor?.nombre || '-',
-                esCompraServicio(c) ? 'Servicio' : 'Compra',
+                etiquetaTipoCompra(inferirTipoCompra(c)),
                 total,
                 roundMoney(total - pendiente),
                 pendiente,
@@ -806,7 +819,7 @@ export class ReporteController {
         });
         const total = roundMoney(filas.reduce((acc, f) => acc + Number(f[4]), 0));
         const porPagar = roundMoney(filas.reduce((acc, f) => acc + Number(f[6]), 0));
-        const nServicios = filas.filter((f) => f[3] === 'Servicio').length;
+        const nServicios = filas.filter((f) => String(f[3]).includes('servicios') || String(f[3]) === 'Servicio').length;
         return {
             nombre: 'Compras',
             titulo: 'Compras',
@@ -945,26 +958,37 @@ export class ReporteController {
     private static async hojasCuentaProveedor(req: Request): Promise<HojaExport[]> {
         const id = Number(req.query.id);
         const proveedor = id ? await Proveedor.findByPk(id) : null;
+        const columnasKardex = ['Fecha', 'Productor', 'Tipo de operación', 'Concepto/Producto', 'Boleta', 'Chofer', 'Placa', 'Fanegas', 'Precio', 'Compra', 'Pago/Amortización', 'Saldo'];
         if (!proveedor) {
             return [{
                 nombre: 'Kardex',
-                titulo: 'Cuenta del productor',
-                columnas: ['Productor', 'Fecha', 'Tipo', 'Concepto', 'Boleta', 'Chofer', 'Placa', 'Fanegas', 'Precio', 'Compra', 'Pagos', 'Saldo'],
+                titulo: 'Estado de cuenta del proveedor',
+                columnas: columnasKardex,
                 filas: []
             }];
         }
+        const filtro = filtroCuentaDesdeQuery(req.query);
         const [compras, pagos, acopios] = await Promise.all([
             Compra.findAll({
                 where: { id_proveedor: id },
-                include: [{
-                    model: CompraDetalle,
-                    as: 'detalles',
-                    include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }]
-                }],
+                include: [
+                    {
+                        model: CompraDetalle,
+                        as: 'detalles',
+                        include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }]
+                    },
+                    { model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] }
+                ],
                 order: [['fecha', 'ASC'], ['id', 'ASC']]
             }),
             PagoProveedor.findAll({
                 where: { id_proveedor: id },
+                include: [{
+                    model: Compra,
+                    as: 'compra',
+                    attributes: ['id', 'tipo_compra', 'tipo_cambio', 'total_usd', 'id_productor'],
+                    include: [{ model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] }]
+                }],
                 order: [['fecha', 'ASC'], ['id', 'ASC']]
             }),
             Acopio.findAll({
@@ -973,44 +997,62 @@ export class ReporteController {
                 order: [['fecha', 'ASC'], ['id', 'ASC']]
             })
         ]);
-        const cuenta = armarCuentaProveedor(compras, pagos, acopios);
+        const cuenta = armarCuentaProveedor(compras, pagos, acopios, filtro);
         const r = cuenta.resumen;
         const nombre = String(proveedor.get('nombre'));
+        const productores = extraerProductores(compras);
+        const filtroProductor = productores.find((p) => p.id === filtro.id_productor)?.nombre;
+        const partesFiltro = [
+            filtro.desde || filtro.hasta
+                ? `Período ${filtro.desde ? fmtFecha(filtro.desde) : 'inicio'} a ${filtro.hasta ? fmtFecha(filtro.hasta) : 'hoy'}`
+                : '',
+            filtroProductor ? `Productor ${filtroProductor}` : '',
+            filtro.tipo_compra ? `Tipo ${etiquetaTipoCompra(filtro.tipo_compra)}` : ''
+        ].filter(Boolean);
+        const montoCuenta = (bs: number, usd?: number) => {
+            if (!bs && !usd) {
+                return '';
+            }
+            return usd ? `${formatBs(bs)} (${formatUsd(usd)})` : formatBs(bs);
+        };
         return [
             {
                 nombre: 'Kardex',
-                titulo: `Cuenta del productor — ${nombre}`,
-                subtitulo: 'COMPRA, SERVICIO y ACOPIO suman deuda. PAGO y PAGO ACOPIO restan. El servicio se registra como compra sin producto de inventario.',
+                titulo: `Estado de cuenta — ${nombre}`,
+                subtitulo: [
+                    'La deuda y los pagos son en Bs. El USD es referencial. El saldo se acumula por proveedor.',
+                    partesFiltro.join(' · ')
+                ].filter(Boolean).join(' '),
                 resumen: [
+                    { label: 'Saldo anterior', valor: r.saldo_anterior },
                     { label: 'Compras', valor: r.compras },
                     { label: 'Servicios', valor: r.servicios },
-                    { label: 'Pagado compras', valor: r.pagado_compras },
+                    { label: 'Pagado', valor: r.pagado_compras },
                     { label: 'Acopios', valor: r.acopios },
-                    { label: 'Pagado acopio', valor: r.pagado_acopios },
                     { label: 'Cargo', valor: r.cargo },
                     { label: 'Abono', valor: r.abono },
-                    { label: 'Saldo por pagar', valor: r.saldo }
+                    { label: 'Saldo', valor: r.saldo }
                 ],
-                columnas: ['Productor', 'Fecha', 'Tipo', 'Concepto', 'Boleta', 'Chofer', 'Placa', 'Fanegas', 'Precio', 'Compra', 'Pagos', 'Saldo'],
+                columnas: columnasKardex,
                 filas: cuenta.kardex.map((linea) => [
-                    nombre,
                     fmtFecha(linea.fecha),
+                    linea.productor || (linea.tipo === 'SALDO ANTERIOR' ? '' : '-'),
                     linea.tipo,
                     linea.detalle,
                     linea.boleta || '',
                     linea.chofer || '',
                     linea.placa || '',
-                    linea.fanegas,
-                    linea.precio,
-                    linea.cargo,
-                    linea.abono,
-                    linea.saldo
+                    linea.fanegas || '',
+                    linea.precio_usd ? `${formatUsd(linea.precio_usd)} / ${formatBs(linea.precio)}` : (linea.precio ? formatBs(linea.precio) : ''),
+                    montoCuenta(linea.cargo, linea.cargo_usd),
+                    montoCuenta(linea.abono, linea.abono_usd),
+                    montoCuenta(linea.saldo, linea.saldo_usd)
                 ])
             },
             {
                 nombre: 'Entregas',
                 titulo: `Entregas — ${nombre}`,
-                subtitulo: 'Cantidad que este productor entregó (compra + acopio). El stock del almacén es único; no se reserva ni se descuenta el pilado por productor.',
+                subtitulo: 'Cantidad entregada (compra + acopio). El stock del almacén es único; no se reserva ni se descuenta el pilado por productor.',
                 columnas: ['Producto', 'Unidad', 'Compras', 'Acopio', 'Entregado'],
                 filas: cuenta.inventario.map((linea) => [
                     linea.producto,
@@ -1144,11 +1186,94 @@ export class ReporteController {
             direccion: compra.proveedor?.direccion || '',
             vendedor: compra.usuario?.username || '-',
             tipoPago: ReporteController.tipoPagoPorSaldo(total, pendiente),
-            detalle: esCompraServicio(compra) ? 'SERVICIO' : 'COMPRA',
+            detalle: ReporteController.detalleNotaCompra(compra),
             lineas: ReporteController.lineasVoucher(compra.detalles),
             total,
             cobrado: roundMoney(total - pendiente),
             pendiente
         };
+    }
+
+    private static detalleNotaCompra(compra: any): string {
+        const tipo = inferirTipoCompra(compra);
+        const partes = [etiquetaTipoCompra(tipo).toUpperCase()];
+        if (compra.concepto) partes.push(String(compra.concepto));
+        if (compra.boleta) partes.push(`Boleta ${compra.boleta}`);
+        if (compra.fanegas) partes.push(`${compra.fanegas} fanegas`);
+        if (tipo === TIPO_COMPRA.CHALA && compra.precio_usd != null) {
+            partes.push(`${formatUsd(compra.precio_usd)}/fan`);
+        }
+        if (compra.tipo_cambio) {
+            partes.push(`TC ${compra.tipo_cambio}`);
+        }
+        if (tipo === TIPO_COMPRA.CHALA && compra.total_usd != null) {
+            partes.push(`Total ${formatUsd(compra.total_usd)}`);
+        }
+        return partes.join(' · ') || (esCompraServicio(compra) ? 'SERVICIO' : 'COMPRA');
+    }
+
+    private static async datosReciboPago(req: Request) {
+        const id = Number(req.query.id);
+        if (!id) {
+            return null;
+        }
+        const pago: any = await PagoProveedor.findByPk(id, {
+            include: [
+                { model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre', 'nit_ci'] },
+                { model: Compra, as: 'compra', attributes: ['id', 'total', 'saldo_pendiente', 'tipo_cambio', 'total_usd'] },
+                { model: User, as: 'usuario', attributes: ['id', 'username'] }
+            ]
+        });
+        if (!pago) {
+            return null;
+        }
+        const monto = toMoney(pago.monto);
+        const tc = pago.compra?.tipo_cambio != null ? Number(pago.compra.tipo_cambio) : null;
+        const fecha = pago.fecha instanceof Date ? pago.fecha : new Date(pago.fecha);
+        return {
+            numero: pago.id,
+            fecha,
+            proveedorNombre: pago.proveedor?.nombre || 'Proveedor',
+            nitCi: pago.proveedor?.nit_ci || '0',
+            idCompra: pago.id_compra,
+            monto,
+            montoUsd: tc && tc > 0 ? roundMoney(monto / tc) : null,
+            tipoCambio: tc && tc > 0 ? tc : null,
+            saldoPendiente: toMoney(pago.compra?.saldo_pendiente),
+            metodo: etiquetaMetodoDocumento(pago),
+            referencia: pago.referencia || '',
+            observacion: pago.observacion || '',
+            usuario: pago.usuario?.username || '-'
+        };
+    }
+
+    private static async hojaPago(req: Request): Promise<HojaExport[]> {
+        const recibo = await ReporteController.datosReciboPago(req);
+        if (!recibo) {
+            return [];
+        }
+        return [{
+            nombre: 'Recibo',
+            titulo: `Recibo de pago #${recibo.numero}`,
+            subtitulo: `${recibo.proveedorNombre} · Compra #${recibo.idCompra}`,
+            resumen: [
+                { label: 'Monto Bs', valor: recibo.monto },
+                { label: 'USD referencial', valor: recibo.montoUsd ?? '-' },
+                { label: 'Saldo compra', valor: recibo.saldoPendiente }
+            ],
+            columnas: ['Campo', 'Valor'],
+            filas: [
+                ['Fecha', fmtFecha(recibo.fecha)],
+                ['Proveedor', recibo.proveedorNombre],
+                ['Compra', `#${recibo.idCompra}`],
+                ['Monto', recibo.monto],
+                ['Método', recibo.metodo],
+                ['Tipo de cambio', recibo.tipoCambio ?? '-'],
+                ['USD referencial', recibo.montoUsd ?? '-'],
+                ['Saldo pendiente', recibo.saldoPendiente],
+                ['Referencia', recibo.referencia || '-'],
+                ['Usuario', recibo.usuario]
+            ]
+        }];
     }
 }

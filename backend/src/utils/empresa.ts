@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { TIPO_CAMBIO_DEFAULT } from '../constants/compra.constants';
 import { Empresa } from '../models/empresa.model';
 import { uploadsRoot } from './imagen';
 
@@ -19,10 +20,16 @@ export type EmpresaDatos = {
     email: string;
     path_logo: string;
     formato_nota: FormatoNota;
+    tipo_cambio: number;
 };
 
 export function normalizarFormatoNota(valor: unknown): FormatoNota {
     return String(valor || '').trim() === '5.5' ? '5.5' : '11';
+}
+
+export function normalizarTipoCambio(valor: unknown, respaldo = TIPO_CAMBIO_DEFAULT): number {
+    const n = Number(valor);
+    return Number.isFinite(n) && n > 0 ? Number(n.toFixed(4)) : respaldo;
 }
 
 const LOGO_DEFAULT = '/uploads/defaults/logotipo.jpeg';
@@ -44,7 +51,8 @@ export function datosEmpresaFallback(): EmpresaDatos {
         ciudad: textoEnv('EMPRESA_CIUDAD'),
         email: textoEnv('EMPRESA_EMAIL'),
         path_logo: LOGO_DEFAULT,
-        formato_nota: normalizarFormatoNota(textoEnv('EMPRESA_FORMATO_NOTA', '11'))
+        formato_nota: normalizarFormatoNota(textoEnv('EMPRESA_FORMATO_NOTA', '11')),
+        tipo_cambio: normalizarTipoCambio(textoEnv('EMPRESA_TIPO_CAMBIO'), TIPO_CAMBIO_DEFAULT)
     };
 }
 
@@ -63,7 +71,8 @@ export function mapEmpresa(row: any): EmpresaDatos {
         ciudad: String(row?.ciudad || '').trim(),
         email: String(row?.email || '').trim(),
         path_logo: pathLogo,
-        formato_nota: normalizarFormatoNota(row?.formato_nota)
+        formato_nota: normalizarFormatoNota(row?.formato_nota),
+        tipo_cambio: normalizarTipoCambio(row?.tipo_cambio, fallback.tipo_cambio)
     };
 }
 
@@ -98,7 +107,8 @@ export async function asegurarEmpresa(): Promise<void> {
             ciudad: inicial.ciudad || null,
             email: inicial.email || null,
             path_logo: LOGO_DEFAULT,
-            formato_nota: inicial.formato_nota
+            formato_nota: inicial.formato_nota,
+            tipo_cambio: inicial.tipo_cambio
         });
     }
     await refrescarEmpresa();

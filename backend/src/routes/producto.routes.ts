@@ -4,6 +4,7 @@ import validateToken from './validate-token';
 
 const router = Router();
 router.get('/categorias', validateToken, ProductoController.categorias);
+router.get('/unidades-invalidas', validateToken, ProductoController.unidadesInvalidas);
 router.get('/kardex/:id', validateToken, ProductoController.kardex);
 router.post('/:id/ajuste', validateToken, ProductoController.ajustar);
 router.get('/', validateToken, ProductoController.listar);

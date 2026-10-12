@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, ValidateIf } from 'class-validator';
+import { MENSAJE_UNIDAD_MEDIDA } from '../utils/unidad-medida';
 
 export class CrearProductoDTO {
     @IsNotEmpty({ message: 'El nombre es obligatorio' })
@@ -36,6 +37,8 @@ export class CrearProductoDTO {
     @IsOptional()
     @IsString()
     @MaxLength(30)
+    @ValidateIf((_, value) => value != null && String(value).trim() !== '')
+    @Matches(/^(?=.*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 ]+$/, { message: MENSAJE_UNIDAD_MEDIDA })
     unidad_medida?: string;
 
     @IsOptional()

@@ -2,18 +2,24 @@
 
 Manual de usuario del sistema de gestión. Sirve para operar ventas, compras, caja, inventario y acopio de arroz **sin confundir una venta con dinero en caja**.
 
+Las capturas muestran la interfaz real. El menú de la izquierda se usa en todas las pantallas.
+
+También podés bajar el manual en [PDF](docs/manual/Manual-de-usuario.pdf) o [Word](docs/manual/Manual-de-usuario.docx).
+
 ---
 
 ## 1. Idea central (léelo antes de operar)
 
-| Concepto | Qué es | ¿Mueve caja? |
-|---|---|---|
-| **Venta** | Documento: se vendió producto | Solo si hay cobro |
-| **Cobranza** | Dinero que entra del cliente | Sí (ingreso) |
-| **Compra** | Documento: se compró (chala u otro) | Solo si hay pago |
-| **Pago a proveedor** | Dinero que sale al proveedor | Sí (egreso) |
-| **Gasto / retiro** | Salida de caja de la empresa o del titular | Sí (egreso) |
-| **Anulación de venta** | Se cancela el documento, vuelve el stock | Sí, si ya se había cobrado (devolución) |
+
+| Concepto               | Qué es                                     | ¿Mueve caja?                            |
+| ---------------------- | ------------------------------------------ | --------------------------------------- |
+| **Venta**              | Documento: se vendió producto              | Solo si hay cobro                       |
+| **Cobranza**           | Dinero que entra del cliente               | Sí (ingreso)                            |
+| **Compra**             | Documento: se compró (chala u otro)        | Solo si hay pago                        |
+| **Pago a proveedor**   | Dinero que sale al proveedor               | Sí (egreso)                             |
+| **Gasto / retiro**     | Salida de caja de la empresa o del titular | Sí (egreso)                             |
+| **Anulación de venta** | Se cancela el documento, vuelve el stock   | Sí, si ya se había cobrado (devolución) |
+
 
 **Reglas que no cambian**
 
@@ -25,6 +31,8 @@ Manual de usuario del sistema de gestión. Sirve para operar ventas, compras, ca
 
 ---
 
+
+
 ## 2. Cómo entrar
 
 1. Abrí el sistema en el navegador.
@@ -32,17 +40,23 @@ Manual de usuario del sistema de gestión. Sirve para operar ventas, compras, ca
 3. En la barra superior: logo, modo claro/oscuro, y el menú de usuario (**Cerrar sesión**).
 4. Al cerrar sesión aparece un diálogo de confirmación (no el aviso nativo del navegador).
 
+![Inicio de sesión](docs/manual/01-login.png)
+
 Si un ícono no dice nada, pasá el mouse: hay **tooltip** (Ver detalle, Ver PDF, Anular, Exportar a Excel, etc.).
 
-| Color del botón | Uso |
-|---|---|
-| Azul | Ver detalle |
-| Rojo (PDF) | Ver o exportar PDF |
-| Verde | Excel |
-| Rojo (X) | Anular |
-| Naranja | Editar / cerrar caja |
+
+| Color del botón | Uso                  |
+| --------------- | -------------------- |
+| Azul            | Ver detalle          |
+| Rojo (PDF)      | Ver o exportar PDF   |
+| Verde           | Excel                |
+| Rojo (X)        | Anular               |
+| Naranja         | Editar / cerrar caja |
+
 
 ---
+
+
 
 ## 3. Orden de trabajo típico del día
 
@@ -58,26 +72,36 @@ Si un ícono no dice nada, pasá el mouse: hay **tooltip** (Ver detalle, Ver PDF
 
 ---
 
+
+
 ## 4. Módulos
+
+
 
 ### 4.1 Dashboard (`/dashboard`)
 
 Resumen del **día**.
 
-| Indicador | Significado |
-|---|---|
-| Ventas | Total vendido hoy, **sin** documentos anulados |
-| Cobrado | Cobros de clientes **menos** anulaciones |
-| Por cobrar | Saldos de ventas vigentes (pendiente o parcial) |
+
+| Indicador        | Significado                                     |
+| ---------------- | ----------------------------------------------- |
+| Ventas           | Total vendido hoy, **sin** documentos anulados  |
+| Cobrado          | Cobros de clientes **menos** anulaciones        |
+| Por cobrar       | Saldos de ventas vigentes (pendiente o parcial) |
 | Efectivo en caja | Cajón: inicial + efectivo − egresos en efectivo |
-| QR / banco | Saldo de la sesión por cobros y pagos QR |
-| Saldo neto | Ingresos − egresos |
+| QR / banco       | Saldo de la sesión por cobros y pagos QR        |
+| Saldo neto       | Ingresos − egresos                              |
+
 
 También ves el gráfico ingresos vs egresos, últimos movimientos y cuentas pendientes. Enlace rápido a **Ingresos y egresos** y a **Caja actual**.
 
 Si la caja está cerrada, el dashboard avisa: se puede consultar, pero no cobrar ni gastar hasta abrir caja.
 
+![Dashboard](docs/manual/02-dashboard.png)
+
 ---
+
+
 
 ### 4.2 Caja actual (`/caja`)
 
@@ -112,13 +136,21 @@ Libro del cajón. **Solo una caja abierta**.
 
 Botones **PDF** (rojo) y **Excel** (verde) exportan esta caja.
 
+![Caja actual](docs/manual/03-caja.png)
+
 ---
+
+
 
 ### 4.3 Historial de cajas (`/caja/historial`)
 
 Cajas anteriores (abiertas o cerradas). Filtro por fechas y estado. Podés ver el detalle, el PDF del arqueo y el Excel.
 
+![Historial de cajas](docs/manual/04-caja-historial.png)
+
 ---
+
+
 
 ### 4.4 Ventas (`/ventas`)
 
@@ -148,7 +180,11 @@ Registro de lo **vendido**. Baja inventario si la línea tiene producto (arroz p
 
 No se edita una venta ya registrada: se anula y se carga de nuevo si hace falta.
 
+![Ventas](docs/manual/05-ventas.png)
+
 ---
+
+
 
 ### 4.5 Cobranzas (`/cobranzas`)
 
@@ -158,7 +194,13 @@ Pagos de clientes **después** de una venta a crédito o parcial.
 - El dinero entra a caja y baja el saldo de la venta.
 - Tras cobrar se puede abrir el PDF de la **nota de venta** actualizada.
 
+Arriba está **Por cobrar** (quién debe y cuándo vence). Abajo, el listado de cobros ya registrados, con búsqueda y exportar PDF/Excel.
+
+![Cobranzas](docs/manual/06-cobranzas.png)
+
 ---
+
+
 
 ### 4.6 Clientes (`/clientes`)
 
@@ -169,7 +211,11 @@ Agenda de compradores.
 
 Desde **Nueva venta** también se puede crear un cliente al vuelo.
 
+![Clientes](docs/manual/07-clientes.png)
+
 ---
+
+
 
 ### 4.7 Compras (`/compras`)
 
@@ -181,19 +227,31 @@ Compra a proveedor. Si la línea tiene producto (chala), **entra al inventario**
 
 En esta versión **no** hay anulación de compra.
 
+![Compras](docs/manual/08-compras.png)
+
 ---
+
+
 
 ### 4.8 Pagos a proveedores (`/pagos`)
 
 Egreso de caja contra una compra con saldo. Baja el pendiente de la compra.
 
+![Pagos a proveedores](docs/manual/09-pagos.png)
+
 ---
+
+
 
 ### 4.9 Proveedores (`/proveedores`)
 
-Quiénes venden chala, insumos o servicios. Alta, edición y estado activo/inactivo.
+Quiénes venden chala, insumos o servicios. Alta, edición y estado activo/inactivo. Desde el menú de cada fila se ve la **cuenta del productor** (kardex de compras y pagos).
+
+![Proveedores](docs/manual/10-proveedores.png)
 
 ---
+
+
 
 ### 4.10 Gastos de empresa (`/gastos`)
 
@@ -202,14 +260,23 @@ Salidas de caja de la operación (combustible, energía, mantenimiento, etc.).
 - Categoría, monto, método, si afecta caja.
 - Requiere caja abierta.
 - No uses este módulo para “cargar una venta”.
+- A crédito no sale de caja hasta que registres el **pago** en Cuentas por pagar (misma pantalla).
+
+![Gastos de empresa](docs/manual/11-gastos.png)
 
 ---
+
+
 
 ### 4.11 Retiros personales (`/retiros`)
 
 Dinero que sale de caja para el titular u otro retiro personal. Misma mecánica que gastos, con tipo **retiro**.
 
+![Retiros personales](docs/manual/12-retiros.png)
+
 ---
+
+
 
 ### 4.12 Ingresos y egresos (`/ingresos-egresos`)
 
@@ -219,7 +286,11 @@ Libro de **todos** los movimientos de caja del período (no solo “hoy”).
 - KPIs: ingresos, egresos, saldo neto, **cobrado neto**, por cobrar, por pagar.
 - El concepto suele enlazar al documento de origen (por ejemplo la venta).
 
+![Ingresos y egresos](docs/manual/13-ingresos-egresos.png)
+
 ---
+
+
 
 ### 4.13 Inventario (`/inventario`)
 
@@ -232,9 +303,27 @@ Productos, stock, mínimo y precios de referencia.
 
 La venta **descuenta** stock; la compra o el acopio **suman**; anular una venta **devuelve**.
 
+![Inventario](docs/manual/14-inventario.png)
+
 ---
 
-### 4.14 Campañas de acopio (`/campanas`)
+
+
+### 4.14 Bolsas y empaques (`/empaques`)
+
+Tipos de bolsa (arpillera, plástica, etc.). **No se mezcla con el arroz.**
+
+- Alta de tipo de bolsa.
+- **Entrada** y **salida** con existencia = entradas − salidas.
+- Si está bajo el mínimo, la existencia se marca en rojo.
+
+![Bolsas y empaques](docs/manual/15-empaques.png)
+
+---
+
+
+
+### 4.15 Campañas de acopio (`/campanas`)
 
 Compra de **arroz en chala** agrupada por campaña (zafra).
 
@@ -244,9 +333,13 @@ Compra de **arroz en chala** agrupada por campaña (zafra).
 
 No inventa reglas de humedad ni rendimiento: solo registra lo que cargás.
 
+![Campañas de acopio](docs/manual/16-campanas.png)
+
 ---
 
-### 4.15 Producción (`/produccion`)
+
+
+### 4.16 Producción (`/produccion`)
 
 Convierte materia prima en producto terminado.
 
@@ -256,39 +349,67 @@ Convierte materia prima en producto terminado.
 
 Tiene que haber stock suficiente del origen.
 
+![Producción](docs/manual/17-produccion.png)
+
 ---
 
-### 4.16 Reportes (`/reportes`)
+
+
+### 4.17 Reportes (`/reportes`)
 
 Resumen operativo de un rango de fechas (ventas vigentes, cobrado neto, anulaciones, compras, gastos, retiros, acopios, caja).
 
 **PDF** (rojo) y **Excel** (verde) del resumen y de cada listado (ventas, movimientos, inventario, etc.).
 
-Los PDF de listados: columnas con ancho según el texto, filas que crecen si el concepto es largo, encabezado con logo y pie con número de página.
+Los PDF de listados van en **carta vertical**: logo y empresa a la izquierda, fecha/hora/usuario a la derecha, totales debajo de la tabla y espacio de firma. Las **notas** de venta, compra, cobro o pago siguen siendo boletas (no este formato).
+
+En **Cuentas → Cuentas por cobrar** está el reporte de documentos con saldo, vencimiento y días de atraso.
+
+![Resumen operativo](docs/manual/18-reportes.png)
 
 ---
 
+
+
+### 4.18 Empresa (`/empresa`)
+
+Datos que salen en el login, el encabezado y los PDF: nombre, NIT, dirección, teléfonos, logo y formato de la nota (carta 9¾×11 o media carta).
+
+![Empresa](docs/manual/19-empresa.png)
+
+---
+
+
+
 ## 5. Documentos PDF
 
-| Cuándo | Qué se genera |
-|---|---|
-| Guardar venta / cobrar | Nota de venta (ventana emergente) |
-| Guardar compra | Nota de compra |
-| Cerrar caja | Arqueo de caja |
-| Botón PDF de una fila | Reimpresión de ese documento |
-| PDF / Excel de listados | Reporte del módulo |
+
+| Cuándo                  | Qué se genera                     |
+| ----------------------- | --------------------------------- |
+| Guardar venta / cobrar  | Nota de venta (ventana emergente) |
+| Guardar compra          | Nota de compra                    |
+| Cerrar caja             | Arqueo de caja                    |
+| Botón PDF de una fila   | Reimpresión de ese documento      |
+| PDF / Excel de listados | Reporte del módulo                |
+
 
 Si el navegador bloquea la ventana, permití ventanas emergentes para el sitio.
+
+![Ejemplo de PDF de reporte](docs/manual/20-pdf-reporte.png)
 
 Una venta **anulada** en la nota muestra cobrado 0 y tipo de pago ANULADA.
 
 ---
+
+
 
 ## 6. Iconos 🛈 en los formularios
 
 Al lado de varias etiquetas hay un ícono de información. Al pasar el mouse muestra un **ejemplo** (cómo llenar el campo). Usalo la primera vez que operás cada pantalla.
 
 ---
+
+
 
 ## 7. Qué no hace (aún) este sistema
 
@@ -303,17 +424,23 @@ Para no operar mal:
 
 ---
 
+
+
 ## 8. Problemas frecuentes
 
-| Situación | Qué hacer |
-|---|---|
-| “Debe haber una caja abierta” | Ir a **Caja actual** y abrir caja |
-| No baja el stock | La línea de venta/compra debe tener **producto**, no solo un texto |
-| Cobrado no bajó al anular | El cobrado **neto** sí baja; ingresos brutos siguen y aparece un **egreso** de anulación |
-| El PDF sale en pestaña o no abre | Permitir ventanas emergentes; recargar si el backend es reciente |
-| Tooltip no aparece | Pasar el mouse y esperar un segundo |
+
+| Situación                        | Qué hacer                                                                                |
+| -------------------------------- | ---------------------------------------------------------------------------------------- |
+| “Debe haber una caja abierta”    | Ir a **Caja actual** y abrir caja                                                        |
+| No baja el stock                 | La línea de venta/compra debe tener **producto**, no solo un texto                       |
+| Cobrado no bajó al anular        | El cobrado **neto** sí baja; ingresos brutos siguen y aparece un **egreso** de anulación |
+| El PDF sale en pestaña o no abre | Permitir ventanas emergentes; recargar si el backend es reciente                         |
+| Tooltip no aparece               | Pasar el mouse y esperar un segundo                                                      |
+
 
 ---
+
+
 
 ## 9. Para quien instala el sistema (desarrollo)
 

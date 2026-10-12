@@ -18,6 +18,7 @@ import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/unidad-medida';
 
 /** Bolsas y empaques: existencia = entradas − salidas. No se mezcla con el arroz de los productores. */
 @Component({
@@ -34,6 +35,14 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         </div>
 
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" [compact]="true" />
+
+        <div class="card mb-4" *ngIf="unidadesInvalidas.length">
+            <div class="font-semibold mb-1">Unidades de medida inválidas</div>
+            <p class="text-muted-color text-sm mt-0 mb-2">Estos tipos de bolsa tienen una unidad solo numérica. No se corrigieron automáticamente. {{ mensajeUnidad }}</p>
+            <ul class="m-0 pl-5 text-sm">
+                <li *ngFor="let p of unidadesInvalidas">{{ p.nombre }} · «{{ p.unidad_medida }}»</li>
+            </ul>
+        </div>
 
         <div class="card">
             <div class="flex flex-wrap items-end gap-3 mb-4">
@@ -64,7 +73,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 <ng-template #body let-p>
                     <tr>
                         <td>{{ p.nombre }}</td>
-                        <td>{{ p.unidad_medida }}</td>
+                        <td [class.text-red-500]="!esUnidadValida(p.unidad_medida)">{{ p.unidad_medida }}</td>
                         <td>{{ p.entradas }}</td>
                         <td>{{ p.salidas }}</td>
                         <td><p-tag [value]="p.stock" [severity]="p.bajo_minimo ? 'danger' : 'success'" /></td>
@@ -94,7 +103,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     <input pInputText class="w-full" [(ngModel)]="form.nombre" />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Unidad <app-ayuda-campo texto="Normalmente unidad. Es cómo contás las bolsas." posicion="right" /></label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Unidad <app-ayuda-campo texto="Ej.: Unidad. No use solo números: la cantidad de bolsas va en otro campo." posicion="right" /></label>
                     <input pInputText class="w-full" [(ngModel)]="form.unidad_medida" />
                 </div>
                 <div *ngIf="!form.id">
@@ -172,8 +181,17 @@ export class EmpaquesPage implements OnInit {
     tipoMovimiento: 'ENTRADA' | 'SALIDA' = 'ENTRADA';
     cantidadMovimiento = 0;
     observacionMovimiento = '';
+    mensajeUnidad = MENSAJE_UNIDAD_MEDIDA;
 
     constructor(private http: HttpClient, private aviso: AvisoService) {}
+
+    get unidadesInvalidas(): any[] {
+        return this.items.filter((p) => !esUnidadMedidaValida(p.unidad_medida));
+    }
+
+    esUnidadValida(valor: string): boolean {
+        return esUnidadMedidaValida(valor);
+    }
 
     ngOnInit(): void {
         this.http.get<any[]>(apiUrl('/api/productos/categorias')).subscribe({
@@ -220,6 +238,10 @@ export class EmpaquesPage implements OnInit {
         }
         if (!this.idCategoria) {
             this.aviso.aviso('Validación', 'No existe la categoría Empaque en el inventario');
+            return;
+        }
+        if (!esUnidadMedidaValida(this.form.unidad_medida || 'unidad')) {
+            this.aviso.aviso('Validación', MENSAJE_UNIDAD_MEDIDA);
             return;
         }
         this.guardando = true;

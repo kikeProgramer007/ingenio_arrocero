@@ -149,7 +149,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Procedencia <app-ayuda-campo texto="De dónde viene el cliente: La Paz, Cochabamba, Oruro u otras." posicion="right" /></label>
-                    <p-select [options]="procedencias" [(ngModel)]="form.procedencia" placeholder="Seleccione" [showClear]="true" fluid />
+                    <p-select [options]="procedencias" [(ngModel)]="form.procedencia" placeholder="Seleccione" [showClear]="true" fluid appendTo="body" [baseZIndex]="2100" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Dirección <app-ayuda-campo texto="Dónde entregar o visitar. Opcional." posicion="right" /></label>

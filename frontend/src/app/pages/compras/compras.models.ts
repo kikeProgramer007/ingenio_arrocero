@@ -9,10 +9,13 @@ export interface Proveedor {
     path_imagen?: string | null;
 }
 
+export type TipoCompra = 'CHALA' | 'BOLSAS' | 'OTROS';
+
 export interface LineaCompra {
     id?: number;
     descripcion: string;
     id_producto?: number | null;
+    unidad?: string | null;
     cantidad: number;
     precio_unitario: number;
     subtotal: number;
@@ -32,7 +35,15 @@ export interface Compra {
     chofer?: string | null;
     placa?: string | null;
     fanegas?: number | null;
+    tipo_compra?: TipoCompra | string | null;
+    tipo_cambio?: number | null;
+    total_usd?: number | null;
+    precio_usd?: number | null;
     es_servicio?: boolean;
+    id_productor?: number | null;
+    plazo_dias?: number | null;
+    fecha_vencimiento?: string | null;
+    productor?: { id: number; nombre: string } | null;
     proveedor: { id: number; nombre: string } | null;
     usuario: { id: number; username: string } | null;
     detalles?: LineaCompra[];
@@ -52,20 +63,37 @@ export interface PagoProveedor {
     observacion?: string | null;
     fecha: string;
     proveedor?: { id: number; nombre: string } | null;
-    compra?: { id: number; total: number; saldo_pendiente?: number; pagado?: number; estado: string } | null;
+    monto_usd?: number | null;
+    compra?: {
+        id: number;
+        total: number;
+        saldo_pendiente?: number;
+        pagado?: number;
+        estado: string;
+        tipo_compra?: string | null;
+        tipo_cambio?: number | null;
+        total_usd?: number | null;
+    } | null;
     usuario?: { id: number; username: string } | null;
 }
 
 export interface CrearCompraPayload {
     id_proveedor: number;
+    id_productor?: number;
     fecha?: string;
     observacion?: string;
     concepto?: string;
+    tipo_compra?: TipoCompra;
     boleta?: string;
     chofer?: string;
     placa?: string;
     fanegas?: number;
-    lineas: { descripcion?: string; cantidad: number; precio_unitario: number; id_producto?: number }[];
+    precio_usd?: number;
+    tipo_cambio?: number;
+    guardar_tipo_cambio_empresa?: boolean;
+    lineas: { descripcion?: string; cantidad: number; precio_unitario: number; id_producto?: number; unidad?: string }[];
+    plazo_dias?: number;
+    fecha_vencimiento?: string;
     pago_inicial?: number;
     metodo_pago?: string;
     monto_efectivo?: number;
@@ -92,14 +120,21 @@ export interface LineaKardexProveedor {
     tipo: string;
     documento: string;
     detalle: string;
+    productor?: string;
+    id_productor?: number | null;
     boleta?: string;
     chofer?: string;
     placa?: string;
     fanegas?: number;
     precio?: number;
+    precio_usd?: number;
+    tipo_cambio?: number;
     cargo: number;
     abono: number;
+    cargo_usd?: number;
+    abono_usd?: number;
     saldo: number;
+    saldo_usd?: number;
 }
 
 export interface CuentaProveedor {
@@ -115,7 +150,13 @@ export interface CuentaProveedor {
         cargo: number;
         abono: number;
         saldo: number;
+        compras_usd?: number;
+        pagado_usd?: number;
+        saldo_usd?: number;
+        saldo_anterior?: number;
+        saldo_anterior_usd?: number;
     };
+    productores?: { id: number; nombre: string }[];
     kardex: LineaKardexProveedor[];
     inventario: LineaInventarioProveedor[];
     compras: { id: number; fecha: string; total: number; pagado: number; saldo_pendiente: number; estado: string; es_servicio?: boolean; observacion?: string | null }[];

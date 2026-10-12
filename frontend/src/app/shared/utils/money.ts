@@ -14,3 +14,8 @@ export function formatBs(value: unknown): string {
     const safe = toMoney(value);
     return `Bs ${safe.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+export function formatUsd(value: unknown): string {
+    const safe = toMoney(value);
+    return `USD ${safe.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}

@@ -233,7 +233,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                 <p class="text-muted-color text-sm" *ngIf="esEmpresa">Al contado sale de caja al guardar. A crédito solo queda como cuenta por pagar y la caja no se mueve hasta que registres el pago. Los servicios de un productor (flete, trilla) van en Compras para que carguen a su cuenta.</p>
                 <div *ngIf="esEmpresa">
                     <label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Clasifica el gasto (combustible, energía, etc.) para el reporte." posicion="right" /></label>
-                    <p-select [options]="categorias" [(ngModel)]="categoria" placeholder="Categoría" fluid />
+                    <p-select [options]="categorias" [(ngModel)]="categoria" placeholder="Categoría" fluid appendTo="body" [baseZIndex]="2100" />
                 </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Concepto <app-ayuda-campo texto="Ej.: Combustible camión, almuerzo cuadrilla, luz planta." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="concepto" /></div>
                 <div *ngIf="esEmpresa">
@@ -243,11 +243,11 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                 <div><label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Importe total del gasto, aunque lo paguemos después." posicion="right" /></label><app-input-numero [(ngModel)]="monto" /></div>
                 <div *ngIf="esEmpresa">
                     <label class="flex items-center gap-1 font-bold mb-2">¿Cómo se paga? <app-ayuda-campo texto="Contado: sale de caja ahora. Crédito: queda por pagar y no mueve caja." posicion="right" /></label>
-                    <p-select [options]="condiciones" optionLabel="label" optionValue="value" [(ngModel)]="condicion" fluid />
+                    <p-select [options]="condiciones" optionLabel="label" optionValue="value" [(ngModel)]="condicion" fluid appendTo="body" [baseZIndex]="2100" />
                 </div>
                 <div *ngIf="aCredito">
                     <label class="flex items-center gap-1 font-bold mb-2">Plazo de pago <app-ayuda-campo texto="Hasta cuándo tenemos para pagar. Opcional." posicion="right" /></label>
-                    <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid />
+                    <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid appendTo="body" [baseZIndex]="2100" />
                     <small class="block text-muted-color mt-1" *ngIf="plazoDias > 0">Vence el {{ vencimientoEstimado }}</small>
                 </div>
                 <div *ngIf="aCredito && plazoDias === -1">

@@ -19,6 +19,16 @@ export const Compra = sequelize.define('compra', {
         onUpdate: 'CASCADE',
         onDelete: 'RESTRICT'
     },
+    id_productor: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+            model: 'proveedores',
+            key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT'
+    },
     fecha: {
         type: DataTypes.DATE,
         allowNull: false
@@ -62,6 +72,30 @@ export const Compra = sequelize.define('compra', {
         type: DataTypes.DECIMAL(12, 3),
         allowNull: true
     },
+    tipo_compra: {
+        type: DataTypes.STRING(20),
+        allowNull: true
+    },
+    tipo_cambio: {
+        type: DataTypes.DECIMAL(12, 4),
+        allowNull: true
+    },
+    total_usd: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true
+    },
+    precio_usd: {
+        type: DataTypes.DECIMAL(12, 4),
+        allowNull: true
+    },
+    plazo_dias: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
+    fecha_vencimiento: {
+        type: DataTypes.DATEONLY,
+        allowNull: true
+    },
     id_usuario: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -79,6 +113,7 @@ export const Compra = sequelize.define('compra', {
     updatedAt: 'updated_at',
     indexes: [
         { fields: ['id_proveedor'] },
+        { fields: ['id_productor'] },
         { fields: ['estado'] },
         { fields: ['fecha'] }
     ]

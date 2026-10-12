@@ -23,6 +23,8 @@ import { Menu, MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/unidad-medida';
+import { ProductosService } from './productos.service';
 
 @Component({
     selector: 'app-inventario',
@@ -36,6 +38,13 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 <div class="text-muted-color">Productos, stock mínimo y ajustes</div>
             </div>
             <p-button label="Nuevo producto" icon="pi pi-plus" (onClick)="abrirNuevo()" />
+        </div>
+        <div class="card mb-4" *ngIf="unidadesInvalidas.length">
+            <div class="font-semibold mb-1">Unidades de medida inválidas</div>
+            <p class="text-muted-color text-sm mt-0 mb-2">Hay registros con unidad solo numérica (ej. 500). No se corrigieron: la cantidad y las unidades por paquete no son la unidad de medida. {{ mensajeUnidad }}</p>
+            <ul class="m-0 pl-5 text-sm">
+                <li *ngFor="let u of unidadesInvalidas">{{ u.detalle }} · {{ u.nombre }} · «{{ u.unidad }}»</li>
+            </ul>
         </div>
         <div class="card">
             <div class="flex flex-wrap items-end gap-3 mb-4">
@@ -69,7 +78,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <td><img [src]="foto(p.path_imagen)" alt="" class="w-10 h-10 rounded-border object-cover" /></td>
                         <td>{{ p.nombre }}</td>
                         <td>{{ p.categoria?.nombre || '-' }}</td>
-                        <td>{{ p.unidad_medida }}</td>
+                        <td [class.text-red-500]="unidadInvalida(p.unidad_medida)">{{ p.unidad_medida }}</td>
                         <td><p-tag [value]="p.stock" [severity]="p.bajo_minimo ? 'danger' : 'success'" /></td>
                         <td>{{ p.stock_minimo }}</td>
                         <td>{{ formatBs(p.precio_venta) }}</td>
@@ -103,8 +112,8 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     <app-imagen-campo tipo="producto" [path]="form.path_imagen" (pathChange)="form.path_imagen = $event" />
                 </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Ej.: Arroz pilado, Arroz en chala." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="form.nombre" /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Agrupa el producto (materia prima, terminado, etc.)." posicion="right" /></label><p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_categoria" fluid /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Unidad <app-ayuda-campo texto="Ej.: kg, qq, unidad." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="form.unidad_medida" /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Agrupa el producto (materia prima, terminado, etc.)." posicion="right" /></label><p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_categoria" fluid appendTo="body" [baseZIndex]="2100" /></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Unidad <app-ayuda-campo texto="Ej.: Unidad, Fanega, Quintal o kg. La cantidad y las unidades por paquete van en otros campos." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="form.unidad_medida" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Precio venta <app-ayuda-campo texto="Precio sugerido al vender. Se puede cambiar en cada venta." posicion="right" /></label><app-input-numero [(ngModel)]="form.precio_venta" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Precio compra <app-ayuda-campo texto="Costo de referencia. Se puede cambiar en cada compra." posicion="right" /></label><app-input-numero [(ngModel)]="form.precio_compra" /></div>
                 <div *ngIf="!form.id"><label class="flex items-center gap-1 font-bold mb-2">Stock inicial <app-ayuda-campo texto="Cantidad con la que arranca el inventario. Solo al crear." posicion="right" /></label><app-input-numero tipo="cantidad" [(ngModel)]="form.stock" [min]="0" /></div>
@@ -165,12 +174,15 @@ export class InventarioPage implements OnInit {
     ajusteObs = '';
     itemsAcciones: MenuItem[] = [];
     formatBs = formatBs;
+    unidadesInvalidas: { origen: string; id: number; nombre: string; unidad: string; detalle: string }[] = [];
+    mensajeUnidad = MENSAJE_UNIDAD_MEDIDA;
 
-    constructor(private http: HttpClient, private aviso: AvisoService) {}
+    constructor(private http: HttpClient, private aviso: AvisoService, private productosService: ProductosService) {}
 
     ngOnInit(): void {
         this.http.get<any[]>(apiUrl('/api/productos/categorias')).subscribe({ next: (d) => (this.categorias = d) });
         this.cargar();
+        this.cargarUnidadesInvalidas();
     }
 
     cargar(): void {
@@ -220,6 +232,10 @@ export class InventarioPage implements OnInit {
             this.aviso.aviso('Validación', 'El nombre es obligatorio');
             return;
         }
+        if (!esUnidadMedidaValida(this.form.unidad_medida || 'kg')) {
+            this.aviso.aviso('Validación', MENSAJE_UNIDAD_MEDIDA);
+            return;
+        }
         this.guardando = true;
         const payload = {
             nombre: this.form.nombre,
@@ -236,7 +252,7 @@ export class InventarioPage implements OnInit {
             ? this.http.put<{ mensaje: string }>(apiUrl(`/api/productos/${this.form.id}`), payload)
             : this.http.post<{ mensaje: string }>(apiUrl('/api/productos'), payload);
         req.subscribe({
-            next: (res) => { this.guardando = false; this.dialog = false; this.aviso.ok('Listo', res.mensaje); this.cargar(); },
+            next: (res) => { this.guardando = false; this.dialog = false; this.aviso.ok('Listo', res.mensaje); this.cargar(); this.cargarUnidadesInvalidas(); },
             error: (e) => { this.guardando = false; this.aviso.error(e, 'No se pudo guardar'); }
         });
     }
@@ -271,7 +287,19 @@ export class InventarioPage implements OnInit {
         return { id: 0, nombre: '', descripcion: '', precio_venta: 0, precio_compra: 0, stock: 0, stock_minimo: 0, unidad_medida: 'kg', id_categoria: null, path_imagen: imagenDefault('producto') };
     }
 
+    unidadInvalida(valor: string): boolean {
+        return Boolean(valor) && !esUnidadMedidaValida(valor);
+    }
+
     foto(path: string): string {
         return mediaUrl(path, 'producto');
+    }
+
+    private cargarUnidadesInvalidas(): void {
+        this.productosService.unidadesInvalidas().subscribe({
+            next: (res) => {
+                this.unidadesInvalidas = res.data || [];
+            }
+        });
     }
 }

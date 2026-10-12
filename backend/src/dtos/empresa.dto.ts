@@ -1,4 +1,5 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { FORMATOS_NOTA } from '../utils/empresa';
 
 export class ActualizarEmpresaDTO {
@@ -55,4 +56,10 @@ export class ActualizarEmpresaDTO {
     @IsOptional()
     @IsIn([...FORMATOS_NOTA], { message: 'El formato de la nota debe ser 11 o 5.5' })
     formato_nota?: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber({}, { message: 'El tipo de cambio debe ser numérico' })
+    @Min(0.0001, { message: 'El tipo de cambio debe ser mayor a 0' })
+    tipo_cambio?: number;
 }

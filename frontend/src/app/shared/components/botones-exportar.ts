@@ -46,6 +46,8 @@ export class BotonesExportarComponent {
     @Input() idCaja?: number | null;
     @Input() id?: number | null;
     @Input() q?: string;
+    @Input() idProductor?: number | null;
+    @Input() tipoCompra?: string;
     @Input() disabled = false;
 
     cargando: FormatoExport | null = null;
@@ -67,7 +69,9 @@ export class BotonesExportarComponent {
             tipo_gasto: this.tipoGasto || undefined,
             id_caja: this.idCaja || undefined,
             id: this.id || undefined,
-            q: this.q?.trim() || undefined
+            q: this.q?.trim() || undefined,
+            id_productor: this.idProductor || undefined,
+            tipo_compra: this.tipoCompra || undefined
         };
         this.exportarService.descargar(params).subscribe({
             next: () => {

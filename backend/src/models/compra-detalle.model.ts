@@ -22,6 +22,10 @@ export const CompraDetalle = sequelize.define('compra_detalle', {
         type: DataTypes.STRING(200),
         allowNull: false
     },
+    unidad: {
+        type: DataTypes.STRING(20),
+        allowNull: true
+    },
     id_producto: {
         type: DataTypes.INTEGER,
         allowNull: true,

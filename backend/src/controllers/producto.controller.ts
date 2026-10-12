@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
-import { CategoriaProducto, MovimientoInventario, Productos, sequelize, User } from '../models';
+import { CategoriaProducto, CompraDetalle, MovimientoInventario, Productos, sequelize, User } from '../models';
+import { MENSAJE_UNIDAD_MEDIDA, unidadMedidaInvalida } from '../utils/unidad-medida';
 import { AjusteStockDTO, CrearProductoDTO } from '../dtos/producto.dto';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
@@ -92,9 +93,59 @@ export class ProductoController {
         }
     }
 
+    public static async unidadesInvalidas(_req: Request, res: Response): Promise<void> {
+        try {
+            const [productos, detalles] = await Promise.all([
+                Productos.findAll({
+                    where: { eliminado: false },
+                    attributes: ['id', 'nombre', 'unidad_medida'],
+                    order: [['nombre', 'ASC']]
+                }),
+                CompraDetalle.findAll({
+                    attributes: ['id', 'id_compra', 'descripcion', 'unidad'],
+                    order: [['id', 'DESC']],
+                    limit: 500
+                })
+            ]);
+            const invalidos = [
+                ...productos
+                    .filter((p: any) => unidadMedidaInvalida(p.unidad_medida))
+                    .map((p: any) => ({
+                        origen: 'producto',
+                        id: p.id,
+                        nombre: p.nombre,
+                        unidad: String(p.unidad_medida || ''),
+                        detalle: 'Inventario'
+                    })),
+                ...detalles
+                    .filter((d: any) => unidadMedidaInvalida(d.unidad))
+                    .map((d: any) => ({
+                        origen: 'compra_detalle',
+                        id: d.id,
+                        nombre: d.descripcion,
+                        unidad: String(d.unidad || ''),
+                        detalle: `Compra #${d.id_compra}`
+                    }))
+            ];
+            res.status(200).json({
+                mensaje: invalidos.length
+                    ? `${invalidos.length} registro(s) con unidad inválida. ${MENSAJE_UNIDAD_MEDIDA}`
+                    : 'No hay unidades de medida inválidas.',
+                data: invalidos
+            });
+        } catch (error) {
+            handleError(res, error, 'Error al detectar unidades inválidas');
+        }
+    }
+
     public static async crear(req: Request, res: Response): Promise<void> {
         const datos = await DtoValidator.validateAndRespond(CrearProductoDTO, req.body, res);
         if (!datos) {
+            return;
+        }
+        const unidad = datos.unidad_medida?.trim() || 'kg';
+        if (unidadMedidaInvalida(unidad)) {
+            res.status(400).json({ mensaje: MENSAJE_UNIDAD_MEDIDA });
             return;
         }
         try {
@@ -105,7 +156,7 @@ export class ProductoController {
                 precio_compra: toMoney(datos.precio_compra),
                 stock: toQty(datos.stock || 0),
                 stock_minimo: toQty(datos.stock_minimo || 0),
-                unidad_medida: datos.unidad_medida?.trim() || 'kg',
+                unidad_medida: unidad,
                 path_imagen: imagenParaGuardar(datos.path_imagen, 'producto'),
                 id_categoria: datos.id_categoria || null,
                 eliminado: false
@@ -130,13 +181,18 @@ export class ProductoController {
                 res.status(404).json({ mensaje: 'Producto no encontrado' });
                 return;
             }
+            const unidad = datos.unidad_medida?.trim() || String(producto.get('unidad_medida') || 'kg');
+            if (unidadMedidaInvalida(unidad)) {
+                res.status(400).json({ mensaje: MENSAJE_UNIDAD_MEDIDA });
+                return;
+            }
             await producto.update({
                 nombre: datos.nombre.trim(),
                 descripcion: datos.descripcion?.trim() || '',
                 precio_venta: toMoney(datos.precio_venta),
                 precio_compra: toMoney(datos.precio_compra),
                 stock_minimo: toQty(datos.stock_minimo ?? producto.get('stock_minimo')),
-                unidad_medida: datos.unidad_medida?.trim() || producto.get('unidad_medida'),
+                unidad_medida: unidad,
                 path_imagen: imagenParaGuardar(datos.path_imagen ?? (producto.get('path_imagen') as string), 'producto'),
                 id_categoria: datos.id_categoria ?? producto.get('id_categoria')
             });

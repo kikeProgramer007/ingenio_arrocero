@@ -7,6 +7,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { SkeletonModule } from 'primeng/skeleton';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
+import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { Empresa, FORMATOS_NOTA } from '../../core/constants/empresa';
 import { EmpresaService } from '../../core/services/empresa.service';
@@ -16,7 +17,7 @@ import { SelectModule } from 'primeng/select';
 @Component({
     selector: 'app-empresa',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, FluidModule, InputTextModule, SelectModule, SkeletonModule, AyudaCampoComponent, ImagenCampoComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, FluidModule, InputTextModule, SelectModule, SkeletonModule, AyudaCampoComponent, ImagenCampoComponent, InputNumeroComponent],
     template: `
         <div class="mb-6 min-w-0">
             <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Empresa</div>
@@ -106,6 +107,13 @@ import { SelectModule } from 'primeng/select';
                                 </label>
                                 <p-select inputId="emp-papel" [options]="formatosNota" optionLabel="label" optionValue="value" [(ngModel)]="form.formato_nota" fluid />
                             </div>
+                            <div class="col-span-12 md:col-span-6 flex flex-col gap-2">
+                                <label for="emp-tc" class="font-medium">
+                                    Tipo de cambio USD → Bs
+                                    <app-ayuda-campo texto="Valor por defecto para compras de chala. Cada operación puede usar otro tipo de cambio sin modificar este valor." />
+                                </label>
+                                <app-input-numero [(ngModel)]="form.tipo_cambio" [min]="0.0001" [minFractionDigits]="2" [maxFractionDigits]="4" />
+                            </div>
                         </div>
                     </p-fluid>
                     <div class="flex justify-end pt-4 mt-2 border-t border-surface">
@@ -136,7 +144,8 @@ export class EmpresaPage implements OnInit {
         ciudad: '',
         email: '',
         path_logo: '',
-        formato_nota: '11'
+        formato_nota: '11',
+        tipo_cambio: 9.96
     };
 
     ngOnInit(): void {
@@ -155,6 +164,10 @@ export class EmpresaPage implements OnInit {
     guardar(): void {
         if (!this.form.nombre.trim()) {
             this.aviso.aviso('El nombre comercial es obligatorio');
+            return;
+        }
+        if (!(Number(this.form.tipo_cambio) > 0)) {
+            this.aviso.aviso('El tipo de cambio debe ser mayor a 0');
             return;
         }
         this.guardando = true;

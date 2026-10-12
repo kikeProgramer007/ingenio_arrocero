@@ -20,7 +20,7 @@ export type TipoInputNumero = 'moneda' | 'cantidad';
     host: { class: 'block w-full' },
     template: `
         <div class="input-numero">
-            <span class="input-numero-prefijo" *ngIf="tipo === 'moneda'">Bs</span>
+            <span class="input-numero-prefijo" *ngIf="textoPrefijo">{{ textoPrefijo }}</span>
             <p-button
                 *ngIf="tipo === 'cantidad'"
                 type="button"
@@ -73,6 +73,12 @@ export type TipoInputNumero = 'moneda' | 'cantidad';
             min-width: 0;
             flex: 1 1 auto;
         }
+        :host-context(.tc-input-unido) .input-numero input {
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            outline: none;
+        }
         .input-numero-prefijo {
             flex-shrink: 0;
             color: var(--p-text-muted-color, var(--text-color-secondary));
@@ -87,6 +93,7 @@ export class InputNumeroComponent implements ControlValueAccessor, AfterViewInit
     @ViewChild('campo') campo?: ElementRef<HTMLInputElement>;
 
     @Input() tipo: TipoInputNumero = 'moneda';
+    @Input() prefijo?: string;
     @Input() min?: number;
     @Input() step = 1;
     @Input() minFractionDigits?: number;
@@ -119,6 +126,13 @@ export class InputNumeroComponent implements ControlValueAccessor, AfterViewInit
 
     get maxFraccion(): number {
         return this.maxFractionDigits ?? (this.tipo === 'moneda' ? 2 : 3);
+    }
+
+    get textoPrefijo(): string {
+        if (this.prefijo !== undefined) {
+            return this.prefijo;
+        }
+        return this.tipo === 'moneda' ? 'Bs' : '';
     }
 
     get textoVacio(): string {

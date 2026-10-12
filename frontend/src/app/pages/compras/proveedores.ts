@@ -4,7 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
+import { DatePickerModule } from 'primeng/datepicker';
 import { InputTextModule } from 'primeng/inputtext';
+import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
@@ -21,6 +23,7 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { formatBs, formatFecha } from '../caja/caja.utils';
+import { formatUsd } from '../../shared/utils/money';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 
 @Component({
@@ -31,7 +34,9 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
         FormsModule,
         ButtonModule,
         DialogModule,
+        DatePickerModule,
         InputTextModule,
+        SelectModule,
         TableModule,
         TagModule,
         TextareaModule,
@@ -163,24 +168,45 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
             </ng-template>
         </p-dialog>
 
-        <p-dialog header="Cuenta de {{ cuenta?.proveedor?.nombre }}" [(visible)]="dialogCuenta" [modal]="true" [style]="{ width: '72rem' }" [breakpoints]="{ '960px': '95vw' }">
+        <p-dialog header="Estado de cuenta de {{ cuenta?.proveedor?.nombre || proveedorCuenta?.nombre }}" [(visible)]="dialogCuenta" [modal]="true" [style]="{ width: '80rem' }" [breakpoints]="{ '960px': '95vw' }">
+            <div class="grid grid-cols-12 gap-3 mb-4">
+                <div class="col-span-12 md:col-span-4">
+                    <label class="block font-bold mb-2 text-sm">Período</label>
+                    <p-datepicker [(ngModel)]="filtroPeriodo" selectionMode="range" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Todas las fechas" fluid />
+                </div>
+                <div class="col-span-12 md:col-span-3">
+                    <label class="block font-bold mb-2 text-sm">Productor</label>
+                    <p-select [options]="opcionesProductor" optionLabel="label" optionValue="value" [(ngModel)]="filtroProductorId" placeholder="Todos" [showClear]="true" fluid appendTo="body" [baseZIndex]="2100" />
+                </div>
+                <div class="col-span-12 md:col-span-3">
+                    <label class="block font-bold mb-2 text-sm">Tipo de compra</label>
+                    <p-select [options]="tiposCompraFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipoCompra" placeholder="Todos" [showClear]="true" fluid appendTo="body" [baseZIndex]="2100" />
+                </div>
+                <div class="col-span-12 md:col-span-2 flex items-end">
+                    <p-button label="Consultar" icon="pi pi-filter" (onClick)="consultarCuenta()" [loading]="cargandoCuenta" fluid />
+                </div>
+            </div>
             <div class="grid grid-cols-12 gap-3 mb-4" *ngIf="cuenta">
                 <div class="col-span-4">
                     <div class="text-muted-color">Cargo</div>
                     <div class="font-semibold text-xl">{{ formatBs(cuenta.resumen.cargo) }}</div>
+                    <div class="text-muted-color text-xs" *ngIf="cuenta.resumen.saldo_anterior">Anterior {{ formatBs(cuenta.resumen.saldo_anterior) }}</div>
+                    <div class="text-muted-color text-xs" *ngIf="cuenta.resumen.compras_usd">USD ref. {{ formatUsd(cuenta.resumen.compras_usd) }}</div>
                     <div class="text-muted-color text-xs">Compras {{ formatBs(cuenta.resumen.compras) }} · Servicios {{ formatBs(cuenta.resumen.servicios) }} · Acopio {{ formatBs(cuenta.resumen.acopios) }}</div>
                 </div>
                 <div class="col-span-4">
                     <div class="text-muted-color">Abonado</div>
                     <div class="font-semibold text-xl text-green-600">{{ formatBs(cuenta.resumen.abono) }}</div>
+                    <div class="text-muted-color text-xs" *ngIf="cuenta.resumen.pagado_usd">USD ref. {{ formatUsd(cuenta.resumen.pagado_usd) }}</div>
                     <div class="text-muted-color text-xs">Pagos {{ formatBs(cuenta.resumen.pagado_compras) }} · Acopio {{ formatBs(cuenta.resumen.pagado_acopios) }}</div>
                 </div>
                 <div class="col-span-4">
-                    <div class="text-muted-color">Saldo por pagar</div>
-                    <div class="font-semibold text-xl text-orange-500">{{ formatBs(cuenta.resumen.saldo) }}</div>
+                    <div class="text-muted-color">{{ (cuenta.resumen.saldo || 0) < 0 ? 'Saldo a favor' : 'Saldo por pagar' }}</div>
+                    <div class="font-semibold text-xl" [class.text-orange-500]="(cuenta.resumen.saldo || 0) >= 0" [class.text-green-600]="(cuenta.resumen.saldo || 0) < 0">{{ formatBs(cuenta.resumen.saldo) }}</div>
+                    <div class="text-muted-color text-xs" *ngIf="cuenta.resumen.saldo_usd">USD ref. {{ formatUsd(cuenta.resumen.saldo_usd) }}</div>
                 </div>
             </div>
-            <p class="text-muted-color text-sm mb-2">Lo que este productor entregó (compra + acopio). El stock del almacén es único: no se reserva ni se descuenta el pilado por productor.</p>
+            <p class="text-muted-color text-sm mb-2">Entregas de inventario de esta cuenta. El stock del almacén es único: no se reserva ni se descuenta el pilado por productor.</p>
             <p-table [value]="cuenta?.inventario || []" [paginator]="(cuenta?.inventario?.length || 0) > 5" [rows]="5" responsiveLayout="scroll" styleClass="mb-4">
                 <ng-template #header>
                     <tr><th>Producto</th><th>Unidad</th><th>Compras</th><th>Acopio</th><th>Entregado</th></tr>
@@ -198,44 +224,66 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
                     <tr><td colspan="5"><div class="text-center py-3 text-muted-color">Sin entregas de inventario. Un servicio (compra sin producto) no suma kilos.</div></td></tr>
                 </ng-template>
             </p-table>
-            <p class="text-muted-color text-sm mb-3">Kardex de la cuenta: cada fila es una compra, un servicio o un pago. Boleta, chofer y placa van en la entrega de chala, no en el pago.</p>
+            <p class="text-muted-color text-sm mb-3">Kardex por proveedor. Incluye sus distintos productores. La deuda y los pagos son en Bs; el USD es referencial.</p>
             <p-table [value]="cuenta?.kardex || []" [paginator]="true" [alwaysShowPaginator]="true" [rows]="8" sortMode="single" responsiveLayout="scroll">
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
-                        <th>Tipo</th>
-                        <th>Concepto</th>
+                        <th>Productor</th>
+                        <th>Tipo de operación</th>
+                        <th>Concepto/Producto</th>
                         <th>Boleta</th>
                         <th>Chofer</th>
                         <th>Placa</th>
                         <th>Fanegas</th>
                         <th>Precio</th>
                         <th>Compra</th>
-                        <th>Pagos</th>
+                        <th>Pago/Amortización</th>
                         <th>Saldo</th>
                     </tr>
                 </ng-template>
                 <ng-template #body let-l>
                     <tr>
                         <td>{{ formatFecha(l.fecha) }}</td>
+                        <td>{{ l.productor || '-' }}</td>
                         <td><p-tag [value]="l.tipo" [severity]="severidadKardex(l.tipo)" /></td>
                         <td>{{ l.detalle }}</td>
                         <td>{{ l.boleta || '-' }}</td>
                         <td>{{ l.chofer || '-' }}</td>
                         <td>{{ l.placa || '-' }}</td>
                         <td>{{ l.fanegas ? formatCantidad(l.fanegas) : '-' }}</td>
-                        <td>{{ l.precio ? formatBs(l.precio) : '-' }}</td>
-                        <td>{{ l.cargo ? formatBs(l.cargo) : '-' }}</td>
-                        <td>{{ l.abono ? formatBs(l.abono) : '-' }}</td>
-                        <td class="font-medium">{{ formatBs(l.saldo) }}</td>
+                        <td>
+                            <div *ngIf="l.precio_usd">{{ formatUsd(l.precio_usd) }}</div>
+                            <div [class.text-xs]="l.precio_usd" [class.text-muted-color]="l.precio_usd">{{ l.precio ? formatBs(l.precio) : '-' }}</div>
+                        </td>
+                        <td>
+                            <div>{{ l.cargo ? formatBs(l.cargo) : '-' }}</div>
+                            <div class="text-xs text-muted-color" *ngIf="l.cargo_usd">{{ formatUsd(l.cargo_usd) }}</div>
+                        </td>
+                        <td>
+                            <div>{{ l.abono ? formatBs(l.abono) : '-' }}</div>
+                            <div class="text-xs text-muted-color" *ngIf="l.abono_usd">{{ formatUsd(l.abono_usd) }}</div>
+                        </td>
+                        <td class="font-medium">
+                            <div>{{ formatBs(l.saldo) }}</div>
+                            <div class="text-xs text-muted-color" *ngIf="l.saldo_usd">{{ formatUsd(l.saldo_usd) }}</div>
+                        </td>
                     </tr>
                 </ng-template>
                 <ng-template #emptymessage>
-                    <tr><td colspan="11"><div class="text-center py-4 text-muted-color">Sin movimientos. Las compras, pagos y acopios de este productor aparecen aquí.</div></td></tr>
+                    <tr><td colspan="12"><div class="text-center py-4 text-muted-color">Sin movimientos para estos filtros.</div></td></tr>
                 </ng-template>
             </p-table>
             <ng-template #footer>
-                <app-botones-exportar *ngIf="cuenta?.proveedor?.id" tipo="cuenta_proveedor" [id]="cuenta?.proveedor?.id" />
+                <app-botones-exportar
+                    *ngIf="proveedorCuenta?.id"
+                    tipo="cuenta_proveedor"
+                    [id]="proveedorCuenta?.id"
+                    [fechaDesde]="fechaDesdeYmd"
+                    [fechaHasta]="fechaHastaYmd"
+                    [idProductor]="filtroProductorId"
+                    [tipoCompra]="filtroTipoCompra"
+                />
                 <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogCuenta = false" />
             </ng-template>
         </p-dialog>
@@ -249,10 +297,21 @@ export class ProveedoresPage implements OnInit {
     guardando = false;
     dialog = false;
     dialogCuenta = false;
+    cargandoCuenta = false;
     form: Proveedor = this.vacio();
     cuenta: CuentaProveedor | null = null;
+    proveedorCuenta: Proveedor | null = null;
+    filtroPeriodo: Date[] | null = null;
+    filtroProductorId: number | null = null;
+    filtroTipoCompra = '';
+    tiposCompraFiltro = [
+        { label: 'Arroz en chala', value: 'CHALA' },
+        { label: 'Bolsas y empaques', value: 'BOLSAS' },
+        { label: 'Otros / servicios', value: 'OTROS' }
+    ];
     itemsAcciones: MenuItem[] = [];
     formatBs = formatBs;
+    formatUsd = formatUsd;
     formatFecha = formatFecha;
 
     constructor(private proveedoresService: ProveedoresService, private aviso: AvisoService) {}
@@ -283,7 +342,7 @@ export class ProveedoresPage implements OnInit {
     abrirAcciones(event: Event, menu: Menu, item: Proveedor): void {
         this.itemsAcciones = [
             {
-                label: 'Cuenta del productor',
+                label: 'Estado de cuenta',
                 icon: 'pi pi-book menu-icon-ver',
                 iconStyle: { color: '#3b82f6' },
                 command: () => this.verCuenta(item)
@@ -304,17 +363,57 @@ export class ProveedoresPage implements OnInit {
     }
 
     verCuenta(item: Proveedor): void {
+        this.proveedorCuenta = item;
         this.cuenta = null;
+        this.filtroPeriodo = null;
+        this.filtroProductorId = null;
+        this.filtroTipoCompra = '';
         this.dialogCuenta = true;
-        this.proveedoresService.cuenta(item.id).subscribe({
+        this.consultarCuenta();
+    }
+
+    consultarCuenta(): void {
+        if (!this.proveedorCuenta?.id) {
+            return;
+        }
+        this.cargandoCuenta = true;
+        this.proveedoresService.cuenta(this.proveedorCuenta.id, {
+            fecha_desde: this.fechaDesdeYmd,
+            fecha_hasta: this.fechaHastaYmd,
+            id_productor: this.filtroProductorId || undefined,
+            tipo_compra: this.filtroTipoCompra || undefined
+        }).subscribe({
             next: (data) => {
                 this.cuenta = data;
+                this.cargandoCuenta = false;
             },
             error: (err) => {
-                this.dialogCuenta = false;
-                this.aviso.error(err, 'No se pudo cargar la cuenta del productor');
+                this.cargandoCuenta = false;
+                this.aviso.error(err, 'No se pudo cargar el estado de cuenta');
             }
         });
+    }
+
+    get opcionesProductor(): { label: string; value: number | null }[] {
+        const lista = (this.cuenta?.productores || []).map((p) => ({ label: p.nombre, value: p.id }));
+        return [{ label: 'Todos', value: null }, ...lista];
+    }
+
+    get fechaDesdeYmd(): string | undefined {
+        const desde = this.filtroPeriodo?.[0];
+        return desde ? this.ymd(desde) : undefined;
+    }
+
+    get fechaHastaYmd(): string | undefined {
+        const hasta = this.filtroPeriodo?.[1] || this.filtroPeriodo?.[0];
+        return hasta ? this.ymd(hasta) : undefined;
+    }
+
+    private ymd(fecha: Date): string {
+        const y = fecha.getFullYear();
+        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+        const d = String(fecha.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
     }
 
     guardar(): void {
@@ -364,7 +463,7 @@ export class ProveedoresPage implements OnInit {
     severidadKardex(tipo: string): 'success' | 'warn' | 'info' | 'secondary' {
         if (tipo === 'PAGO' || tipo === 'PAGO ACOPIO') return 'success';
         if (tipo === 'ACOPIO') return 'info';
-        if (tipo === 'SERVICIO') return 'secondary';
+        if (tipo === 'SERVICIO' || tipo === 'SALDO ANTERIOR') return 'secondary';
         return 'warn';
     }
 }

@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import PDFDocument from 'pdfkit';
-import { toMoney } from './money';
+import { formatUsd, toMoney } from './money';
 import { datosEmpresa, rutaLogotipo } from './empresa';
 import { montoALetrasBs } from './numero-letras';
 
@@ -30,6 +30,22 @@ export interface DatosVoucher {
     total: number;
     cobrado?: number;
     pendiente?: number;
+}
+
+export interface DatosReciboPago {
+    numero: number;
+    fecha: Date;
+    proveedorNombre: string;
+    nitCi: string;
+    idCompra: number;
+    monto: number;
+    montoUsd?: number | null;
+    tipoCambio?: number | null;
+    saldoPendiente: number;
+    metodo: string;
+    referencia?: string;
+    observacion?: string;
+    usuario: string;
 }
 
 function padNumero(n: number, size = 6): string {
@@ -102,6 +118,106 @@ export function enviarVoucherPdf(res: Response, baseNombre: string, datos: Datos
     doc.pipe(res);
     dibujarVoucher(doc, datos);
     doc.end();
+}
+
+export function enviarReciboPagoPdf(res: Response, baseNombre: string, datos: DatosReciboPago): void {
+    const papel = geometriaVoucher();
+    const doc = new PDFDocument({
+        size: [papel.width, papel.height],
+        layout: 'portrait',
+        margin: papel.margin
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${baseNombre}.pdf"`);
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    doc.pipe(res);
+    dibujarReciboPago(doc, datos);
+    doc.end();
+}
+
+function dibujarReciboPago(doc: PDFKit.PDFDocument, datos: DatosReciboPago): void {
+    const empresa = datosEmpresa();
+    const g = geometriaVoucher();
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const width = right - left;
+    const top = doc.page.margins.top;
+
+    const logoW = dibujarLogotipo(doc, left, top, g.logoH);
+    let y = top;
+    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(g.compacto ? 9 : 11);
+    doc.text(empresa.nombre, left + logoW, y, { width: width * 0.5 });
+    y = doc.y + 2;
+    doc.font('Helvetica').fontSize(g.metaSize);
+    if (empresa.nit) {
+        doc.text(`NIT: ${empresa.nit}`, left + logoW, y);
+        y = doc.y;
+    }
+    if (empresa.telefono) {
+        doc.text(`Tel.: ${empresa.telefono}`, left + logoW, y);
+        y = doc.y;
+    }
+
+    const tituloW = width * 0.38;
+    doc.font('Helvetica-Bold').fontSize(g.titleSize);
+    doc.text('RECIBO DE PAGO', right - tituloW, top, { width: tituloW, align: 'right' });
+    doc.fontSize(g.numeroSize).text(`Nº ${padNumero(datos.numero)}`, right - tituloW, top + (g.compacto ? 14 : 18), {
+        width: tituloW,
+        align: 'right'
+    });
+    doc.font('Helvetica').fontSize(g.metaSize);
+    doc.text(`FECHA: ${fmtFechaCorta(datos.fecha)}`, right - tituloW, top + (g.compacto ? 26 : 34), {
+        width: tituloW,
+        align: 'right'
+    });
+
+    y = Math.max(y, top + (g.compacto ? 42 : 56)) + 10;
+    doc.font('Helvetica-Bold').fontSize(g.compacto ? 8 : 9);
+    doc.text(`PROVEEDOR: ${datos.proveedorNombre.toUpperCase()}`, left, y, { width });
+    y = doc.y + 2;
+    doc.font('Helvetica').fontSize(g.metaSize);
+    doc.text(`NIT/CI: ${datos.nitCi || '0'}    COMPRA: #${datos.idCompra}`, left, y, { width });
+    y = doc.y + (g.compacto ? 8 : 12);
+
+    const filas: [string, string][] = [
+        ['Monto pagado', `Bs ${numeroTabla(datos.monto)}`],
+        ['Método', datos.metodo || '-'],
+        ['Saldo pendiente de la compra', `Bs ${numeroTabla(datos.saldoPendiente)}`],
+        ['Registrado por', datos.usuario || '-']
+    ];
+    if (datos.tipoCambio && datos.tipoCambio > 0) {
+        filas.splice(1, 0, ['Tipo de cambio de la compra', String(datos.tipoCambio)]);
+        filas.splice(2, 0, ['Equivalente USD (referencial)', datos.montoUsd != null ? formatUsd(datos.montoUsd) : '-']);
+    }
+    if (datos.referencia) {
+        filas.push(['Referencia', datos.referencia]);
+    }
+    if (datos.observacion) {
+        filas.push(['Observación', datos.observacion]);
+    }
+
+    const colLbl = width * 0.42;
+    doc.strokeColor('#000000').lineWidth(0.8);
+    doc.rect(left, y, width, filas.length * (g.compacto ? 16 : 20) + 8).stroke();
+    filas.forEach((fila, i) => {
+        const fy = y + 6 + i * (g.compacto ? 16 : 20);
+        doc.font('Helvetica-Bold').fontSize(g.metaSize).text(fila[0], left + 8, fy, { width: colLbl - 12 });
+        doc.font('Helvetica').text(fila[1], left + colLbl, fy, { width: width - colLbl - 12, align: 'right' });
+    });
+
+    y = y + filas.length * (g.compacto ? 16 : 20) + 20;
+    doc.font('Helvetica').fontSize(g.metaSize);
+    doc.text(montoALetrasBs(datos.monto), left, y, { width });
+    doc.text('El dólar es referencial. La deuda y el pago se registran en bolivianos.', left, doc.y + 4, { width });
+
+    const firmasY = Math.min(doc.y + (g.compacto ? 24 : 36), doc.page.height - doc.page.margins.bottom - g.firmaLabel - 8);
+    const firmaW = width / 2;
+    doc.strokeColor('#000000').lineWidth(0.7);
+    ['Entregué conforme', 'Recibí conforme'].forEach((label, i) => {
+        const fx = left + i * firmaW;
+        doc.moveTo(fx + 16, firmasY + g.firmaGap).lineTo(fx + firmaW - 16, firmasY + g.firmaGap).stroke();
+        doc.font('Helvetica').fontSize(g.metaSize).text(label, fx, firmasY + g.firmaLabel, { width: firmaW, align: 'center' });
+    });
 }
 
 function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {

@@ -66,6 +66,8 @@ Cliente.hasMany(Cobranza, { foreignKey: 'id_cliente', as: 'cobranzas' });
 
 Proveedor.hasMany(Compra, { foreignKey: 'id_proveedor', as: 'compras' });
 Compra.belongsTo(Proveedor, { foreignKey: 'id_proveedor', as: 'proveedor' });
+Proveedor.hasMany(Compra, { foreignKey: 'id_productor', as: 'comprasComoProductor' });
+Compra.belongsTo(Proveedor, { foreignKey: 'id_productor', as: 'productor' });
 Compra.belongsTo(User, { foreignKey: 'id_usuario', as: 'usuario' });
 User.hasMany(Compra, { foreignKey: 'id_usuario', as: 'compras' });
 
