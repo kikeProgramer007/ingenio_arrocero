@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
-import { Acopio, Campana, Compra, CompraDetalle, PagoProveedor, Productos, Proveedor, User } from '../models';
+import { Acopio, Campana, Compra, CompraDetalle, PagoProveedor, Productor, Productos, Proveedor, User } from '../models';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { ActualizarProveedorDTO, CrearProveedorDTO } from '../dtos/proveedor.dto';
@@ -27,10 +27,24 @@ function mapProveedor(proveedor: any) {
 export class ProveedorController {
     public static async listar(req: Request, res: Response): Promise<void> {
         try {
-            const { q, activos } = req.query;
+            const { q, activos, rol } = req.query;
             const where: any = {};
-            if (activos !== 'todos') {
+            if (activos === 'inactivos') {
+                where.activo = false;
+            } else if (activos !== 'todos') {
                 where.activo = true;
+            }
+            if (rol === 'PRODUCTOR') {
+                where.observacion = { [Op.like]: '%Productor%' };
+            } else if (rol === 'PROVEEDOR') {
+                where[Op.and] = [
+                    {
+                        [Op.or]: [
+                            { observacion: { [Op.notLike]: '%Productor%' } },
+                            { observacion: null }
+                        ]
+                    }
+                ];
             }
             if (typeof q === 'string' && q.trim()) {
                 where[Op.or] = [
@@ -69,14 +83,14 @@ export class ProveedorController {
                 res.status(404).json({ mensaje: `No se encontró el proveedor con ID ${id}` });
                 return;
             }
-            const usuarioAtributos = ['id', 'username'];
+            const usuarioAtributos = ['id', 'username', 'nombre'];
             const filtro = filtroCuentaDesdeQuery(req.query);
             const [compras, pagos, acopios] = await Promise.all([
                 Compra.findAll({
                     where: { id_proveedor: id },
                     include: [
                         { model: CompraDetalle, as: 'detalles', include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }] },
-                        { model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] },
+                        { model: Productor, as: 'productor', attributes: ['id', 'nombre'] },
                         { model: User, as: 'usuario', attributes: usuarioAtributos }
                     ],
                     order: [['fecha', 'DESC'], ['id', 'DESC']]
@@ -88,7 +102,7 @@ export class ProveedorController {
                             model: Compra,
                             as: 'compra',
                             attributes: ['id', 'total', 'saldo_pendiente', 'estado', 'tipo_compra', 'tipo_cambio', 'total_usd', 'id_productor'],
-                            include: [{ model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] }]
+                            include: [{ model: Productor, as: 'productor', attributes: ['id', 'nombre'] }]
                         },
                         { model: User, as: 'usuario', attributes: usuarioAtributos }
                     ],

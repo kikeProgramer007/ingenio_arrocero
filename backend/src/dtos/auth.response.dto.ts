@@ -24,6 +24,7 @@ export class PermisosDto {
   export class UserDto {
     id!: number;
     username!: string;
+    nombre?: string | null;
     perfil!: PerfilDto;
     programas!: ProgramaDto[];
   }

@@ -1,9 +1,13 @@
 import { Router } from 'express';
-import { loginUser, newUser } from '../controllers/user';
+import { actualizarUsuario, crearUsuario, listarPerfiles, listarUsuarios, loginUser } from '../controllers/user';
+import validateToken from './validate-token';
 
 const router = Router();
 
-router.post('/', newUser);
-router.post('/login', loginUser)
+router.post('/login', loginUser);
+router.get('/perfiles', validateToken, listarPerfiles);
+router.get('/', validateToken, listarUsuarios);
+router.post('/', validateToken, crearUsuario);
+router.put('/:id', validateToken, actualizarUsuario);
 
 export default router;

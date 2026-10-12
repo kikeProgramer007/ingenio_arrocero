@@ -15,6 +15,7 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { etiquetaPago, formatBs, formatFecha, formatFechaCorta, esErrorCajaCerrada } from '../caja/caja.utils';
+import { nombreUsuario } from '../../shared/utils/usuario';
 import { apiUrl } from '../../core/utils/api-url';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
@@ -27,13 +28,16 @@ import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto
 import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { METODOS_DOCUMENTO_FILTRO, ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
+import { ExportarService } from '../../shared/services/exportar.service';
+import { TooltipModule } from 'primeng/tooltip';
 
 const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'Repuestos', 'Servicios', 'Alimentación', 'Otros'];
 
 @Component({
     selector: 'app-gastos',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent, TooltipModule],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -45,15 +49,25 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
         </div>
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" [compact]="true" />
         <div class="card mb-4">
-            <div class="flex flex-wrap items-end gap-3">
-                <div class="w-full sm:w-[14rem] min-w-0">
+            <div class="barra-listado">
+                <div class="campo">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Ver <app-ayuda-campo texto="Empresa: gastos operativos. Personal: retiros. Todo: ambos." posicion="bottom" /></label>
-                    <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Tipo" fluid />
+                    <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Tipo" fluid appendTo="body" />
+                </div>
+                <div class="campo" *ngIf="listandoEmpresa">
+                    <label class="block font-bold mb-1 text-sm">Categoría</label>
+                    <p-select [options]="categoriasFiltro" [(ngModel)]="filtroCategoria" placeholder="Todas" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo">
+                    <label class="block font-bold mb-1 text-sm">Método</label>
+                    <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo-fecha">
+                    <label class="block font-bold mb-1 text-sm">Período</label>
+                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
                 </div>
                 <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
-                <div class="ml-auto flex items-end gap-2 shrink-0">
-                    <app-botones-exportar tipo="egresos" [tipoGasto]="filtroTipo || undefined" />
-                </div>
+                <app-botones-exportar tipo="egresos" [tipoGasto]="filtroTipo || undefined" [categoria]="filtroCategoria" [metodo]="filtroMetodo" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
             </div>
         </div>
         <div class="card mb-4" *ngIf="porPagar.length">
@@ -140,13 +154,13 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                         [rowsPerPageOptions]="filasTabla"
                         [showCurrentPageReport]="true"
                         currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} gastos"
-                        [globalFilterFields]="['fecha', 'categoria', 'concepto', 'usuario.username']"
+                        [globalFilterFields]="['fecha', 'categoria', 'concepto', 'usuario.username', 'usuario.nombre']"
                         [rowHover]="true"
                         sortMode="single"
                         responsiveLayout="scroll"
                     >
                         <ng-template #header>
-                            <tr><th>Fecha</th><th>Categoría</th><th>Concepto</th><th>Persona</th><th>Monto</th><th>Pendiente</th><th>Estado</th></tr>
+                            <tr><th>Fecha</th><th>Categoría</th><th>Concepto</th><th>Persona</th><th>Monto</th><th>Pendiente</th><th>Estado</th><th></th></tr>
                         </ng-template>
                         <ng-template #body let-item>
                             <tr>
@@ -159,21 +173,24 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                                 <td>
                                     <p-tag [value]="etiquetaEstado(item)" [severity]="severidadEstado(item)" />
                                 </td>
+                                <td>
+                                    <p-button *ngIf="tieneBoleta(item)" icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" pTooltip="Ver boleta" tooltipPosition="left" (onClick)="exportarGasto(item.id)" />
+                                </td>
                             </tr>
                         </ng-template>
                         <ng-template #loadingbody>
-                            <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="7" [fila]="f"></tr>
+                            <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
                         </ng-template>
                         <ng-template #emptymessage>
-                            <tr><td colspan="7"><app-estado-vacio [icono]="iconoVacio" [titulo]="tituloVacio" [mensaje]="mensajeVacio" /></td></tr>
+                            <tr><td colspan="8"><app-estado-vacio [icono]="iconoVacio" [titulo]="tituloVacio" [mensaje]="mensajeVacio" /></td></tr>
                         </ng-template>
                     </p-table>
                 </div>
             </div>
         </div>
         <div class="card" *ngIf="!listandoEmpresa">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+            <div class="barra-listado">
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dtLista, $event)" />
                 </div>
@@ -189,7 +206,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} registros"
-                [globalFilterFields]="['fecha', 'concepto', 'tipo', 'usuario.username']"
+                [globalFilterFields]="['fecha', 'concepto', 'tipo', 'usuario.username', 'usuario.nombre']"
                 [rowHover]="true"
                 sortMode="single"
                 responsiveLayout="scroll"
@@ -205,6 +222,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                         <th>Caja</th>
                         <th>Estado</th>
                         <th>Usuario</th>
+                        <th></th>
                     </tr>
                 </ng-template>
                 <ng-template #body let-item>
@@ -217,7 +235,10 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                         <td>{{ item.saldo_pendiente ? formatBs(item.saldo_pendiente) : '-' }}</td>
                         <td><p-tag [value]="item.descontar_caja ? 'Descontado' : 'Sin descontar'" [severity]="item.descontar_caja ? 'danger' : 'secondary'" /></td>
                         <td><p-tag [value]="etiquetaEstado(item)" [severity]="severidadEstado(item)" /></td>
-                        <td>{{ item.usuario?.username || '-' }}</td>
+                        <td>{{ nombreUsuario(item.usuario) }}</td>
+                        <td>
+                            <p-button *ngIf="tieneBoleta(item)" icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" pTooltip="Ver boleta" tooltipPosition="left" (onClick)="exportarGasto(item.id)" />
+                        </td>
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
@@ -248,7 +269,11 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                 <div *ngIf="aCredito">
                     <label class="flex items-center gap-1 font-bold mb-2">Plazo de pago <app-ayuda-campo texto="Hasta cuándo tenemos para pagar. Opcional." posicion="right" /></label>
                     <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid appendTo="body" [baseZIndex]="2100" />
-                    <small class="block text-muted-color mt-1" *ngIf="plazoDias > 0">Vence el {{ vencimientoEstimado }}</small>
+                    <small class="block text-muted-color mt-1" *ngIf="diasPlazoEfectivo() > 0">Vence el {{ vencimientoEstimado }} · PLAZO: {{ diasPlazoEfectivo() }} {{ diasPlazoEfectivo() === 1 ? 'día' : 'días' }}</small>
+                </div>
+                <div *ngIf="aCredito && plazoDias === -2">
+                    <label class="flex items-center gap-1 font-bold mb-2">Días de plazo <app-ayuda-campo texto="Cantidad de días para pagar el saldo." posicion="right" /></label>
+                    <app-input-numero tipo="cantidad" [(ngModel)]="plazoDiasPersonal" [min]="1" />
                 </div>
                 <div *ngIf="aCredito && plazoDias === -1">
                     <label class="flex items-center gap-1 font-bold mb-2">Fecha de vencimiento <app-ayuda-campo texto="Día en que debemos cancelar el saldo." posicion="right" /></label>
@@ -266,7 +291,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                     <app-metodo-pago [(ngModel)]="metodo" [montoTotal]="monto" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
                 </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o factura. Opcional." posicion="top" /></label><input pInputText class="w-full" [(ngModel)]="referencia" /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Detalle interno del gasto o retiro." posicion="top" /></label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea></div>
+                <div><label class="flex items-center gap-1 font-bold mb-2">Por lo siguiente <app-ayuda-campo texto="Texto que sale en el comprobante de egreso." posicion="top" /></label><textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea></div>
             </div>
             <ng-template #footer>
                 <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialog = false" />
@@ -302,6 +327,11 @@ export class GastosPage implements OnInit {
     filtrarTabla = filtrarTabla;
     tipo = 'GASTO_EMPRESA';
     filtroTipo = 'GASTO_EMPRESA';
+    filtroCategoria = '';
+    filtroMetodo = '';
+    rango: Date[] | null = null;
+    metodosFiltro = METODOS_DOCUMENTO_FILTRO;
+    categoriasFiltro = CATEGORIAS;
     tiposFiltro = [
         { label: 'Empresa', value: 'GASTO_EMPRESA' },
         { label: 'Personal', value: 'RETIRO_PERSONAL' },
@@ -328,9 +358,11 @@ export class GastosPage implements OnInit {
         { label: '7 días', value: 7 },
         { label: '15 días', value: 15 },
         { label: '30 días', value: 30 },
+        { label: 'Otros días', value: -2 },
         { label: 'Fecha exacta', value: -1 }
     ];
     plazoDias = 0;
+    plazoDiasPersonal = 7;
     fechaVencimiento: Date | null = null;
     hoy = new Date();
     metodo = 'EFECTIVO';
@@ -352,11 +384,12 @@ export class GastosPage implements OnInit {
     chartData: any;
     chartOptions: any = { plugins: { legend: { position: 'bottom' } } };
     formatBs = formatBs;
+    nombreUsuario = nombreUsuario;
     formatFecha = formatFecha;
     formatFechaCorta = formatFechaCorta;
     etiquetaPago = etiquetaPago;
 
-    constructor(private route: ActivatedRoute, private http: HttpClient, private aviso: AvisoService) {}
+    constructor(private route: ActivatedRoute, private http: HttpClient, private aviso: AvisoService, private exportarService: ExportarService) {}
 
     ngOnInit(): void {
         this.tipo = this.route.snapshot.data['tipo'] || 'GASTO_EMPRESA';
@@ -389,7 +422,7 @@ export class GastosPage implements OnInit {
     }
 
     get columnasLista(): number {
-        return this.filtroTipo === '' ? 9 : 8;
+        return this.filtroTipo === '' ? 10 : 9;
     }
 
     get porPagar(): any[] {
@@ -400,12 +433,20 @@ export class GastosPage implements OnInit {
         return this.porPagar.reduce((acc, item) => acc + Number(item.saldo_pendiente || 0), 0);
     }
 
+    diasPlazoEfectivo(): number {
+        if (this.plazoDias === -2) {
+            return Math.max(0, Math.round(Number(this.plazoDiasPersonal) || 0));
+        }
+        return this.plazoDias > 0 ? this.plazoDias : 0;
+    }
+
     get vencimientoEstimado(): string {
-        if (this.plazoDias <= 0) {
+        const dias = this.diasPlazoEfectivo();
+        if (dias <= 0) {
             return '';
         }
         const fecha = new Date();
-        fecha.setDate(fecha.getDate() + this.plazoDias);
+        fecha.setDate(fecha.getDate() + dias);
         return formatFechaCorta(fecha);
     }
 
@@ -431,6 +472,17 @@ export class GastosPage implements OnInit {
 
     etiquetaTipo(tipo: string): string {
         return tipo === 'RETIRO_PERSONAL' ? 'Personal' : 'Empresa';
+    }
+
+    tieneBoleta(item: any): boolean {
+        return Boolean(item?.descontar_caja) || Number(item?.pagado || 0) > 0;
+    }
+
+    exportarGasto(id: number, visor?: Window | null): void {
+        const ventana = visor ?? this.exportarService.abrirVentanaEspera('Generando boleta...');
+        this.exportarService.mostrarPdf({ tipo: 'gasto', formato: 'pdf', id }, ventana).subscribe({
+            error: (err) => this.aviso.error(err, 'No se pudo generar la boleta')
+        });
     }
 
     get esRetiro(): boolean {
@@ -486,6 +538,7 @@ export class GastosPage implements OnInit {
         this.monto = 0;
         this.condicion = 'CONTADO';
         this.plazoDias = 0;
+        this.plazoDiasPersonal = 7;
         this.fechaVencimiento = null;
         this.hoy = new Date();
         this.metodo = 'EFECTIVO';
@@ -523,6 +576,8 @@ export class GastosPage implements OnInit {
             return;
         }
         this.pagando = true;
+        const visor = this.exportarService.abrirVentanaEspera('Generando boleta...');
+        const idGasto = this.gastoPago.id;
         this.http.post<{ mensaje: string }>(apiUrl(`/api/gastos/${this.gastoPago.id}/pagos`), {
             monto: this.montoPago,
             metodo_pago: this.metodoPagoCuenta,
@@ -530,13 +585,15 @@ export class GastosPage implements OnInit {
             observacion: this.observacionPago || undefined,
             ...extrasPagoMixto(this.metodoPagoCuenta, this.efectivoPago, this.qrPago)
         }).subscribe({
-            next: (res) => {
+            next: () => {
                 this.pagando = false;
                 this.dialogPago = false;
-                this.aviso.ok('Listo', res.mensaje);
+                this.aviso.ok('Listo', 'Pago registrado. Se abre la boleta.');
                 this.cargar();
+                this.exportarGasto(idGasto, visor);
             },
             error: (err) => {
+                visor?.close();
                 this.pagando = false;
                 if (esErrorCajaCerrada(err)) {
                     this.dialogCajaCerrada = true;
@@ -547,11 +604,31 @@ export class GastosPage implements OnInit {
         });
     }
 
+    get fechaDesde(): string | undefined {
+        return ymdDesdeRango(this.rango);
+    }
+
+    get fechaHasta(): string | undefined {
+        return ymdHastaRango(this.rango);
+    }
+
     cargar(): void {
         this.cargando = true;
-        const params: { tipo?: string } = {};
+        const params: { tipo?: string; categoria?: string; metodo?: string; fecha_desde?: string; fecha_hasta?: string } = {};
         if (this.filtroTipo) {
             params.tipo = this.filtroTipo;
+        }
+        if (this.filtroCategoria) {
+            params.categoria = this.filtroCategoria;
+        }
+        if (this.filtroMetodo) {
+            params.metodo = this.filtroMetodo;
+        }
+        if (this.fechaDesde) {
+            params.fecha_desde = this.fechaDesde;
+        }
+        if (this.fechaHasta) {
+            params.fecha_hasta = this.fechaHasta;
         }
         this.http.get<any[]>(apiUrl('/api/gastos'), { params }).subscribe({
             next: (data) => {
@@ -574,12 +651,17 @@ export class GastosPage implements OnInit {
             this.aviso.aviso('Validación', mixto);
             return;
         }
+        if (this.aCredito && this.plazoDias === -2 && this.diasPlazoEfectivo() < 1) {
+            this.aviso.aviso('Validación', 'Indique los días de plazo');
+            return;
+        }
         if (this.aCredito && this.plazoDias === -1 && !this.fechaVencimiento) {
             this.aviso.aviso('Validación', 'Indique la fecha de vencimiento o elija un plazo en días');
             return;
         }
         this.guardando = true;
-        this.http.post<{ mensaje: string }>(apiUrl('/api/gastos'), {
+        const visor = this.descuentaCaja ? this.exportarService.abrirVentanaEspera('Generando boleta...') : null;
+        this.http.post<{ mensaje: string; data?: { id: number } }>(apiUrl('/api/gastos'), {
             tipo: this.tipo,
             concepto: this.concepto.trim(),
             categoria: this.esEmpresa ? this.categoria : undefined,
@@ -596,10 +678,16 @@ export class GastosPage implements OnInit {
             next: (res) => {
                 this.guardando = false;
                 this.dialog = false;
-                this.aviso.ok('Listo', res.mensaje);
+                this.aviso.ok('Listo', this.descuentaCaja ? 'Registrado. Se abre la boleta.' : res.mensaje);
                 this.cargar();
+                if (visor && res.data?.id) {
+                    this.exportarGasto(res.data.id, visor);
+                } else {
+                    visor?.close();
+                }
             },
             error: (err) => {
+                visor?.close();
                 this.guardando = false;
                 if (esErrorCajaCerrada(err)) {
                     this.dialogCajaCerrada = true;
@@ -620,8 +708,9 @@ export class GastosPage implements OnInit {
             const dia = String(f.getDate()).padStart(2, '0');
             return { fecha_vencimiento: `${f.getFullYear()}-${mes}-${dia}` };
         }
-        if (this.plazoDias > 0) {
-            return { plazo_dias: this.plazoDias };
+        const dias = this.diasPlazoEfectivo();
+        if (dias > 0) {
+            return { plazo_dias: dias };
         }
         return {};
     }

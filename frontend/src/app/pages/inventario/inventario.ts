@@ -2,9 +2,14 @@ import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { APP_ROUTES } from '../../core/constants/app-routes';
+import { esProductoEmpaque } from '../../shared/utils/empaque';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
@@ -23,13 +28,13 @@ import { Menu, MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
-import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/unidad-medida';
+import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA, UNIDADES_MEDIDA, normalizarUnidadMedida } from '../../shared/utils/unidad-medida';
 import { ProductosService } from './productos.service';
 
 @Component({
     selector: 'app-inventario',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule, MenuModule, TablaBusquedaComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, IconFieldModule, InputIconModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule, MenuModule, TablaBusquedaComponent],
     template: `
         <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -111,9 +116,28 @@ import { ProductosService } from './productos.service';
                     <label class="flex items-center gap-1 font-bold mb-2">Imagen <app-ayuda-campo texto="Foto del producto. Opcional." posicion="right" /></label>
                     <app-imagen-campo tipo="producto" [path]="form.path_imagen" (pathChange)="form.path_imagen = $event" />
                 </div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Ej.: Arroz pilado, Arroz en chala." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="form.nombre" /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Agrupa el producto (materia prima, terminado, etc.)." posicion="right" /></label><p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_categoria" fluid appendTo="body" [baseZIndex]="2100" /></div>
-                <div><label class="flex items-center gap-1 font-bold mb-2">Unidad <app-ayuda-campo texto="Ej.: Unidad, Fanega, Quintal o kg. La cantidad y las unidades por paquete van en otros campos." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="form.unidad_medida" /></div>
+                <div class="campo-form">
+                    <label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Ej.: Arroz pilado, Arroz en chala." posicion="right" /></label>
+                    <p-iconfield iconPosition="right">
+                        <input pInputText class="w-full" name="nombreProducto" [(ngModel)]="form.nombre" (blur)="tocadoNombre = true" [class.ng-dirty]="mostrarNombre" [class.ng-invalid]="!!errorNombre" [class.ng-valid]="okNombre" />
+                        <p-inputicon [styleClass]="okNombre ? 'pi pi-check text-green-500' : errorNombre ? 'pi pi-times text-red-500' : ''" />
+                    </p-iconfield>
+                    <div class="campo-feedback-error" *ngIf="errorNombre">{{ errorNombre }}</div>
+                    <div class="campo-feedback-ok" *ngIf="okNombre">Correcto</div>
+                </div>
+                <div class="campo-form">
+                    <label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Agrupa el producto (materia prima, terminado, etc.)." posicion="right" /></label>
+                    <p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="form.id_categoria" placeholder="Elegí la categoría" [styleClass]="errorCategoria ? 'ng-dirty ng-invalid' : okCategoria ? 'ng-dirty ng-valid' : ''" fluid appendTo="body" [baseZIndex]="2100" (onChange)="tocadoCategoria = true" />
+                    <div class="campo-feedback-error" *ngIf="errorCategoria">{{ errorCategoria }}</div>
+                    <div class="campo-feedback-ok" *ngIf="okCategoria">Correcto</div>
+                </div>
+                <div class="campo-form">
+                    <label class="block font-bold mb-1">Unidad de medida</label>
+                    <p class="text-xs text-muted-color mt-0 mb-2">Kilo, Fanega, Quintal o Unidad. La cantidad va en otro campo.</p>
+                    <p-select [options]="unidades" optionLabel="label" optionValue="value" [(ngModel)]="form.unidad_medida" placeholder="Elegí la unidad" [styleClass]="okUnidad ? 'ng-dirty ng-valid' : errorUnidad ? 'ng-dirty ng-invalid' : ''" fluid appendTo="body" [baseZIndex]="2100" (onChange)="tocadoUnidad = true" />
+                    <div class="campo-feedback-error" *ngIf="errorUnidad">{{ errorUnidad }}</div>
+                    <div class="campo-feedback-ok" *ngIf="okUnidad">Correcto</div>
+                </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Precio venta <app-ayuda-campo texto="Precio sugerido al vender. Se puede cambiar en cada venta." posicion="right" /></label><app-input-numero [(ngModel)]="form.precio_venta" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Precio compra <app-ayuda-campo texto="Costo de referencia. Se puede cambiar en cada compra." posicion="right" /></label><app-input-numero [(ngModel)]="form.precio_compra" /></div>
                 <div *ngIf="!form.id"><label class="flex items-center gap-1 font-bold mb-2">Stock inicial <app-ayuda-campo texto="Cantidad con la que arranca el inventario. Solo al crear." posicion="right" /></label><app-input-numero tipo="cantidad" [(ngModel)]="form.stock" [min]="0" /></div>
@@ -176,8 +200,13 @@ export class InventarioPage implements OnInit {
     formatBs = formatBs;
     unidadesInvalidas: { origen: string; id: number; nombre: string; unidad: string; detalle: string }[] = [];
     mensajeUnidad = MENSAJE_UNIDAD_MEDIDA;
+    unidades = UNIDADES_MEDIDA;
+    enviado = false;
+    tocadoNombre = false;
+    tocadoCategoria = false;
+    tocadoUnidad = false;
 
-    constructor(private http: HttpClient, private aviso: AvisoService, private productosService: ProductosService) {}
+    constructor(private http: HttpClient, private aviso: AvisoService, private productosService: ProductosService, private router: Router) {}
 
     ngOnInit(): void {
         this.http.get<any[]>(apiUrl('/api/productos/categorias')).subscribe({ next: (d) => (this.categorias = d) });
@@ -193,8 +222,57 @@ export class InventarioPage implements OnInit {
         });
     }
 
+    get mostrarNombre(): boolean {
+        return this.enviado || this.tocadoNombre;
+    }
+
+    get mostrarCategoria(): boolean {
+        return this.enviado || this.tocadoCategoria;
+    }
+
+    get mostrarUnidad(): boolean {
+        return this.enviado || this.tocadoUnidad;
+    }
+
+    get errorNombre(): string | null {
+        if (!this.mostrarNombre) {
+            return null;
+        }
+        return this.form.nombre?.trim() ? null : 'El nombre es obligatorio.';
+    }
+
+    get okNombre(): boolean {
+        return this.mostrarNombre && !this.errorNombre;
+    }
+
+    get errorCategoria(): string | null {
+        if (!this.mostrarCategoria) {
+            return null;
+        }
+        return this.form.id_categoria ? null : 'Elegí una categoría.';
+    }
+
+    get okCategoria(): boolean {
+        return this.mostrarCategoria && !this.errorCategoria;
+    }
+
+    get errorUnidad(): string | null {
+        if (!this.mostrarUnidad) {
+            return null;
+        }
+        return esUnidadMedidaValida(this.form.unidad_medida) ? null : MENSAJE_UNIDAD_MEDIDA;
+    }
+
+    get okUnidad(): boolean {
+        return this.mostrarUnidad && !this.errorUnidad;
+    }
+
     abrirNuevo(): void {
         this.form = this.vacio();
+        this.enviado = false;
+        this.tocadoNombre = false;
+        this.tocadoCategoria = false;
+        this.tocadoUnidad = false;
         this.dialog = true;
     }
 
@@ -206,12 +284,21 @@ export class InventarioPage implements OnInit {
                 iconStyle: { color: '#f59e0b' },
                 command: () => this.editar(p)
             },
-            {
-                label: 'Ajustar stock',
-                icon: 'pi pi-sliders-h menu-icon-ajuste',
-                iconStyle: { color: '#06b6d4' },
-                command: () => this.abrirAjuste(p)
-            },
+            esProductoEmpaque(p)
+                ? {
+                    label: 'Comprar bolsas',
+                    icon: 'pi pi-shopping-cart menu-icon-ajuste',
+                    iconStyle: { color: '#06b6d4' },
+                    command: () => this.router.navigate([APP_ROUTES.compras], {
+                        queryParams: { nueva: 1, tipo: 'BOLSAS', producto: p.id }
+                    })
+                }
+                : {
+                    label: 'Ajustar stock',
+                    icon: 'pi pi-sliders-h menu-icon-ajuste',
+                    iconStyle: { color: '#06b6d4' },
+                    command: () => this.abrirAjuste(p)
+                },
             {
                 label: 'Ver kardex',
                 icon: 'pi pi-list menu-icon-kardex',
@@ -223,17 +310,17 @@ export class InventarioPage implements OnInit {
     }
 
     editar(p: any): void {
-        this.form = { ...p };
+        this.form = { ...p, unidad_medida: normalizarUnidadMedida(p.unidad_medida) || 'Kilo' };
+        this.enviado = false;
+        this.tocadoNombre = false;
+        this.tocadoCategoria = false;
+        this.tocadoUnidad = false;
         this.dialog = true;
     }
 
     guardar(): void {
-        if (!this.form.nombre?.trim()) {
-            this.aviso.aviso('Validación', 'El nombre es obligatorio');
-            return;
-        }
-        if (!esUnidadMedidaValida(this.form.unidad_medida || 'kg')) {
-            this.aviso.aviso('Validación', MENSAJE_UNIDAD_MEDIDA);
+        this.enviado = true;
+        if (this.errorNombre || this.errorCategoria || this.errorUnidad) {
             return;
         }
         this.guardando = true;
@@ -244,7 +331,7 @@ export class InventarioPage implements OnInit {
             precio_compra: this.form.precio_compra || 0,
             stock: this.form.stock || 0,
             stock_minimo: this.form.stock_minimo || 0,
-            unidad_medida: this.form.unidad_medida || 'kg',
+            unidad_medida: this.form.unidad_medida || 'Kilo',
             path_imagen: this.form.path_imagen || imagenDefault('producto'),
             id_categoria: this.form.id_categoria || undefined
         };
@@ -284,7 +371,7 @@ export class InventarioPage implements OnInit {
     }
 
     private vacio() {
-        return { id: 0, nombre: '', descripcion: '', precio_venta: 0, precio_compra: 0, stock: 0, stock_minimo: 0, unidad_medida: 'kg', id_categoria: null, path_imagen: imagenDefault('producto') };
+        return { id: 0, nombre: '', descripcion: '', precio_venta: 0, precio_compra: 0, stock: 0, stock_minimo: 0, unidad_medida: 'Kilo', id_categoria: null, path_imagen: imagenDefault('producto') };
     }
 
     unidadInvalida(valor: string): boolean {

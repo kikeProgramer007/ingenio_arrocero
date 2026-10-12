@@ -5,6 +5,7 @@ import { ActivatedRoute } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
+import { DrawerModule } from 'primeng/drawer';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
@@ -18,7 +19,10 @@ import { Cliente, LineaVenta, PROCEDENCIAS_CLIENTE, Venta } from './ventas.model
 import { ClientesService, VentasService } from './ventas.service';
 import { ExportarService, FormatoExport } from '../../shared/services/exportar.service';
 import { ConfirmarService } from '../../shared/services/confirmar.service';
-import { ProductoLista, ProductosService } from '../inventario/productos.service';
+import { nombreUsuario } from '../../shared/utils/usuario';
+import { CategoriaProducto, ProductoLista, ProductosService } from '../inventario/productos.service';
+import { mediaUrl } from '../../core/utils/media-url';
+import { roundMoney } from '../../shared/utils/money';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
 import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
@@ -32,6 +36,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../shared/utils/empaque';
 
 @Component({
     selector: 'app-ventas',
@@ -42,6 +47,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         ButtonModule,
         DatePickerModule,
         DialogModule,
+        DrawerModule,
         InputTextModule,
         SelectModule,
         SelectButtonModule,
@@ -74,21 +80,21 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="4" [compact]="true" />
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-[calc(50%-0.25rem)] sm:w-[9.5rem] min-w-0">
+            <div class="barra-listado">
+                <div class="campo campo-sm">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Estado <app-ayuda-campo texto="Pendiente o parcial: aún hay saldo. Pagada: cobrada. Anulada: no suma y se devolvió el stock." posicion="bottom" /></label>
-                    <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid />
+                    <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid appendTo="body" />
                 </div>
-                <div class="w-full sm:min-w-[16rem] sm:flex-1 sm:max-w-[22rem] min-w-0">
+                <div class="campo-wide">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Cliente <app-ayuda-campo texto="Filtra las ventas de un comprador. Déjalo en Todos para ver todos." posicion="bottom" /></label>
-                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCliente" placeholder="Todos" [filter]="true" [showClear]="true" fluid />
+                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCliente" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
-                <div class="w-full sm:w-[15rem] min-w-0">
+                <div class="campo-fecha">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Período <app-ayuda-campo texto="Rango de fechas de la venta. La venta siempre se registra con la fecha de hoy." posicion="left" /></label>
                     <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
                 </div>
                 <p-button label="Consultar" icon="pi pi-filter" pTooltip="Aplicar filtros" tooltipPosition="top" (onClick)="cargar()" [loading]="cargando" />
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
@@ -170,108 +176,171 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             </p-table>
         </div>
 
-        <p-dialog header="Nueva venta" [(visible)]="dialogNueva" [modal]="true" [style]="{ width: '56rem' }" [breakpoints]="{ '960px': '95vw' }">
-            <div class="flex flex-col gap-4">
-                <div>
-                    <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
-                        <label class="flex items-center gap-1 font-bold">Cliente <app-ayuda-campo texto="Quien compra. Si no está en la lista, pulsa Nuevo." posicion="right" /></label>
-                        <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirClienteRapido()" />
+        <p-drawer [(visible)]="dialogNueva" header="Nueva venta" position="full" styleClass="venta-drawer">
+            <div class="venta-drawer-cuerpo">
+                <aside class="venta-drawer-catalogo">
+                    <div class="venta-drawer-catalogo-cabeza">
+                        <div class="font-semibold text-surface-900 dark:text-surface-0">Inventario</div>
+                        <p class="text-muted-color text-sm mt-1 mb-3">Toque un producto para sumarlo. No se listan bolsas ni empaques.</p>
+                        <p-selectbutton
+                            [options]="categoriasFiltro"
+                            optionLabel="label"
+                            optionValue="value"
+                            [(ngModel)]="filtroCategoriaId"
+                            [allowEmpty]="false"
+                            size="small"
+                            styleClass="flex flex-wrap mb-3"
+                        />
+                        <app-tabla-busqueda placeholder="Buscar producto..." [(value)]="busquedaProducto" />
                     </div>
-                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="idCliente" placeholder="Seleccione cliente" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
-                </div>
-                <div>
-                    <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
-                        <label class="flex items-center gap-1 font-bold">Productos / líneas <app-ayuda-campo texto="Producto del inventario baja stock. Sin producto: escribe un concepto (flete, servicio) en Descripción." posicion="right" /></label>
-                        <p-button label="Agregar línea" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="agregarLinea()" />
+                    <div class="venta-drawer-catalogo-lista">
+                        <button
+                            type="button"
+                            class="venta-producto"
+                            *ngFor="let p of productosCatalogo"
+                            (click)="agregarDesdeCatalogo(p)"
+                            [class.venta-producto-activo]="productoEnFormulario(p)"
+                        >
+                            <img [src]="fotoProducto(p.path_imagen)" alt="" class="w-9 h-9 rounded-border object-cover shrink-0" />
+                            <div class="min-w-0 flex-1 text-left">
+                                <div class="font-medium text-sm truncate">{{ p.nombre }}</div>
+                                <div class="flex flex-wrap items-center gap-2 mt-0.5">
+                                    <span class="text-xs text-muted-color">{{ p.unidad_medida }}</span>
+                                    <p-tag [value]="'Stock ' + p.stock" [severity]="severidadStock(p.stock)" styleClass="text-xs" />
+                                </div>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <div class="font-semibold text-sm whitespace-nowrap">{{ formatBs(p.precio_venta) }}</div>
+                                <span class="text-xs font-semibold text-primary" *ngIf="cantidadEnFormulario(p) as n">{{ n }} en ítems</span>
+                                <i class="pi pi-plus text-muted-color text-xs" *ngIf="!cantidadEnFormulario(p)"></i>
+                            </div>
+                        </button>
+                        <div *ngIf="!productosCatalogo.length" class="text-center py-8 text-muted-color">
+                            <i class="pi pi-box text-3xl mb-2 block"></i>
+                            No hay productos vendibles en esta categoría.
+                        </div>
                     </div>
-                    <p class="text-muted-color text-sm mb-3">Si eliges un producto del inventario, baja el stock. Si es un concepto (flete, etc.), déjalo en blanco y escribe la descripción.</p>
-                    <div class="flex flex-col gap-3" *ngFor="let linea of lineas; let i = index">
-                        <div class="grid grid-cols-12 gap-2 items-end">
-                            <div class="col-span-12 md:col-span-5">
-                                <label class="flex items-center gap-1 text-sm mb-1">Producto <app-ayuda-campo texto="Ej.: Arroz pilado. Vacío = línea sin inventario." posicion="bottom" /></label>
-                                <p-select
-                                    [options]="productosOpciones"
-                                    optionLabel="etiqueta"
-                                    optionValue="id"
-                                    [(ngModel)]="linea.id_producto"
-                                    (ngModelChange)="onProductoVenta(linea)"
-                                    placeholder="Inventario o vacío"
-                                    [filter]="true"
-                                    [showClear]="true"
-                                    fluid
-                                    appendTo="body"
-                                    [baseZIndex]="2100"
-                                />
+                </aside>
+                <section class="venta-drawer-formulario">
+                    <div class="flex flex-col gap-4">
+                        <div>
+                            <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+                                <label class="flex items-center gap-1 font-bold">Cliente <app-ayuda-campo texto="Quien compra. Si no está en la lista, pulsa Nuevo." posicion="right" /></label>
+                                <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirClienteRapido()" />
                             </div>
-                            <div class="col-span-12" *ngIf="!linea.id_producto">
-                                <label class="flex items-center gap-1 text-sm mb-1">Descripción <app-ayuda-campo texto="Ej.: Flete Santa Cruz, servicio de entrega." posicion="top" /></label>
-                                <input pInputText class="w-full" placeholder="Ej. flete, servicio" [(ngModel)]="linea.descripcion" />
+                            <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="idCliente" placeholder="Seleccione cliente" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
+                        </div>
+                        <div>
+                            <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+                                <label class="flex items-center gap-1 font-bold">Ítems <app-ayuda-campo texto="Elija productos a la izquierda. Agregue una línea vacía para flete u otro servicio." posicion="right" /></label>
+                                <p-button label="Agregar línea" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="agregarLinea()" />
                             </div>
-                            <div class="col-span-12 sm:col-span-6 md:col-span-2">
-                                <label class="flex items-center gap-1 text-sm mb-1">Cantidad <app-ayuda-campo texto="Kilos o unidades que salen. Debe haber stock suficiente." posicion="top" /></label>
-                                <app-input-numero tipo="cantidad" [(ngModel)]="linea.cantidad" [min]="0" />
-                            </div>
-                            <div class="col-span-12 sm:col-span-6 md:col-span-3">
-                                <label class="flex items-center gap-1 text-sm mb-1">Precio <app-ayuda-campo texto="Precio unitario en bolivianos. El subtotal es cantidad × precio." posicion="left" /></label>
-                                <app-input-numero [(ngModel)]="linea.precio_unitario" />
-                            </div>
-                            <div class="col-span-12 md:col-span-2">
-                                <p-button icon="pi pi-trash" severity="danger" [outlined]="true" pTooltip="Quitar línea" tooltipPosition="top" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1" />
+                            <p-table [value]="lineas" size="small" styleClass="venta-lineas" responsiveLayout="scroll">
+                                <ng-template #header>
+                                    <tr>
+                                        <th>Ítem</th>
+                                        <th class="venta-col-cantidad">Cantidad</th>
+                                        <th class="venta-col-precio">P. unit.</th>
+                                        <th class="venta-col-subtotal">Subtotal</th>
+                                        <th class="venta-col-accion"></th>
+                                    </tr>
+                                </ng-template>
+                                <ng-template #body let-linea let-i="rowIndex">
+                                    <tr>
+                                        <td>
+                                            <div class="font-medium" *ngIf="linea.id_producto">{{ linea.descripcion }}</div>
+                                            <input *ngIf="!linea.id_producto" pInputText class="w-full" placeholder="Ej. flete, servicio" [(ngModel)]="linea.descripcion" />
+                                            <div class="text-xs text-muted-color mt-1" *ngIf="linea.id_producto">{{ unidadLinea(linea) }}</div>
+                                            <div class="text-xs text-orange-500 mt-1" *ngIf="avisoStock(linea)">{{ avisoStock(linea) }}</div>
+                                        </td>
+                                        <td class="venta-col-cantidad">
+                                            <div class="venta-control">
+                                                <app-input-numero tipo="cantidad" [(ngModel)]="linea.cantidad" [min]="0" />
+                                            </div>
+                                        </td>
+                                        <td class="venta-col-precio">
+                                            <div class="venta-control">
+                                                <app-input-numero [(ngModel)]="linea.precio_unitario" />
+                                            </div>
+                                        </td>
+                                        <td class="venta-col-subtotal">
+                                            <div class="venta-control venta-control-subtotal">{{ formatBs(subtotalLinea(linea)) }}</div>
+                                        </td>
+                                        <td class="venta-col-accion">
+                                            <p-button icon="pi pi-trash" severity="danger" [rounded]="true" [text]="true" pTooltip="Quitar línea" tooltipPosition="top" (onClick)="quitarLinea(i)" [disabled]="lineas.length === 1 && !linea.id_producto && !linea.descripcion" />
+                                        </td>
+                                    </tr>
+                                </ng-template>
+                            </p-table>
+                            <div class="venta-resumen bg-surface-50 dark:bg-surface-800 border border-surface rounded-border">
+                                <div>
+                                    <div class="text-xs text-muted-color">Total</div>
+                                    <div class="font-semibold">{{ formatBs(totalLineas()) }}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-muted-color">Se cobra ahora</div>
+                                    <div class="font-medium text-green-600">{{ formatBs(pagoAlRegistrar()) }}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-muted-color">Pendiente</div>
+                                    <div class="font-medium text-orange-500">{{ formatBs(pendienteEstimado()) }}</div>
+                                </div>
                             </div>
                         </div>
-                        <small class="text-orange-500" *ngIf="avisoStock(linea)">{{ avisoStock(linea) }}</small>
+                        <div>
+                            <label class="flex items-center gap-1 font-bold mb-2">Forma de cobro <app-ayuda-campo texto="Contado: el total entra a caja ahora. Crédito: queda por cobrar; puedes abonar una parte." posicion="right" /></label>
+                            <p-selectbutton [options]="modosCobro" optionLabel="label" optionValue="value" [(ngModel)]="modoCobro" [allowEmpty]="false" styleClass="flex flex-wrap" />
+                            <small class="block text-muted-color mt-2">La fecha de la venta es la de hoy. No se puede registrar con fecha anterior.</small>
+                        </div>
+                        <div class="grid grid-cols-12 gap-3" *ngIf="modoCobro === 'CREDITO'">
+                            <div class="col-span-12 md:col-span-4">
+                                <label class="flex items-center gap-1 font-bold mb-2">Abono ahora (opcional) <app-ayuda-campo texto="Ej.: total Bs 1.640, abono Bs 500. El resto queda pendiente. 0 = todo a crédito." posicion="top" /></label>
+                                <app-input-numero [(ngModel)]="pagoInicial" />
+                            </div>
+                            <div class="col-span-12 md:col-span-4">
+                                <label class="flex items-center gap-1 font-bold mb-2">Plazo de cobro <app-ayuda-campo texto="Cuándo debe pagar el saldo. No cambia el precio ni los abonos. Opcional." posicion="top" /></label>
+                                <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid appendTo="body" [baseZIndex]="2100" />
+                                <small class="block text-muted-color mt-1" *ngIf="diasPlazoEfectivo() > 0">Vence el {{ vencimientoEstimado }} · PLAZO: {{ diasPlazoEfectivo() }} {{ diasPlazoEfectivo() === 1 ? 'día' : 'días' }}</small>
+                            </div>
+                            <div class="col-span-12 md:col-span-4" *ngIf="plazoDias === -2">
+                                <label class="flex items-center gap-1 font-bold mb-2">Días de plazo <app-ayuda-campo texto="Cantidad de días para cobrar el saldo. Sale en la nota como PLAZO: N días." posicion="left" /></label>
+                                <app-input-numero tipo="cantidad" [(ngModel)]="plazoDiasPersonal" [min]="1" />
+                            </div>
+                            <div class="col-span-12 md:col-span-4" *ngIf="plazoDias === -1">
+                                <label class="flex items-center gap-1 font-bold mb-2">Fecha de vencimiento <app-ayuda-campo texto="Día en que el cliente debe cancelar el saldo." posicion="left" /></label>
+                                <p-datepicker [(ngModel)]="fechaVencimiento" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [minDate]="hoy" [readonlyInput]="true" fluid />
+                            </div>
+                            <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
+                                <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto permite partir el cobro." posicion="top" /></label>
+                                <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="pagoInicial" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" [mostrarCambio]="true" />
+                            </div>
+                            <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
+                                <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia, nro. de QR o comprobante." posicion="left" /></label>
+                                <input pInputText class="w-full" [(ngModel)]="referencia" />
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-12 gap-3" *ngIf="modoCobro === 'CONTADO'">
+                            <div class="col-span-12 md:col-span-6">
+                                <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto: parte QR y parte efectivo." posicion="top" /></label>
+                                <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="pagoAlRegistrar()" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" [mostrarCambio]="true" />
+                            </div>
+                            <div class="col-span-12 md:col-span-6">
+                                <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia, nro. de QR o comprobante." posicion="left" /></label>
+                                <input pInputText class="w-full" [(ngModel)]="referencia" />
+                            </div>
+                        </div>
+                        <div>
+                            <label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Nota interna. No aparece como ingreso; solo queda en la venta." posicion="top" /></label>
+                            <textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea>
+                        </div>
                     </div>
-                    <div class="text-right font-semibold mt-3">Total venta: {{ formatBs(totalLineas()) }}</div>
-                    <div class="text-right text-muted-color break-words">Se cobra ahora: {{ formatBs(pagoAlRegistrar()) }} · Quedará pendiente: {{ formatBs(pendienteEstimado()) }}</div>
-                </div>
-                <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Forma de cobro <app-ayuda-campo texto="Contado: el total entra a caja ahora. Crédito: queda por cobrar; puedes abonar una parte." posicion="right" /></label>
-                    <p-selectbutton [options]="modosCobro" optionLabel="label" optionValue="value" [(ngModel)]="modoCobro" [allowEmpty]="false" styleClass="flex flex-wrap" />
-                    <small class="block text-muted-color mt-2">La fecha de la venta es la de hoy. No se puede registrar con fecha anterior.</small>
-                </div>
-                <div class="grid grid-cols-12 gap-3" *ngIf="modoCobro === 'CREDITO'">
-                    <div class="col-span-12 md:col-span-4">
-                        <label class="flex items-center gap-1 font-bold mb-2">Abono ahora (opcional) <app-ayuda-campo texto="Ej.: total Bs 1.640, abono Bs 500. El resto queda pendiente. 0 = todo a crédito." posicion="top" /></label>
-                        <app-input-numero [(ngModel)]="pagoInicial" />
+                    <div class="flex justify-end gap-2 pt-4 mt-auto border-t border-surface">
+                        <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogNueva = false" />
+                        <p-button label="Registrar" [loading]="guardando" (onClick)="guardar()" />
                     </div>
-                    <div class="col-span-12 md:col-span-4">
-                        <label class="flex items-center gap-1 font-bold mb-2">Plazo de cobro <app-ayuda-campo texto="Cuándo debe pagar el saldo. No cambia el precio ni los abonos. Opcional." posicion="top" /></label>
-                        <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid appendTo="body" [baseZIndex]="2100" />
-                        <small class="block text-muted-color mt-1" *ngIf="plazoDias > 0">Vence el {{ vencimientoEstimado }}</small>
-                    </div>
-                    <div class="col-span-12 md:col-span-4" *ngIf="plazoDias === -1">
-                        <label class="flex items-center gap-1 font-bold mb-2">Fecha de vencimiento <app-ayuda-campo texto="Día en que el cliente debe cancelar el saldo." posicion="left" /></label>
-                        <p-datepicker [(ngModel)]="fechaVencimiento" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [minDate]="hoy" [readonlyInput]="true" fluid />
-                    </div>
-                    <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
-                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto permite partir el cobro." posicion="top" /></label>
-                        <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="pagoInicial" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
-                    </div>
-                    <div class="col-span-12 md:col-span-4" *ngIf="pagoInicial > 0">
-                        <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia, nro. de QR o comprobante." posicion="left" /></label>
-                        <input pInputText class="w-full" [(ngModel)]="referencia" />
-                    </div>
-                </div>
-                <div class="grid grid-cols-12 gap-3" *ngIf="modoCobro === 'CONTADO'">
-                    <div class="col-span-12 md:col-span-6">
-                        <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto: parte QR y parte efectivo." posicion="top" /></label>
-                        <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="pagoAlRegistrar()" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
-                    </div>
-                    <div class="col-span-12 md:col-span-6">
-                        <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia, nro. de QR o comprobante." posicion="left" /></label>
-                        <input pInputText class="w-full" [(ngModel)]="referencia" />
-                    </div>
-                </div>
-                <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Nota interna. No aparece como ingreso; solo queda en la venta." posicion="top" /></label>
-                    <textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea>
-                </div>
+                </section>
             </div>
-            <ng-template #footer>
-                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogNueva = false" />
-                <p-button label="Registrar" [loading]="guardando" (onClick)="guardar()" />
-            </ng-template>
-        </p-dialog>
+        </p-drawer>
 
         <p-dialog header="Detalle de venta" [(visible)]="dialogDetalle" [modal]="true" [style]="{ width: '44rem' }" [breakpoints]="{ '960px': '95vw' }">
             <ng-container *ngIf="detalle">
@@ -279,7 +348,8 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 <div class="flex flex-wrap items-center gap-2 mb-3">
                     <p-tag [value]="detalle.estado" [severity]="severidad(detalle.estado)" />
                     <p-tag *ngIf="detalle.vencida" value="Vencida" severity="danger" />
-                    <span class="text-muted-color" *ngIf="detalle.fecha_vencimiento">Vence {{ formatFechaCorta(detalle.fecha_vencimiento) }}</span>
+                    <span class="text-muted-color" *ngIf="detalle.plazo_dias">Plazo {{ detalle.plazo_dias }} {{ detalle.plazo_dias === 1 ? 'día' : 'días' }}</span>
+                    <span class="text-muted-color" *ngIf="detalle.fecha_vencimiento"> · Vence {{ formatFechaCorta(detalle.fecha_vencimiento) }}</span>
                 </div>
                 <div class="grid grid-cols-12 gap-3 mb-4">
                     <div class="col-span-4"><div class="text-muted-color">Total</div><div class="font-semibold text-xl">{{ formatBs(detalle.total) }}</div></div>
@@ -310,7 +380,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                             <td>{{ formatFecha(cob.fecha) }}</td>
                             <td>{{ formatBs(cob.monto) }}</td>
                             <td>{{ etiquetaPago(cob) }}</td>
-                            <td>{{ cob.usuario?.username || '-' }}</td>
+                            <td>{{ nombreUsuario(cob.usuario) }}</td>
                         </tr>
                     </ng-template>
                 </p-table>
@@ -358,7 +428,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto parte el cobro." posicion="right" /></label>
-                    <app-metodo-pago [(ngModel)]="cobroMetodo" [montoTotal]="cobroMonto" [(montoEfectivo)]="cobroEfectivo" [(montoQr)]="cobroQr" />
+                    <app-metodo-pago [(ngModel)]="cobroMetodo" [montoTotal]="cobroMonto" [(montoEfectivo)]="cobroEfectivo" [(montoQr)]="cobroQr" [mostrarCambio]="true" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o comprobante QR. Opcional en efectivo." posicion="top" /></label>
@@ -371,7 +441,135 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             </ng-template>
         </p-dialog>
 
-    `
+    `,
+    styles: [`
+        :host ::ng-deep .venta-drawer.p-drawer {
+            width: 100vw;
+        }
+        :host ::ng-deep .venta-drawer .p-drawer-content {
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .venta-drawer-cuerpo {
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 4.5rem);
+        }
+        .venta-drawer-catalogo,
+        .venta-drawer-formulario {
+            padding: 1rem 1.25rem;
+            overflow: auto;
+        }
+        .venta-drawer-catalogo {
+            display: flex;
+            flex-direction: column;
+            border-bottom: 1px solid var(--p-content-border-color, #e5e7eb);
+        }
+        .venta-drawer-catalogo-cabeza {
+            flex-shrink: 0;
+        }
+        .venta-drawer-catalogo-lista {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            margin-top: 0.75rem;
+        }
+        .venta-drawer-formulario {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        @media (min-width: 960px) {
+            .venta-drawer-cuerpo {
+                flex-direction: row;
+                height: calc(100vh - 4.5rem);
+                min-height: 0;
+            }
+            .venta-drawer-catalogo {
+                width: 38%;
+                height: 100%;
+                border-bottom: 0;
+                border-right: 1px solid var(--p-content-border-color, #e5e7eb);
+            }
+            .venta-drawer-formulario {
+                width: 62%;
+                height: 100%;
+            }
+        }
+        .venta-producto {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            width: 100%;
+            padding: 0.45rem 0.6rem;
+            border: 1px solid var(--p-content-border-color, #e5e7eb);
+            border-radius: var(--p-border-radius, 6px);
+            background: var(--p-content-background, #fff);
+            cursor: pointer;
+        }
+        .venta-producto:hover,
+        .venta-producto-activo {
+            border-color: var(--p-primary-color, #b91c1c);
+            background: color-mix(in srgb, var(--p-primary-color, #b91c1c) 6%, transparent);
+        }
+        .venta-resumen {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 1.25rem;
+            margin-top: 0.75rem;
+            padding: 0.75rem 1rem;
+            text-align: right;
+        }
+        :host ::ng-deep .venta-lineas.p-datatable table {
+            min-width: 52rem;
+            border-collapse: separate;
+            border-spacing: 0.85rem 0;
+        }
+        :host ::ng-deep .venta-lineas.p-datatable .p-datatable-thead > tr > th,
+        :host ::ng-deep .venta-lineas.p-datatable .p-datatable-tbody > tr > td {
+            padding: 0.7rem 0.35rem;
+            vertical-align: middle;
+        }
+        .venta-control {
+            display: inline-flex;
+            align-items: center;
+            min-height: 2.5rem;
+            padding: 0 0.15rem;
+        }
+        .venta-control-subtotal {
+            justify-content: flex-end;
+            min-width: 6.5rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        :host ::ng-deep .venta-lineas .venta-col-cantidad,
+        :host ::ng-deep .venta-lineas .venta-col-precio,
+        :host ::ng-deep .venta-lineas .venta-col-subtotal,
+        :host ::ng-deep .venta-lineas .venta-col-accion {
+            white-space: nowrap;
+        }
+        :host ::ng-deep .venta-lineas .venta-col-cantidad app-input-numero,
+        :host ::ng-deep .venta-lineas .venta-col-precio app-input-numero {
+            display: inline-flex !important;
+            width: auto !important;
+        }
+        :host ::ng-deep .venta-lineas .venta-col-cantidad .input-numero,
+        :host ::ng-deep .venta-lineas .venta-col-precio .input-numero {
+            width: auto;
+            gap: 0.5rem;
+        }
+        :host ::ng-deep .venta-lineas .venta-col-cantidad .input-numero input {
+            width: 4.25rem !important;
+            flex: 0 0 4.25rem !important;
+        }
+        :host ::ng-deep .venta-lineas .venta-col-precio .input-numero input {
+            width: 7.25rem !important;
+            flex: 0 0 7.25rem !important;
+        }
+    `]
 })
 export class VentasPage implements OnInit {
     filasTabla = FILAS_TABLA;
@@ -380,6 +578,9 @@ export class VentasPage implements OnInit {
     itemsAcciones: MenuItem[] = [];
     clientes: Cliente[] = [];
     productos: ProductoLista[] = [];
+    categorias: CategoriaProducto[] = [];
+    filtroCategoriaId: number | null = null;
+    busquedaProducto = '';
     cargando = false;
     guardando = false;
     dialogNueva = false;
@@ -412,9 +613,11 @@ export class VentasPage implements OnInit {
         { label: '7 días', value: 7 },
         { label: '15 días', value: 15 },
         { label: '30 días', value: 30 },
+        { label: 'Otros días', value: -2 },
         { label: 'Fecha exacta', value: -1 }
     ];
     plazoDias = 0;
+    plazoDiasPersonal = 7;
     fechaVencimiento: Date | null = null;
     hoy = new Date();
     modosCobro = [
@@ -435,6 +638,7 @@ export class VentasPage implements OnInit {
     formatFecha = formatFecha;
     formatFechaCorta = formatFechaCorta;
     etiquetaPago = etiquetaPago;
+    nombreUsuario = nombreUsuario;
 
     get kpis(): KpiItem[] {
         const vigentes = this.ventas.filter((v) => v.estado !== 'ANULADA');
@@ -485,6 +689,7 @@ export class VentasPage implements OnInit {
     ngOnInit(): void {
         this.cargar();
         this.cargarProductos();
+        this.cargarCategorias();
         this.clientesService.listar().subscribe({ next: (data) => (this.clientes = data) });
         this.route.queryParamMap.subscribe((params) => {
             const id = Number(params.get('id'));
@@ -494,11 +699,38 @@ export class VentasPage implements OnInit {
         });
     }
 
-    get productosOpciones() {
-        return this.productos.map((p) => ({
-            ...p,
-            etiqueta: `${p.nombre} · stock ${p.stock} ${p.unidad_medida}`
-        }));
+    get categoriasFiltro(): { label: string; value: number | null }[] {
+        return [
+            { label: 'Todas', value: null },
+            ...this.categorias
+                .filter((c) => !this.esNombreEmpaque(c.nombre))
+                .map((c) => ({ label: c.nombre, value: c.id }))
+        ];
+    }
+
+    get productosCatalogo(): ProductoLista[] {
+        const q = this.busquedaProducto.trim().toLowerCase();
+        return this.productos.filter((p) => {
+            if (this.esProductoEmpaque(p)) {
+                return false;
+            }
+            const categoriaId = p.categoria?.id ?? p.id_categoria ?? null;
+            if (this.filtroCategoriaId != null && categoriaId !== this.filtroCategoriaId) {
+                return false;
+            }
+            if (q && !(p.nombre || '').toLowerCase().includes(q) && !(p.categoria?.nombre || '').toLowerCase().includes(q)) {
+                return false;
+            }
+            return true;
+        });
+    }
+
+    private esProductoEmpaque(p: ProductoLista): boolean {
+        return productoEsEmpaque(p);
+    }
+
+    private esNombreEmpaque(nombre?: string | null): boolean {
+        return esNombreEmpaque(nombre);
     }
 
     cargar(): void {
@@ -531,8 +763,11 @@ export class VentasPage implements OnInit {
         this.referencia = '';
         this.observacion = '';
         this.plazoDias = 0;
+        this.plazoDiasPersonal = 7;
         this.fechaVencimiento = null;
         this.hoy = new Date();
+        this.filtroCategoriaId = null;
+        this.busquedaProducto = '';
         this.dialogNueva = true;
     }
 
@@ -542,10 +777,68 @@ export class VentasPage implements OnInit {
 
     quitarLinea(i: number): void {
         this.lineas.splice(i, 1);
+        if (!this.lineas.length) {
+            this.lineas = [this.lineaVacia()];
+        }
+    }
+
+    agregarDesdeCatalogo(producto: ProductoLista): void {
+        if (this.esProductoEmpaque(producto)) {
+            this.aviso.aviso('Venta', 'Las bolsas y empaques no se venden. Se dan de baja en Bolsas y empaques.');
+            return;
+        }
+        const existente = this.lineas.find((l) => l.id_producto === producto.id);
+        if (existente) {
+            existente.cantidad = Number(existente.cantidad || 0) + 1;
+            existente.subtotal = this.subtotalLinea(existente);
+            return;
+        }
+        const vacia = this.lineas.find((l) => !l.id_producto && !l.descripcion?.trim() && Number(l.precio_unitario || 0) === 0);
+        const linea = vacia || this.lineaVacia();
+        linea.id_producto = producto.id;
+        linea.descripcion = producto.nombre;
+        linea.cantidad = Number(linea.cantidad || 0) > 0 ? Number(linea.cantidad) : 1;
+        linea.precio_unitario = Number(producto.precio_venta || 0);
+        linea.subtotal = this.subtotalLinea(linea);
+        if (!vacia) {
+            this.lineas.push(linea);
+        }
+    }
+
+    productoEnFormulario(producto: ProductoLista): boolean {
+        return this.cantidadEnFormulario(producto) > 0;
+    }
+
+    cantidadEnFormulario(producto: ProductoLista): number {
+        return this.lineas
+            .filter((l) => l.id_producto === producto.id)
+            .reduce((acc, l) => acc + Number(l.cantidad || 0), 0);
+    }
+
+    unidadLinea(linea: LineaVenta): string {
+        return this.productos.find((p) => p.id === linea.id_producto)?.unidad_medida || '';
+    }
+
+    severidadStock(stock: number): 'success' | 'warn' | 'danger' {
+        if (Number(stock) <= 0) {
+            return 'danger';
+        }
+        if (Number(stock) <= 5) {
+            return 'warn';
+        }
+        return 'success';
+    }
+
+    fotoProducto(path?: string | null): string {
+        return mediaUrl(path, 'producto');
+    }
+
+    subtotalLinea(linea: LineaVenta): number {
+        return roundMoney(Number(linea.cantidad || 0) * Number(linea.precio_unitario || 0));
     }
 
     totalLineas(): number {
-        return this.lineas.reduce((acc, l) => acc + Number(l.cantidad || 0) * Number(l.precio_unitario || 0), 0);
+        return roundMoney(this.lineas.reduce((acc, l) => acc + this.subtotalLinea(l), 0));
     }
 
     pendienteEstimado(): number {
@@ -562,12 +855,20 @@ export class VentasPage implements OnInit {
         return abono > total ? total : abono;
     }
 
+    diasPlazoEfectivo(): number {
+        if (this.plazoDias === -2) {
+            return Math.max(0, Math.round(Number(this.plazoDiasPersonal) || 0));
+        }
+        return this.plazoDias > 0 ? this.plazoDias : 0;
+    }
+
     get vencimientoEstimado(): string {
-        if (this.plazoDias <= 0) {
+        const dias = this.diasPlazoEfectivo();
+        if (dias <= 0) {
             return '';
         }
         const fecha = new Date();
-        fecha.setDate(fecha.getDate() + this.plazoDias);
+        fecha.setDate(fecha.getDate() + dias);
         return formatFechaCorta(fecha);
     }
 
@@ -578,8 +879,9 @@ export class VentasPage implements OnInit {
         if (this.plazoDias === -1 && this.fechaVencimiento) {
             return { fecha_vencimiento: this.ymd(this.fechaVencimiento) };
         }
-        if (this.plazoDias > 0) {
-            return { plazo_dias: this.plazoDias };
+        const dias = this.diasPlazoEfectivo();
+        if (dias > 0) {
+            return { plazo_dias: dias };
         }
         return {};
     }
@@ -595,6 +897,10 @@ export class VentasPage implements OnInit {
             return;
         }
         const cobro = this.pagoAlRegistrar();
+        if (this.modoCobro === 'CREDITO' && this.plazoDias === -2 && this.diasPlazoEfectivo() < 1) {
+            this.aviso.aviso('Validación', 'Indique los días de plazo');
+            return;
+        }
         if (this.modoCobro === 'CREDITO' && this.plazoDias === -1 && !this.fechaVencimiento) {
             this.aviso.aviso('Validación', 'Indique la fecha de vencimiento o elija un plazo en días');
             return;
@@ -739,7 +1045,7 @@ export class VentasPage implements OnInit {
             return;
         }
         this.guardando = true;
-        const visor = this.exportarService.abrirVentanaEspera('Generando nota de venta...');
+        const visor = this.exportarService.abrirVentanaEspera('Generando boleta de cobranza...');
         this.ventasService.crearCobranza({
             id_venta: this.detalle.id,
             monto: this.cobroMonto,
@@ -747,13 +1053,20 @@ export class VentasPage implements OnInit {
             referencia: this.cobroReferencia || undefined,
             ...extrasPagoMixto(this.cobroMetodo, this.cobroEfectivo, this.cobroQr)
         }).subscribe({
-            next: () => {
+            next: (res) => {
                 this.guardando = false;
                 this.dialogCobro = false;
-                this.aviso.ok('Cobranza', 'Cobro registrado. Se abre la nota de venta actualizada.');
+                this.aviso.ok('Cobranza', 'Cobro registrado. Se abre la boleta.');
                 this.cargar();
                 this.ver(this.detalle!);
-                this.exportarVenta(this.detalle!, 'pdf', visor);
+                const id = res.data?.id;
+                if (id) {
+                    this.exportarService.mostrarPdf({ tipo: 'cobranza', formato: 'pdf', id }, visor).subscribe({
+                        error: (err) => this.aviso.error(err, 'No se pudo generar la boleta de cobranza')
+                    });
+                } else {
+                    visor?.close();
+                }
             },
             error: (err) => {
                 visor?.close();
@@ -844,6 +1157,10 @@ export class VentasPage implements OnInit {
 
     private cargarProductos(): void {
         this.productosService.listar().subscribe({ next: (data) => (this.productos = data) });
+    }
+
+    private cargarCategorias(): void {
+        this.productosService.categorias().subscribe({ next: (data) => (this.categorias = data) });
     }
 
     private ymd(fecha: Date): string {

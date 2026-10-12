@@ -1,18 +1,19 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
-import { Acopio, Caja, CategoriaProducto, Cliente, Compra, CompraDetalle, Gasto, MovimientoCaja, PagoProveedor, Productos, Proveedor, User, Venta, VentaDetalle, Cobranza } from '../models';
+import { Acopio, Caja, Campana, CategoriaProducto, Cliente, Compra, CompraDetalle, Gasto, MovimientoCaja, PagoGasto, PagoProveedor, Produccion, Productor, Productos, Proveedor, User, Venta, VentaDetalle, Cobranza } from '../models';
 import { handleError } from '../utils/error.handler';
 import { clasificarDiferencia, formatBs, formatUsd, roundMoney, toMoney } from '../utils/money';
 import { enviarExcel, enviarPdf, HojaExport } from '../utils/exportar';
-import { DatosVoucher, enviarReciboPagoPdf, enviarVoucherPdf, LineaVoucher } from '../utils/pdf-voucher';
+import { DatosReciboMovimiento, DatosVoucher, enviarReciboMovimientoPdf, enviarVoucherPdf, LineaVoucher } from '../utils/pdf-voucher';
 import { ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
 import { cobradoVenta, diasAtraso, ESTADO_VENTA, esVentaVencida, saldoVenta, situacionCobranza } from '../constants/venta.constants';
-import { parseFechaLocal, ymdLocal } from '../utils/fecha';
+import { hayPeriodoQuery, parseFechaLocal, ymdLocal } from '../utils/fecha';
+import { esProductoEmpaque } from '../utils/empaque';
 import { resumirMovimientos } from '../utils/caja-resumen';
 import { armarCuentaProveedor, esCompraServicio, extraerProductores, filtroCuentaDesdeQuery } from '../utils/cuenta-proveedor';
 import { etiquetaTipoCompra, inferirTipoCompra, TIPO_COMPRA } from '../constants/compra.constants';
-import { getAuthUser } from '../utils/auth-user';
-import { refrescarEmpresa } from '../utils/empresa';
+import { getAuthUser, nombreVisible } from '../utils/auth-user';
+import { datosEmpresa, refrescarEmpresa } from '../utils/empresa';
 
 function rango(req: Request) {
     const desde = typeof req.query.fecha_desde === 'string' && req.query.fecha_desde
@@ -196,13 +197,20 @@ export class ReporteController {
                 enviarVoucherPdf(res, `nota-compra-${voucher.numero}`, voucher);
                 return;
             }
-            if (formato === 'pdf' && tipo === 'pago') {
-                const recibo = await ReporteController.datosReciboPago(req);
+            if (formato === 'pdf' && (tipo === 'pago' || tipo === 'cobranza' || tipo === 'movimiento' || tipo === 'gasto')) {
+                const recibo = tipo === 'cobranza'
+                    ? await ReporteController.datosReciboCobranza(req)
+                    : tipo === 'movimiento'
+                        ? await ReporteController.datosReciboMovimiento(req)
+                        : tipo === 'gasto'
+                            ? await ReporteController.datosReciboGasto(req)
+                            : await ReporteController.datosReciboPago(req);
                 if (!recibo) {
                     res.status(404).json({ mensaje: 'No hay datos para exportar' });
                     return;
                 }
-                enviarReciboPagoPdf(res, `recibo-pago-${recibo.numero}`, recibo);
+                const base = `${recibo.serie.toLowerCase()}-${recibo.numero}`;
+                enviarReciboMovimientoPdf(res, base, recibo);
                 return;
             }
             await refrescarEmpresa();
@@ -250,7 +258,7 @@ export class ReporteController {
             return ReporteController.hojaCaja(req);
         }
         if (tipo === 'movimientos') {
-            return [await ReporteController.hojaMovimientos(desde, hasta)];
+            return [await ReporteController.hojaMovimientos(req, desde, hasta)];
         }
         if (tipo === 'ventas') {
             return [await ReporteController.hojaVentas(req, desde, hasta)];
@@ -262,13 +270,31 @@ export class ReporteController {
             return [await ReporteController.hojaCompras(req, desde, hasta)];
         }
         if (tipo === 'cobranzas') {
-            return [await ReporteController.hojaCobranzas(desde, hasta)];
+            return [await ReporteController.hojaCobranzas(req, desde, hasta)];
         }
         if (tipo === 'pagos') {
-            return [await ReporteController.hojaPagos(desde, hasta)];
+            return [await ReporteController.hojaPagos(req, desde, hasta)];
         }
         if (tipo === 'inventario') {
             return [await ReporteController.hojaInventario()];
+        }
+        if (tipo === 'clientes') {
+            return [await ReporteController.hojaClientes(req)];
+        }
+        if (tipo === 'proveedores') {
+            return [await ReporteController.hojaProveedores(req)];
+        }
+        if (tipo === 'empaques') {
+            return [await ReporteController.hojaEmpaques(req)];
+        }
+        if (tipo === 'produccion') {
+            return [await ReporteController.hojaProduccion(req, desde, hasta)];
+        }
+        if (tipo === 'campanas') {
+            return [await ReporteController.hojaCampanas(req, desde, hasta)];
+        }
+        if (tipo === 'cajas') {
+            return [await ReporteController.hojaCajas(req, desde, hasta)];
         }
         if (tipo === 'cuenta_proveedor') {
             return ReporteController.hojasCuentaProveedor(req);
@@ -299,7 +325,7 @@ export class ReporteController {
         };
         return [
             hojaResumen,
-            await ReporteController.hojaMovimientos(desde, hasta),
+            await ReporteController.hojaMovimientos(req, desde, hasta),
             await ReporteController.hojaVentas(req, desde, hasta),
             await ReporteController.hojaCompras(req, desde, hasta),
             await ReporteController.hojaEgresos(req, desde, hasta)
@@ -530,10 +556,26 @@ export class ReporteController {
         };
     }
 
-    private static async hojaMovimientos(desde: Date, hasta: Date): Promise<HojaExport> {
+    private static async hojaMovimientos(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
+        const where: any = {};
+        if (typeof req.query.id_caja === 'string' && req.query.id_caja) {
+            where.id_caja = Number(req.query.id_caja);
+        }
+        if (typeof req.query.tipo_movimiento === 'string' && req.query.tipo_movimiento) {
+            where.tipo = req.query.tipo_movimiento;
+        }
+        if (typeof req.query.origen === 'string' && req.query.origen) {
+            where.origen = req.query.origen;
+        }
+        if (typeof req.query.metodo === 'string' && req.query.metodo) {
+            where.metodo_pago = req.query.metodo;
+        }
+        if (hayPeriodoQuery(req.query) || !where.id_caja) {
+            where.fecha = { [Op.between]: [desde, hasta] };
+        }
         const movimientos = await MovimientoCaja.findAll({
-            where: { fecha: { [Op.between]: [desde, hasta] } },
-            include: [{ model: User, as: 'usuario', attributes: ['id', 'username'] }],
+            where,
+            include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }],
             order: [['fecha', 'ASC'], ['id', 'ASC']],
             limit: 2000
         });
@@ -552,7 +594,7 @@ export class ReporteController {
                 etiquetaMetodo(item.metodo_pago),
                 item.tipo === TIPO_MOVIMIENTO.INGRESO ? monto : 0,
                 item.tipo === TIPO_MOVIMIENTO.EGRESO ? monto : 0,
-                item.usuario?.username || '-'
+                nombreVisible(item.usuario)
             ];
         });
         return {
@@ -619,13 +661,19 @@ export class ReporteController {
     }
 
     private static async hojaEgresos(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
-        const where: any = { fecha: { [Op.between]: [desde, hasta] } };
+        const where: any = hayPeriodoQuery(req.query) ? { fecha: { [Op.between]: [desde, hasta] } } : {};
         if (typeof req.query.tipo_gasto === 'string' && req.query.tipo_gasto) {
             where.tipo = req.query.tipo_gasto;
         }
+        if (typeof req.query.metodo === 'string' && req.query.metodo) {
+            where.metodo_pago = req.query.metodo;
+        }
+        if (typeof req.query.categoria === 'string' && req.query.categoria) {
+            where.categoria = req.query.categoria;
+        }
         const gastos = await Gasto.findAll({
             where,
-            include: [{ model: User, as: 'usuario', attributes: ['id', 'username'] }],
+            include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }],
             order: [['fecha', 'ASC']],
             limit: 2000
         });
@@ -637,7 +685,7 @@ export class ReporteController {
             toMoney(g.monto),
             g.descontar_caja && g.id_caja ? 'Sí' : 'No',
             etiquetaMetodoDocumento(g),
-            g.usuario?.username || '-'
+            nombreVisible(g.usuario)
         ]);
         const total = roundMoney(filas.reduce((acc, f) => acc + Number(f[4]), 0));
         return {
@@ -655,24 +703,24 @@ export class ReporteController {
         if (typeof req.query.id_caja === 'string' && req.query.id_caja) {
             caja = await Caja.findByPk(Number(req.query.id_caja), {
                 include: [
-                    { model: User, as: 'usuarioApertura', attributes: ['id', 'username'] },
-                    { model: User, as: 'usuarioCierre', attributes: ['id', 'username'] }
+                    { model: User, as: 'usuarioApertura', attributes: ['id', 'username', 'nombre'] },
+                    { model: User, as: 'usuarioCierre', attributes: ['id', 'username', 'nombre'] }
                 ]
             });
         } else {
             caja = await Caja.findOne({
                 where: { estado: ESTADO_CAJA.ABIERTA },
                 include: [
-                    { model: User, as: 'usuarioApertura', attributes: ['id', 'username'] },
-                    { model: User, as: 'usuarioCierre', attributes: ['id', 'username'] }
+                    { model: User, as: 'usuarioApertura', attributes: ['id', 'username', 'nombre'] },
+                    { model: User, as: 'usuarioCierre', attributes: ['id', 'username', 'nombre'] }
                 ],
                 order: [['id', 'DESC']]
             });
             if (!caja) {
                 caja = await Caja.findOne({
                     include: [
-                        { model: User, as: 'usuarioApertura', attributes: ['id', 'username'] },
-                        { model: User, as: 'usuarioCierre', attributes: ['id', 'username'] }
+                        { model: User, as: 'usuarioApertura', attributes: ['id', 'username', 'nombre'] },
+                        { model: User, as: 'usuarioCierre', attributes: ['id', 'username', 'nombre'] }
                     ],
                     order: [['id', 'DESC']]
                 });
@@ -683,7 +731,7 @@ export class ReporteController {
         }
         const movimientos = await MovimientoCaja.findAll({
             where: { id_caja: caja.get('id') },
-            include: [{ model: User, as: 'usuario', attributes: ['id', 'username'] }],
+            include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }],
             order: [['fecha', 'ASC'], ['id', 'ASC']]
         });
         const flujo = resumirMovimientos(movimientos);
@@ -698,7 +746,7 @@ export class ReporteController {
                 item.concepto || '',
                 etiquetaMetodo(item.metodo_pago),
                 monto,
-                item.usuario?.username || '-'
+                nombreVisible(item.usuario)
             ];
         });
         const saldoInicial = toMoney(caja.get('saldo_inicial'));
@@ -726,7 +774,7 @@ export class ReporteController {
                 { label: 'Efectivo contado', valor: saldoContado == null ? '-' : formatBs(saldoContado) },
                 { label: 'Diferencia (cajón)', valor: diferencia == null ? '-' : formatBs(diferencia) },
                 { label: 'Arqueo', valor: diferencia == null ? '-' : clasificarDiferencia(diferencia) },
-                { label: 'Usuario apertura', valor: (caja as any).usuarioApertura?.username || '-' }
+                { label: 'Usuario apertura', valor: nombreVisible((caja as any).usuarioApertura) }
             ],
             columnas: ['Fecha', 'Tipo', 'Categoría', 'Concepto', 'Método', 'Monto', 'Usuario'],
             filas
@@ -743,7 +791,7 @@ export class ReporteController {
                 { model: Cliente, as: 'cliente', attributes: ['id', 'nombre', 'nit_ci', 'direccion', 'telefono'] },
                 { model: VentaDetalle, as: 'detalles' },
                 { model: Cobranza, as: 'cobranzas' },
-                { model: User, as: 'usuario', attributes: ['id', 'username'] }
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
             ]
         });
         if (!venta) {
@@ -773,7 +821,7 @@ export class ReporteController {
                 { label: 'Total', valor: total },
                 { label: 'Cobrado', valor: cobrado },
                 { label: 'Pendiente', valor: pendiente },
-                { label: 'Usuario', valor: venta.usuario?.username || '-' }
+                { label: 'Usuario', valor: nombreVisible(venta.usuario) }
             ],
             columnas: ['Descripción', 'Cantidad', 'P. unitario', 'Subtotal'],
             filas
@@ -790,11 +838,14 @@ export class ReporteController {
     }
 
     private static async hojaCompras(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
-        const where: any = { fecha: { [Op.between]: [desde, hasta] } };
+        const where: any = hayPeriodoQuery(req.query) ? { fecha: { [Op.between]: [desde, hasta] } } : {};
         if (typeof req.query.estado === 'string' && req.query.estado) {
             where.estado = req.query.estado;
         }
-        const compras = await Compra.findAll({
+        if (typeof req.query.id_proveedor === 'string' && req.query.id_proveedor) {
+            where.id_proveedor = Number(req.query.id_proveedor);
+        }
+        const comprasRaw = await Compra.findAll({
             where,
             include: [
                 { model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre'] },
@@ -803,6 +854,10 @@ export class ReporteController {
             order: [['fecha', 'ASC']],
             limit: 2000
         });
+        const tipoCompra = typeof req.query.tipo_compra === 'string' ? req.query.tipo_compra : '';
+        const compras = tipoCompra
+            ? comprasRaw.filter((c) => inferirTipoCompra(c.get({ plain: true })) === tipoCompra)
+            : comprasRaw;
         const filas = compras.map((c: any) => {
             const total = toMoney(c.total);
             const pendiente = toMoney(c.saldo_pendiente);
@@ -845,7 +900,7 @@ export class ReporteController {
                 { model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre', 'nit_ci', 'direccion'] },
                 { model: CompraDetalle, as: 'detalles' },
                 { model: PagoProveedor, as: 'pagos' },
-                { model: User, as: 'usuario', attributes: ['id', 'username'] }
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
             ]
         });
         if (!compra) {
@@ -867,7 +922,7 @@ export class ReporteController {
                 { label: 'Total', valor: total },
                 { label: 'Pagado', valor: roundMoney(total - pendiente) },
                 { label: 'Pendiente', valor: pendiente },
-                { label: 'Usuario', valor: compra.usuario?.username || '-' }
+                { label: 'Usuario', valor: nombreVisible(compra.usuario) }
             ],
             columnas: ['Descripción', 'Cantidad', 'P. unitario', 'Subtotal'],
             filas
@@ -889,12 +944,19 @@ export class ReporteController {
         return hojas;
     }
 
-    private static async hojaCobranzas(desde: Date, hasta: Date): Promise<HojaExport> {
+    private static async hojaCobranzas(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
+        const where: any = hayPeriodoQuery(req.query) ? { fecha: { [Op.between]: [desde, hasta] } } : {};
+        if (typeof req.query.id_cliente === 'string' && req.query.id_cliente) {
+            where.id_cliente = Number(req.query.id_cliente);
+        }
+        if (typeof req.query.metodo === 'string' && req.query.metodo) {
+            where.metodo_pago = req.query.metodo;
+        }
         const cobranzas = await Cobranza.findAll({
-            where: { fecha: { [Op.between]: [desde, hasta] } },
+            where,
             include: [
                 { model: Cliente, as: 'cliente', attributes: ['id', 'nombre'] },
-                { model: User, as: 'usuario', attributes: ['id', 'username'] }
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
             ],
             order: [['fecha', 'ASC']],
             limit: 2000
@@ -906,7 +968,7 @@ export class ReporteController {
             toMoney(c.monto),
             etiquetaMetodoDocumento(c),
             c.referencia || '-',
-            c.usuario?.username || '-'
+            nombreVisible(c.usuario)
         ]);
         const total = roundMoney(filas.reduce((acc, f) => acc + Number(f[3]), 0));
         return {
@@ -922,12 +984,19 @@ export class ReporteController {
         };
     }
 
-    private static async hojaPagos(desde: Date, hasta: Date): Promise<HojaExport> {
+    private static async hojaPagos(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
+        const where: any = hayPeriodoQuery(req.query) ? { fecha: { [Op.between]: [desde, hasta] } } : {};
+        if (typeof req.query.id_proveedor === 'string' && req.query.id_proveedor) {
+            where.id_proveedor = Number(req.query.id_proveedor);
+        }
+        if (typeof req.query.metodo === 'string' && req.query.metodo) {
+            where.metodo_pago = req.query.metodo;
+        }
         const pagos = await PagoProveedor.findAll({
-            where: { fecha: { [Op.between]: [desde, hasta] } },
+            where,
             include: [
                 { model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre'] },
-                { model: User, as: 'usuario', attributes: ['id', 'username'] }
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
             ],
             order: [['fecha', 'ASC']],
             limit: 2000
@@ -939,7 +1008,7 @@ export class ReporteController {
             toMoney(p.monto),
             etiquetaMetodoDocumento(p),
             p.referencia || '-',
-            p.usuario?.username || '-'
+            nombreVisible(p.usuario)
         ]);
         const total = roundMoney(filas.reduce((acc, f) => acc + Number(f[3]), 0));
         return {
@@ -977,7 +1046,7 @@ export class ReporteController {
                         as: 'detalles',
                         include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }]
                     },
-                    { model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] }
+                    { model: Productor, as: 'productor', attributes: ['id', 'nombre'] }
                 ],
                 order: [['fecha', 'ASC'], ['id', 'ASC']]
             }),
@@ -987,7 +1056,7 @@ export class ReporteController {
                     model: Compra,
                     as: 'compra',
                     attributes: ['id', 'tipo_compra', 'tipo_cambio', 'total_usd', 'id_productor'],
-                    include: [{ model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] }]
+                    include: [{ model: Productor, as: 'productor', attributes: ['id', 'nombre'] }]
                 }],
                 order: [['fecha', 'ASC'], ['id', 'ASC']]
             }),
@@ -1096,6 +1165,233 @@ export class ReporteController {
         };
     }
 
+    private static async hojaClientes(req: Request): Promise<HojaExport> {
+        const where: any = {};
+        if (req.query.activos === 'inactivos') {
+            where.activo = false;
+        } else if (req.query.activos && req.query.activos !== 'todos') {
+            where.activo = true;
+        }
+        if (typeof req.query.procedencia === 'string' && req.query.procedencia) {
+            where.procedencia = req.query.procedencia;
+        }
+        const clientes = await Cliente.findAll({ where, order: [['nombre', 'ASC']], limit: 4000 });
+        const filas = clientes.map((c: any) => [
+            c.nombre,
+            c.nit_ci || '-',
+            c.telefono || '-',
+            c.procedencia || '-',
+            c.direccion || '-',
+            c.activo ? 'Activo' : 'Inactivo'
+        ]);
+        return {
+            nombre: 'Clientes',
+            titulo: 'Clientes',
+            subtitulo: `Generado ${fmtFecha(new Date())}`,
+            resumen: [{ label: 'Registros', valor: String(clientes.length) }],
+            columnas: ['Nombre', 'NIT / CI', 'Teléfono', 'Procedencia', 'Dirección', 'Estado'],
+            filas
+        };
+    }
+
+    private static async hojaProveedores(req: Request): Promise<HojaExport> {
+        const where: any = {};
+        if (req.query.activos === 'inactivos') {
+            where.activo = false;
+        } else if (req.query.activos && req.query.activos !== 'todos') {
+            where.activo = true;
+        }
+        const proveedores = await Proveedor.findAll({ where, order: [['nombre', 'ASC']], limit: 4000 });
+        const rol = typeof req.query.rol === 'string' ? req.query.rol : '';
+        const filtrados = proveedores.filter((p: any) => {
+            const esProductor = String(p.observacion || '').toLowerCase().includes('productor');
+            if (rol === 'PRODUCTOR') {
+                return esProductor;
+            }
+            if (rol === 'PROVEEDOR') {
+                return !esProductor;
+            }
+            return true;
+        });
+        const filas = filtrados.map((p: any) => [
+            p.nombre,
+            p.nit_ci || '-',
+            p.telefono || '-',
+            p.direccion || '-',
+            String(p.observacion || '').toLowerCase().includes('productor') ? 'Productor' : 'Proveedor',
+            p.activo ? 'Activo' : 'Inactivo'
+        ]);
+        return {
+            nombre: 'Proveedores',
+            titulo: 'Proveedores',
+            subtitulo: `Generado ${fmtFecha(new Date())}`,
+            resumen: [{ label: 'Registros', valor: String(filtrados.length) }],
+            columnas: ['Nombre', 'NIT / CI', 'Teléfono', 'Dirección', 'Rol', 'Estado'],
+            filas
+        };
+    }
+
+    private static async hojaEmpaques(req: Request): Promise<HojaExport> {
+        const productos = await Productos.findAll({
+            where: { eliminado: false },
+            include: [{ model: CategoriaProducto, as: 'categoria', attributes: ['id', 'nombre'] }],
+            order: [['nombre', 'ASC']],
+            limit: 4000
+        });
+        const estado = typeof req.query.estado === 'string' ? req.query.estado : '';
+        const bolsas = productos.filter((p: any) => {
+            if (!esProductoEmpaque(p)) {
+                return false;
+            }
+            const bajo = Number(p.stock) <= Number(p.stock_minimo);
+            if (estado === 'BAJO') {
+                return bajo;
+            }
+            if (estado === 'OK') {
+                return !bajo;
+            }
+            return true;
+        });
+        const filas = bolsas.map((p: any) => {
+            const stock = Number(p.stock);
+            const minimo = Number(p.stock_minimo);
+            return [
+                p.nombre,
+                p.unidad_medida || '-',
+                stock,
+                minimo,
+                stock <= minimo ? 'Bajo mínimo' : 'OK'
+            ];
+        });
+        return {
+            nombre: 'Empaques',
+            titulo: 'Bolsas y empaques',
+            subtitulo: `Generado ${fmtFecha(new Date())}`,
+            resumen: [{ label: 'Tipos', valor: String(bolsas.length) }],
+            columnas: ['Tipo de bolsa', 'Unidad', 'Existencia', 'Mínimo', 'Estado'],
+            filas
+        };
+    }
+
+    private static async hojaProduccion(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
+        const where: any = hayPeriodoQuery(req.query) ? { fecha: { [Op.between]: [desde, hasta] } } : {};
+        const items = await Produccion.findAll({
+            where,
+            include: [
+                { model: Productos, as: 'productoOrigen', attributes: ['id', 'nombre'] },
+                { model: Productos, as: 'productoDestino', attributes: ['id', 'nombre'] },
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
+            ],
+            order: [['fecha', 'ASC']],
+            limit: 2000
+        });
+        const filas = items.map((p: any) => [
+            fmtFecha(p.fecha),
+            p.productoOrigen?.nombre || '-',
+            Number(p.cantidad_entrada),
+            p.productoDestino?.nombre || '-',
+            Number(p.cantidad_salida),
+            Number(p.merma),
+            nombreVisible(p.usuario)
+        ]);
+        return {
+            nombre: 'Producción',
+            titulo: 'Producción',
+            subtitulo: hayPeriodoQuery(req.query) ? periodoTexto(desde, hasta) : `Generado ${fmtFecha(new Date())}`,
+            resumen: [{ label: 'Registros', valor: String(items.length) }],
+            columnas: ['Fecha', 'Origen', 'Entrada', 'Destino', 'Salida', 'Merma', 'Usuario'],
+            filas
+        };
+    }
+
+    private static async hojaCampanas(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
+        const where: any = {};
+        if (typeof req.query.estado === 'string' && req.query.estado) {
+            where.estado = req.query.estado;
+        }
+        if (hayPeriodoQuery(req.query)) {
+            where.fecha_inicio = { [Op.between]: [ymd(desde), ymd(hasta)] };
+        }
+        const campanas = await Campana.findAll({
+            where,
+            include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }],
+            order: [['fecha_inicio', 'DESC']],
+            limit: 2000
+        });
+        const filas = campanas.map((c: any) => [
+            c.nombre,
+            fmtFechaDia(c.fecha_inicio),
+            c.fecha_fin ? fmtFechaDia(c.fecha_fin) : '-',
+            Number(c.meta_cantidad || 0) || '-',
+            c.estado,
+            nombreVisible(c.usuario)
+        ]);
+        return {
+            nombre: 'Campañas',
+            titulo: 'Campañas de acopio',
+            subtitulo: hayPeriodoQuery(req.query) ? periodoTexto(desde, hasta) : `Generado ${fmtFecha(new Date())}`,
+            resumen: [{ label: 'Campañas', valor: String(campanas.length) }],
+            columnas: ['Nombre', 'Inicio', 'Fin', 'Meta', 'Estado', 'Usuario'],
+            filas
+        };
+    }
+
+    private static async hojaCajas(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
+        const where: any = {};
+        if (typeof req.query.estado === 'string' && req.query.estado) {
+            where.estado = req.query.estado;
+        }
+        if (hayPeriodoQuery(req.query)) {
+            where.fecha_apertura = { [Op.between]: [desde, hasta] };
+        }
+        const cajas = await Caja.findAll({
+            where,
+            include: [
+                { model: User, as: 'usuarioApertura', attributes: ['id', 'username', 'nombre'] },
+                { model: User, as: 'usuarioCierre', attributes: ['id', 'username', 'nombre'] }
+            ],
+            order: [['fecha_apertura', 'DESC']],
+            limit: 2000
+        });
+        const ids = cajas.map((c: any) => c.id);
+        const movimientos = ids.length
+            ? await MovimientoCaja.findAll({ where: { id_caja: { [Op.in]: ids } } })
+            : [];
+        const flujoPorCaja = new Map<number, { ingresos: number; egresos: number }>();
+        movimientos.forEach((m: any) => {
+            const actual = flujoPorCaja.get(m.id_caja) || { ingresos: 0, egresos: 0 };
+            const monto = toMoney(m.monto);
+            if (m.tipo === TIPO_MOVIMIENTO.INGRESO) {
+                actual.ingresos += monto;
+            } else {
+                actual.egresos += monto;
+            }
+            flujoPorCaja.set(m.id_caja, actual);
+        });
+        const filas = cajas.map((c: any) => {
+            const flujo = flujoPorCaja.get(c.id) || { ingresos: 0, egresos: 0 };
+            return [
+                fmtFecha(c.fecha_apertura),
+                nombreVisible(c.usuarioApertura),
+                toMoney(c.saldo_inicial),
+                roundMoney(flujo.ingresos),
+                roundMoney(flujo.egresos),
+                c.saldo_esperado != null ? toMoney(c.saldo_esperado) : '-',
+                c.saldo_contado != null ? toMoney(c.saldo_contado) : '-',
+                c.diferencia != null ? toMoney(c.diferencia) : '-',
+                c.estado
+            ];
+        });
+        return {
+            nombre: 'Cajas',
+            titulo: 'Historial de cajas',
+            subtitulo: hayPeriodoQuery(req.query) ? periodoTexto(desde, hasta) : `Generado ${fmtFecha(new Date())}`,
+            resumen: [{ label: 'Cajas', valor: String(cajas.length) }],
+            columnas: ['Apertura', 'Usuario', 'Saldo inicial', 'Ingresos', 'Egresos', 'Esperado', 'Contado', 'Diferencia', 'Estado'],
+            filas
+        };
+    }
+
     private static codigoLinea(linea: any): string {
         if (linea.id_producto) {
             return `PR-${String(linea.id_producto).padStart(5, '0')}`;
@@ -1126,7 +1422,7 @@ export class ReporteController {
             include: [
                 { model: Cliente, as: 'cliente', attributes: ['id', 'nombre', 'nit_ci', 'direccion', 'procedencia'] },
                 { model: VentaDetalle, as: 'detalles' },
-                { model: User, as: 'usuario', attributes: ['id', 'username'] }
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
             ]
         });
         if (!venta) {
@@ -1146,9 +1442,10 @@ export class ReporteController {
             codigoContraparte: venta.cliente?.id != null ? String(venta.cliente.id).padStart(6, '0') : '-',
             direccion: venta.cliente?.direccion || '',
             procedencia: venta.cliente?.procedencia || '',
-            vendedor: venta.usuario?.username || '-',
+            vendedor: nombreVisible(venta.usuario),
             tipoPago: venta.estado === ESTADO_VENTA.ANULADA ? 'ANULADA' : ReporteController.tipoPagoPorSaldo(total, pendiente),
             fechaVencimiento: pendiente > 0 && venta.fecha_vencimiento ? fmtFechaDia(venta.fecha_vencimiento) : '',
+            plazoDias: pendiente > 0 && venta.plazo_dias != null ? Number(venta.plazo_dias) : null,
             detalle: 'VENTA',
             lineas: ReporteController.lineasVoucher(venta.detalles),
             total,
@@ -1166,7 +1463,7 @@ export class ReporteController {
             include: [
                 { model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre', 'nit_ci', 'direccion'] },
                 { model: CompraDetalle, as: 'detalles' },
-                { model: User, as: 'usuario', attributes: ['id', 'username'] }
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
             ]
         });
         if (!compra) {
@@ -1184,8 +1481,10 @@ export class ReporteController {
             nitCi: compra.proveedor?.nit_ci || '0',
             codigoContraparte: compra.proveedor?.id != null ? String(compra.proveedor.id).padStart(6, '0') : '-',
             direccion: compra.proveedor?.direccion || '',
-            vendedor: compra.usuario?.username || '-',
+            vendedor: nombreVisible(compra.usuario),
             tipoPago: ReporteController.tipoPagoPorSaldo(total, pendiente),
+            fechaVencimiento: pendiente > 0 && compra.fecha_vencimiento ? fmtFechaDia(compra.fecha_vencimiento) : '',
+            plazoDias: pendiente > 0 && compra.plazo_dias != null ? Number(compra.plazo_dias) : null,
             detalle: ReporteController.detalleNotaCompra(compra),
             lineas: ReporteController.lineasVoucher(compra.detalles),
             total,
@@ -1212,16 +1511,106 @@ export class ReporteController {
         return partes.join(' · ') || (esCompraServicio(compra) ? 'SERVICIO' : 'COMPRA');
     }
 
-    private static async datosReciboPago(req: Request) {
+    private static fechaDoc(valor: unknown): Date {
+        return valor instanceof Date ? valor : new Date(String(valor || ''));
+    }
+
+    private static tcEmpresa(extra?: number | null): number | null {
+        if (extra && extra > 0) {
+            return extra;
+        }
+        const tc = Number(datosEmpresa().tipo_cambio);
+        return tc > 0 ? tc : null;
+    }
+
+    private static async datosReciboPago(req: Request): Promise<DatosReciboMovimiento | null> {
+        const id = Number(req.query.id);
+        return id ? ReporteController.reciboDesdePago(id) : null;
+    }
+
+    private static async datosReciboCobranza(req: Request): Promise<DatosReciboMovimiento | null> {
+        const id = Number(req.query.id);
+        return id ? ReporteController.reciboDesdeCobranza(id) : null;
+    }
+
+    private static async datosReciboGasto(req: Request): Promise<DatosReciboMovimiento | null> {
+        const id = Number(req.query.id);
+        return id ? ReporteController.reciboDesdeGasto(id) : null;
+    }
+
+    private static async datosReciboMovimiento(req: Request): Promise<DatosReciboMovimiento | null> {
         const id = Number(req.query.id);
         if (!id) {
             return null;
         }
+        const mov: any = await MovimientoCaja.findByPk(id, {
+            include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }]
+        });
+        if (!mov) {
+            return null;
+        }
+        const origenId = Number(mov.origen_id || 0);
+        if (mov.origen === 'COBRANZA' && origenId) {
+            return ReporteController.reciboDesdeCobranza(origenId);
+        }
+        if ((mov.origen === 'PAGO_PROVEEDOR' || mov.origen === 'COMPRA') && origenId) {
+            const pago = await ReporteController.reciboDesdePago(origenId);
+            if (pago) {
+                return pago;
+            }
+        }
+        if (mov.origen === 'GASTO' && origenId) {
+            return ReporteController.reciboDesdeGasto(origenId, toMoney(mov.monto), mov);
+        }
+        if (mov.origen === 'VENTA' && origenId) {
+            return ReporteController.reciboDesdeVentaCaja(origenId, mov);
+        }
+        return ReporteController.reciboDesdeMovimientoManual(mov);
+    }
+
+    private static async reciboDesdeCobranza(id: number): Promise<DatosReciboMovimiento | null> {
+        const item: any = await Cobranza.findByPk(id, {
+            include: [
+                { model: Cliente, as: 'cliente', attributes: ['id', 'nombre', 'nit_ci'] },
+                { model: Venta, as: 'venta', attributes: ['id', 'total', 'saldo_pendiente', 'estado', 'fecha'] },
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
+            ]
+        });
+        if (!item) {
+            return null;
+        }
+        const monto = toMoney(item.monto);
+        const ventaFecha = item.venta?.fecha ? fmtFechaDia(item.venta.fecha) : '';
+        return {
+            tipoDocumento: 'COBRANZA',
+            serie: 'VCRE',
+            numero: item.id,
+            fecha: ReporteController.fechaDoc(item.fecha),
+            tipoCambio: ReporteController.tcEmpresa(),
+            metodo: etiquetaMetodoDocumento(item),
+            detalle: item.observacion?.trim() || 'COBRANZA',
+            contraparteLabel: 'CLIENTE',
+            contraparteNombre: item.cliente?.nombre || 'Cliente',
+            nitCi: item.cliente?.nit_ci || '0',
+            lineas: [{
+                codigo: `VD / ${String(item.id_venta).padStart(6, '0')}`,
+                descripcion: `VENTA${ventaFecha ? ` ${ventaFecha}` : ''}`,
+                importe: monto
+            }],
+            total: monto,
+            saldoPendiente: item.venta ? toMoney(item.venta.saldo_pendiente) : null,
+            referencia: item.referencia || '',
+            observacion: item.observacion || '',
+            usuario: nombreVisible(item.usuario)
+        };
+    }
+
+    private static async reciboDesdePago(id: number): Promise<DatosReciboMovimiento | null> {
         const pago: any = await PagoProveedor.findByPk(id, {
             include: [
                 { model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre', 'nit_ci'] },
-                { model: Compra, as: 'compra', attributes: ['id', 'total', 'saldo_pendiente', 'tipo_cambio', 'total_usd'] },
-                { model: User, as: 'usuario', attributes: ['id', 'username'] }
+                { model: Compra, as: 'compra', attributes: ['id', 'total', 'saldo_pendiente', 'tipo_cambio'] },
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
             ]
         });
         if (!pago) {
@@ -1229,21 +1618,136 @@ export class ReporteController {
         }
         const monto = toMoney(pago.monto);
         const tc = pago.compra?.tipo_cambio != null ? Number(pago.compra.tipo_cambio) : null;
-        const fecha = pago.fecha instanceof Date ? pago.fecha : new Date(pago.fecha);
+        const detalle = pago.observacion?.trim() || `Pago a cuenta de compra #${pago.id_compra}`;
         return {
+            tipoDocumento: 'COMPROBANTE DE EGRESO',
+            serie: 'EG',
             numero: pago.id,
-            fecha,
-            proveedorNombre: pago.proveedor?.nombre || 'Proveedor',
-            nitCi: pago.proveedor?.nit_ci || '0',
-            idCompra: pago.id_compra,
-            monto,
-            montoUsd: tc && tc > 0 ? roundMoney(monto / tc) : null,
-            tipoCambio: tc && tc > 0 ? tc : null,
-            saldoPendiente: toMoney(pago.compra?.saldo_pendiente),
+            fecha: ReporteController.fechaDoc(pago.fecha),
+            tipoCambio: ReporteController.tcEmpresa(tc),
             metodo: etiquetaMetodoDocumento(pago),
+            detalle,
+            contraparteLabel: 'PROVEEDOR',
+            contraparteNombre: pago.proveedor?.nombre || 'Proveedor',
+            nitCi: pago.proveedor?.nit_ci || '0',
+            lineas: [{
+                codigo: `OC / ${String(pago.id_compra).padStart(6, '0')}`,
+                descripcion: detalle,
+                importe: monto
+            }],
+            total: monto,
+            saldoPendiente: pago.compra ? toMoney(pago.compra.saldo_pendiente) : null,
             referencia: pago.referencia || '',
             observacion: pago.observacion || '',
-            usuario: pago.usuario?.username || '-'
+            usuario: nombreVisible(pago.usuario)
+        };
+    }
+
+    private static async reciboDesdeGasto(id: number, montoOverride?: number, mov?: any): Promise<DatosReciboMovimiento | null> {
+        const gasto: any = await Gasto.findByPk(id, {
+            include: [
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] },
+                { model: PagoGasto, as: 'pagos', include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }] }
+            ]
+        });
+        if (!gasto) {
+            return null;
+        }
+        const pagos = [...(gasto.pagos || [])].sort((a: any, b: any) => Number(b.id) - Number(a.id));
+        const ultimo = pagos[0];
+        const monto = montoOverride != null
+            ? toMoney(montoOverride)
+            : ultimo
+                ? toMoney(ultimo.monto)
+                : toMoney(gasto.monto);
+        const metodoSrc = mov || ultimo || gasto;
+        const esRetiro = gasto.tipo === 'RETIRO_PERSONAL';
+        const detalle = (mov?.observacion || gasto.observacion || gasto.concepto || '').trim()
+            || (esRetiro ? 'Retiro personal' : 'Gasto de empresa');
+        return {
+            tipoDocumento: 'COMPROBANTE DE EGRESO',
+            serie: 'EG',
+            numero: ultimo?.id || gasto.id,
+            fecha: ReporteController.fechaDoc(mov?.fecha || ultimo?.fecha || gasto.fecha),
+            tipoCambio: ReporteController.tcEmpresa(),
+            metodo: etiquetaMetodoDocumento(metodoSrc),
+            detalle,
+            contraparteLabel: esRetiro ? 'PERSONA' : 'DOC',
+            contraparteNombre: gasto.persona || (esRetiro ? 'Retiro personal' : 'Gasto de empresa'),
+            nitCi: '',
+            lineas: [{
+                codigo: `GS / ${String(gasto.id).padStart(6, '0')}`,
+                descripcion: gasto.concepto || detalle,
+                importe: monto
+            }],
+            total: monto,
+            saldoPendiente: toMoney(gasto.saldo_pendiente) || null,
+            referencia: mov?.referencia || ultimo?.referencia || gasto.referencia || '',
+            observacion: gasto.observacion || '',
+            usuario: nombreVisible(mov?.usuario, ultimo?.usuario, gasto.usuario)
+        };
+    }
+
+    private static async reciboDesdeVentaCaja(idVenta: number, mov: any): Promise<DatosReciboMovimiento | null> {
+        const venta: any = await Venta.findByPk(idVenta, {
+            include: [
+                { model: Cliente, as: 'cliente', attributes: ['id', 'nombre', 'nit_ci'] },
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
+            ]
+        });
+        const anula = String(mov.categoria || '') === 'ANULACION_VENTA' || mov.tipo === 'EGRESO';
+        const monto = toMoney(mov.monto);
+        const nombre = venta?.cliente?.nombre || 'Cliente';
+        const detalle = (mov.observacion || mov.concepto || '').trim()
+            || (anula ? `Anulación venta #${idVenta}` : `Pago al registrar venta #${idVenta}`);
+        return {
+            tipoDocumento: anula ? 'COMPROBANTE DE EGRESO' : 'COMPROBANTE DE INGRESO',
+            serie: anula ? 'EG' : 'IN',
+            numero: mov.id,
+            fecha: ReporteController.fechaDoc(mov.fecha),
+            tipoCambio: ReporteController.tcEmpresa(),
+            metodo: etiquetaMetodoDocumento(mov),
+            detalle,
+            contraparteLabel: 'CLIENTE',
+            contraparteNombre: nombre,
+            nitCi: venta?.cliente?.nit_ci || '0',
+            lineas: [{
+                codigo: `VD / ${String(idVenta).padStart(6, '0')}`,
+                descripcion: detalle,
+                importe: monto
+            }],
+            total: monto,
+            saldoPendiente: venta ? toMoney(venta.saldo_pendiente) : null,
+            referencia: mov.referencia || '',
+            observacion: mov.observacion || '',
+            usuario: nombreVisible(mov.usuario, venta?.usuario)
+        };
+    }
+
+    private static reciboDesdeMovimientoManual(mov: any): DatosReciboMovimiento {
+        const ingreso = mov.tipo === TIPO_MOVIMIENTO.INGRESO;
+        const monto = toMoney(mov.monto);
+        const detalle = (mov.observacion || mov.concepto || '').trim() || (ingreso ? 'Ingreso de caja' : 'Egreso de caja');
+        return {
+            tipoDocumento: ingreso ? 'COMPROBANTE DE INGRESO' : 'COMPROBANTE DE EGRESO',
+            serie: ingreso ? 'IN' : 'EG',
+            numero: mov.id,
+            fecha: ReporteController.fechaDoc(mov.fecha),
+            tipoCambio: ReporteController.tcEmpresa(),
+            metodo: etiquetaMetodoDocumento(mov),
+            detalle,
+            contraparteLabel: 'DOC',
+            contraparteNombre: etiquetaCategoria(mov.categoria),
+            nitCi: '',
+            lineas: [{
+                codigo: `${ingreso ? 'IN' : 'EG'} / ${String(mov.id).padStart(6, '0')}`,
+                descripcion: mov.concepto || detalle,
+                importe: monto
+            }],
+            total: monto,
+            referencia: mov.referencia || '',
+            observacion: mov.observacion || '',
+            usuario: nombreVisible(mov.usuario)
         };
     }
 
@@ -1254,23 +1758,20 @@ export class ReporteController {
         }
         return [{
             nombre: 'Recibo',
-            titulo: `Recibo de pago #${recibo.numero}`,
-            subtitulo: `${recibo.proveedorNombre} · Compra #${recibo.idCompra}`,
+            titulo: `${recibo.tipoDocumento} ${recibo.serie}-${String(recibo.numero).padStart(6, '0')}`,
+            subtitulo: recibo.contraparteNombre,
             resumen: [
-                { label: 'Monto Bs', valor: recibo.monto },
-                { label: 'USD referencial', valor: recibo.montoUsd ?? '-' },
-                { label: 'Saldo compra', valor: recibo.saldoPendiente }
+                { label: 'Monto Bs', valor: recibo.total },
+                { label: 'Saldo', valor: recibo.saldoPendiente ?? '-' }
             ],
             columnas: ['Campo', 'Valor'],
             filas: [
                 ['Fecha', fmtFecha(recibo.fecha)],
-                ['Proveedor', recibo.proveedorNombre],
-                ['Compra', `#${recibo.idCompra}`],
-                ['Monto', recibo.monto],
+                [recibo.contraparteLabel, recibo.contraparteNombre],
+                ['Monto', recibo.total],
                 ['Método', recibo.metodo],
                 ['Tipo de cambio', recibo.tipoCambio ?? '-'],
-                ['USD referencial', recibo.montoUsd ?? '-'],
-                ['Saldo pendiente', recibo.saldoPendiente],
+                ['Saldo pendiente', recibo.saldoPendiente ?? '-'],
                 ['Referencia', recibo.referencia || '-'],
                 ['Usuario', recibo.usuario]
             ]

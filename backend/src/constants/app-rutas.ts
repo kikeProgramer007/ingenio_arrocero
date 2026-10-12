@@ -19,7 +19,8 @@ export const APP_RUTAS = {
     CAMPANAS: '/campanas',
     PRODUCCION: '/produccion',
     REPORTES: '/reportes',
-    EMPRESA: '/empresa'
+    EMPRESA: '/empresa',
+    USUARIOS: '/usuarios'
 } as const;
 
 export const PROGRAMAS_SEED = [
@@ -148,5 +149,12 @@ export const PROGRAMAS_SEED = [
         class_icon: 'pi pi-building',
         es_expandible: false,
         nro_posicion: 90
+    },
+    {
+        nombre_programa: 'Usuarios',
+        url: APP_RUTAS.USUARIOS,
+        class_icon: 'pi pi-users',
+        es_expandible: false,
+        nro_posicion: 91
     }
 ];

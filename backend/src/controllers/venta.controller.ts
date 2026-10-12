@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
-import { Cliente, Cobranza, Productos, sequelize, User, Venta, VentaDetalle } from '../models';
+import { CategoriaProducto, Cliente, Cobranza, Productos, sequelize, User, Venta, VentaDetalle } from '../models';
 import { Op } from 'sequelize';
 import { handleError } from '../utils/error.handler';
-import { parseFechaLocal, ymdLocal } from '../utils/fecha';
+import { aplicarFiltroFecha, parseFechaLocal, ymdLocal } from '../utils/fecha';
 import { resolverPlazoCredito } from '../utils/credito';
 import { DtoValidator } from '../utils/dto.validador';
-import { getAuthUser } from '../utils/auth-user';
+import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
 import { obtenerCajaAbierta, registrarEgresoCaja, registrarIngresosPartidos } from '../utils/caja-ingreso';
 import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
@@ -13,8 +13,9 @@ import { CATEGORIA_EGRESO, CATEGORIA_INGRESO, ORIGEN_MOVIMIENTO } from '../const
 import { cobradoVenta, diasAtraso, diasParaVencer, ESTADO_VENTA, estadoVentaPorSaldo, esVentaVencida, situacionCobranza } from '../constants/venta.constants';
 import { CrearCobranzaDTO, CrearVentaDTO } from '../dtos/venta.dto';
 import { camposPagoDocumento, conceptoPorCanal, partesDesdeDocumento } from '../utils/metodo-pago';
+import { esProductoEmpaque } from '../utils/empaque';
 
-const usuarioAtributos = ['id', 'username'];
+const usuarioAtributos = ['id', 'username', 'nombre'];
 
 function mapLinea(detalle: any) {
     return {
@@ -46,7 +47,7 @@ function mapVenta(venta: any) {
         dias_atraso: diasAtraso(venta.fecha_vencimiento, saldo, venta.estado),
         situacion: situacionCobranza(venta.fecha_vencimiento, saldo, venta.estado),
         cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,
-        usuario: venta.usuario ? { id: venta.usuario.id, username: venta.usuario.username } : null,
+        usuario: mapUsuarioResumen(venta.usuario),
         detalles: (venta.detalles || []).map(mapLinea),
         cobranzas: (venta.cobranzas || []).map(mapCobranza)
     };
@@ -67,7 +68,7 @@ function mapCobranza(item: any) {
         fecha: item.fecha,
         cliente: item.cliente ? { id: item.cliente.id, nombre: item.cliente.nombre } : null,
         venta: item.venta ? { id: item.venta.id, total: toMoney(item.venta.total), saldo_pendiente: toMoney(item.venta.saldo_pendiente), estado: item.venta.estado } : null,
-        usuario: item.usuario ? { id: item.usuario.id, username: item.usuario.username } : null
+        usuario: mapUsuarioResumen(item.usuario)
     };
 }
 
@@ -207,9 +208,22 @@ export class VentaController {
 
             const idVenta = venta.get('id') as number;
             for (const linea of lineas) {
-                if (linea.id_producto && !linea.descripcion) {
-                    const producto = await Productos.findByPk(linea.id_producto, { transaction });
-                    linea.descripcion = producto ? String(producto.get('nombre')) : 'Producto';
+                if (linea.id_producto) {
+                    const producto = await Productos.findByPk(linea.id_producto, {
+                        transaction,
+                        include: [{ model: CategoriaProducto, as: 'categoria', attributes: ['id', 'nombre'] }]
+                    });
+                    if (!linea.descripcion) {
+                        linea.descripcion = producto ? String(producto.get('nombre')) : 'Producto';
+                    }
+                    if (esProductoEmpaque({
+                        nombre: producto?.get('nombre'),
+                        categoria: (producto as any)?.categoria
+                    })) {
+                        await transaction.rollback();
+                        res.status(400).json({ mensaje: 'Las bolsas y empaques no se venden. Registre la salida en Bolsas y empaques.' });
+                        return;
+                    }
                 }
                 await VentaDetalle.create({ ...linea, id_venta: idVenta }, { transaction });
                 if (linea.id_producto) {
@@ -411,6 +425,10 @@ export class CobranzaController {
             if (typeof req.query.id_cliente === 'string' && req.query.id_cliente) {
                 where.id_cliente = Number(req.query.id_cliente);
             }
+            if (typeof req.query.metodo === 'string' && req.query.metodo) {
+                where.metodo_pago = req.query.metodo;
+            }
+            aplicarFiltroFecha(where, req.query);
             const cobranzas = await Cobranza.findAll({
                 where,
                 include: [

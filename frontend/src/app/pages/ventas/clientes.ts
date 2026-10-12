@@ -22,7 +22,9 @@ import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 import { etiquetaPago, formatBs, formatFecha, formatFechaCorta } from '../caja/caja.utils';
 import { ClientesService, VentasService } from './ventas.service';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { ESTADOS_ACTIVO_FILTRO } from '../../shared/utils/fecha-filtro';
 
 @Component({
     selector: 'app-clientes',
@@ -43,7 +45,8 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         AyudaCampoComponent,
         TooltipModule,
         MenuModule,
-        TablaBusquedaComponent
+        TablaBusquedaComponent,
+        BotonesExportarComponent
     ],
     template: `
         <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
@@ -56,15 +59,24 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+            <div class="barra-listado">
+                <div class="campo">
+                    <label class="block font-bold mb-1 text-sm">Estado</label>
+                    <p-select [options]="estadosActivo" optionLabel="label" optionValue="value" [(ngModel)]="filtroActivo" fluid appendTo="body" />
+                </div>
+                <div class="campo">
+                    <label class="block font-bold mb-1 text-sm">Procedencia</label>
+                    <p-select [options]="procedenciasFiltro" [(ngModel)]="filtroProcedencia" placeholder="Todas" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar por nombre o NIT/CI" (buscar)="filtrarTabla(dt, $event)" />
                 </div>
+                <app-botones-exportar tipo="clientes" [activos]="filtroActivo" [procedencia]="filtroProcedencia" />
             </div>
             <p-table
                 #dt
-                [value]="cargando ? [] : clientes"
+                [value]="cargando ? [] : clientesFiltrados"
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
@@ -250,6 +262,25 @@ export class ClientesPage implements OnInit {
     formatFechaCorta = formatFechaCorta;
     etiquetaPago = etiquetaPago;
     procedencias = [...PROCEDENCIAS_CLIENTE];
+    procedenciasFiltro = [...PROCEDENCIAS_CLIENTE];
+    estadosActivo = ESTADOS_ACTIVO_FILTRO;
+    filtroActivo = 'todos';
+    filtroProcedencia = '';
+
+    get clientesFiltrados(): Cliente[] {
+        return this.clientes.filter((c) => {
+            if (this.filtroActivo === 'activos' && !c.activo) {
+                return false;
+            }
+            if (this.filtroActivo === 'inactivos' && c.activo) {
+                return false;
+            }
+            if (this.filtroProcedencia && c.procedencia !== this.filtroProcedencia) {
+                return false;
+            }
+            return true;
+        });
+    }
 
     constructor(private clientesService: ClientesService, private ventasService: VentasService, private aviso: AvisoService) {}
 

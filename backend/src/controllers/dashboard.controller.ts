@@ -8,6 +8,7 @@ import { CATEGORIA_EGRESO, ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caj
 import { cobradoVenta, diasParaVencer, ESTADO_VENTA, esVentaVencida, situacionCobranza } from '../constants/venta.constants';
 import { ESTADO_COMPRA } from '../constants/compra.constants';
 import { resumirMovimientos } from '../utils/caja-resumen';
+import { mapUsuarioResumen } from '../utils/auth-user';
 
 function mapMovimiento(movimiento: any) {
     const tipo = movimiento.tipo;
@@ -27,9 +28,7 @@ function mapMovimiento(movimiento: any) {
         ingreso: tipo === TIPO_MOVIMIENTO.INGRESO ? monto : 0,
         egreso: tipo === TIPO_MOVIMIENTO.EGRESO ? monto : 0,
         monto,
-        usuario: movimiento.usuario
-            ? { id: movimiento.usuario.id, username: movimiento.usuario.username }
-            : null
+        usuario: mapUsuarioResumen(movimiento.usuario)
     };
 }
 
@@ -42,7 +41,7 @@ export class DashboardController {
             const cajaAbierta = await Caja.findOne({
                 where: { estado: ESTADO_CAJA.ABIERTA },
                 include: [
-                    { model: User, as: 'usuarioApertura', attributes: ['id', 'username'] }
+                    { model: User, as: 'usuarioApertura', attributes: ['id', 'username', 'nombre'] }
                 ],
                 order: [['id', 'DESC']]
             });
@@ -50,7 +49,7 @@ export class DashboardController {
             const [movimientosHoy, ventasHoyRows, ventasPendientes, comprasPendientes] = await Promise.all([
                 MovimientoCaja.findAll({
                     where: { fecha: { [Op.between]: [inicioDia, finDia] } },
-                    include: [{ model: User, as: 'usuario', attributes: ['id', 'username'] }],
+                    include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }],
                     order: [['fecha', 'DESC'], ['id', 'DESC']]
                 }),
                 Venta.findAll({
@@ -143,12 +142,7 @@ export class DashboardController {
                         id: cajaAbierta.get('id'),
                         estado: cajaAbierta.get('estado'),
                         fecha_apertura: cajaAbierta.get('fecha_apertura'),
-                        usuario_apertura: (cajaAbierta as any).usuarioApertura
-                            ? {
-                                id: (cajaAbierta as any).usuarioApertura.id,
-                                username: (cajaAbierta as any).usuarioApertura.username
-                            }
-                            : null
+                        usuario_apertura: mapUsuarioResumen((cajaAbierta as any).usuarioApertura)
                     }
                     : {
                         id: null,
@@ -186,7 +180,7 @@ export class DashboardController {
             const { inicio, fin } = rangoDesdeQuery(req.query.fecha_desde, req.query.fecha_hasta);
             const movimientos = await MovimientoCaja.findAll({
                 where: { fecha: { [Op.between]: [inicio, fin] } },
-                include: [{ model: User, as: 'usuario', attributes: ['id', 'username'] }],
+                include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }],
                 order: [['fecha', 'DESC'], ['id', 'DESC']]
             });
 

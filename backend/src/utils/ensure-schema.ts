@@ -204,3 +204,148 @@ export async function asegurarEsquemaCompras(): Promise<void> {
         }
     }
 }
+
+/** Separa productores de proveedores: tabla propia y FK de compras.id_productor. */
+export async function asegurarEsquemaProductores(): Promise<void> {
+    await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS productores (
+            id INT NOT NULL AUTO_INCREMENT,
+            nombre VARCHAR(150) NOT NULL,
+            nit_ci VARCHAR(30) NULL,
+            telefono VARCHAR(30) NULL,
+            direccion VARCHAR(250) NULL,
+            observacion TEXT NULL,
+            activo TINYINT(1) NOT NULL DEFAULT 1,
+            path_imagen VARCHAR(255) NULL,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL,
+            PRIMARY KEY (id),
+            KEY productores_nombre (nombre)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    const origenes = await sequelize.query<{ id: number }>(
+        `SELECT DISTINCT p.id
+         FROM proveedores p
+         WHERE p.observacion LIKE '%Productor%'
+            OR p.id IN (SELECT c.id_productor FROM compras c WHERE c.id_productor IS NOT NULL)`,
+        { type: QueryTypes.SELECT }
+    );
+    for (const row of origenes) {
+        const existe = await sequelize.query<{ c: number }>(
+            'SELECT COUNT(*) AS c FROM productores WHERE id = :id',
+            { replacements: { id: row.id }, type: QueryTypes.SELECT }
+        );
+        if (Number(existe[0]?.c)) {
+            continue;
+        }
+        await sequelize.query(
+            `INSERT INTO productores (id, nombre, nit_ci, telefono, direccion, observacion, activo, path_imagen, created_at, updated_at)
+             SELECT id, nombre, nit_ci, telefono, direccion, observacion, activo, path_imagen, created_at, updated_at
+             FROM proveedores WHERE id = :id`,
+            { replacements: { id: row.id } }
+        );
+    }
+
+    await sequelize.query(`
+        UPDATE compras c
+        LEFT JOIN productores p ON p.id = c.id_productor
+        SET c.id_productor = NULL
+        WHERE c.id_productor IS NOT NULL AND p.id IS NULL
+    `);
+
+    const fks = await sequelize.query<{ CONSTRAINT_NAME: string; REFERENCED_TABLE_NAME: string }>(
+        `SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME
+         FROM information_schema.KEY_COLUMN_USAGE
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'compras'
+           AND COLUMN_NAME = 'id_productor'
+           AND REFERENCED_TABLE_NAME IS NOT NULL`,
+        { type: QueryTypes.SELECT }
+    );
+    const yaApuntaProductores = fks.some((fk) => String(fk.REFERENCED_TABLE_NAME) === 'productores');
+    if (!yaApuntaProductores) {
+        for (const fk of fks) {
+            await sequelize.query(`ALTER TABLE compras DROP FOREIGN KEY \`${fk.CONSTRAINT_NAME}\``);
+        }
+        await sequelize.query(`
+            ALTER TABLE compras
+            ADD CONSTRAINT compras_id_productor_productores_fk
+            FOREIGN KEY (id_productor) REFERENCES productores (id)
+            ON UPDATE CASCADE ON DELETE RESTRICT
+        `);
+    }
+
+    const maxId = await sequelize.query<{ m: number }>(
+        'SELECT COALESCE(MAX(id), 0) AS m FROM productores',
+        { type: QueryTypes.SELECT }
+    );
+    const siguiente = Number(maxId[0]?.m || 0) + 1;
+    await sequelize.query(`ALTER TABLE productores AUTO_INCREMENT = ${siguiente}`);
+
+    const columnasProd = await sequelize.query<ColumnRow>('SHOW COLUMNS FROM productores', {
+        type: QueryTypes.SELECT
+    });
+    const nombresProd = new Set(columnasProd.map((col) => col.Field));
+    if (!nombresProd.has('id_proveedor')) {
+        await sequelize.query('ALTER TABLE productores ADD COLUMN id_proveedor INT NULL');
+    }
+
+    await sequelize.query(`
+        UPDATE productores p
+        INNER JOIN (
+            SELECT id_productor, MIN(id_proveedor) AS id_proveedor
+            FROM compras
+            WHERE id_productor IS NOT NULL AND id_proveedor IS NOT NULL
+            GROUP BY id_productor
+        ) c ON c.id_productor = p.id
+        SET p.id_proveedor = c.id_proveedor
+        WHERE p.id_proveedor IS NULL
+    `);
+
+    const fksProv = await sequelize.query<{ CONSTRAINT_NAME: string; REFERENCED_TABLE_NAME: string }>(
+        `SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME
+         FROM information_schema.KEY_COLUMN_USAGE
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'productores'
+           AND COLUMN_NAME = 'id_proveedor'
+           AND REFERENCED_TABLE_NAME IS NOT NULL`,
+        { type: QueryTypes.SELECT }
+    );
+    if (!fksProv.some((fk) => String(fk.REFERENCED_TABLE_NAME) === 'proveedores')) {
+        for (const fk of fksProv) {
+            await sequelize.query(`ALTER TABLE productores DROP FOREIGN KEY \`${fk.CONSTRAINT_NAME}\``);
+        }
+        await sequelize.query(`
+            ALTER TABLE productores
+            ADD CONSTRAINT productores_id_proveedor_fk
+            FOREIGN KEY (id_proveedor) REFERENCES proveedores (id)
+            ON UPDATE CASCADE ON DELETE RESTRICT
+        `);
+    }
+}
+
+export async function asegurarEsquemaUsuarios(): Promise<void> {
+    const columnas = await sequelize.query<ColumnRow>('SHOW COLUMNS FROM `user`', {
+        type: QueryTypes.SELECT
+    });
+    const nombres = new Set(columnas.map((col) => col.Field));
+    const faltantes: { nombre: string; ddl: string }[] = [
+        { nombre: 'nombre', ddl: 'ADD COLUMN nombre VARCHAR(120) NULL' },
+        { nombre: 'ci', ddl: 'ADD COLUMN ci VARCHAR(30) NULL' },
+        { nombre: 'telefono', ddl: 'ADD COLUMN telefono VARCHAR(30) NULL' },
+        { nombre: 'email', ddl: 'ADD COLUMN email VARCHAR(120) NULL' },
+        { nombre: 'cargo', ddl: 'ADD COLUMN cargo VARCHAR(80) NULL' },
+        { nombre: 'activo', ddl: 'ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1' }
+    ];
+    for (const col of faltantes) {
+        if (!nombres.has(col.nombre)) {
+            await sequelize.query(`ALTER TABLE \`user\` ${col.ddl}`);
+        }
+    }
+    await sequelize.query(`
+        UPDATE \`user\`
+        SET nombre = username
+        WHERE nombre IS NULL OR TRIM(nombre) = ''
+    `);
+}

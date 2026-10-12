@@ -1,11 +1,15 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { DrawerModule } from 'primeng/drawer';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
+import { MessageModule } from 'primeng/message';
 import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
@@ -13,8 +17,8 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { formatBs, formatFecha, formatFechaCorta, esErrorCajaCerrada } from '../caja/caja.utils';
-import { Compra, CrearCompraPayload, LineaCompra, Proveedor, TipoCompra } from './compras.models';
-import { ComprasService, ProveedoresService } from './compras.service';
+import { Compra, CrearCompraPayload, LineaCompra, Productor, Proveedor, TipoCompra } from './compras.models';
+import { ComprasService, ProductoresService, ProveedoresService } from './compras.service';
 import { CategoriaProducto, ProductoLista, ProductosService } from '../inventario/productos.service';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
@@ -32,7 +36,9 @@ import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { EmpresaService } from '../../core/services/empresa.service';
 import { formatUsd, roundMoney } from '../../shared/utils/money';
-import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/unidad-medida';
+import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA, UNIDADES_MEDIDA } from '../../shared/utils/unidad-medida';
+import { esProductoEmpaque } from '../../shared/utils/empaque';
+import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
 
 @Component({
     selector: 'app-compras',
@@ -44,6 +50,9 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
         DialogModule,
         DrawerModule,
         InputTextModule,
+        IconFieldModule,
+        InputIconModule,
+        MessageModule,
         DatePickerModule,
         SelectModule,
         SelectButtonModule,
@@ -72,17 +81,29 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-full sm:w-[12rem] min-w-0">
+            <div class="barra-listado">
+                <div class="campo campo-sm">
                     <label class="block font-bold mb-1 text-sm">Estado</label>
-                    <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid />
+                    <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid appendTo="body" />
+                </div>
+                <div class="campo">
+                    <label class="block font-bold mb-1 text-sm">Tipo</label>
+                    <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo-wide">
+                    <label class="block font-bold mb-1 text-sm">Proveedor</label>
+                    <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroProveedor" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo-fecha">
+                    <label class="block font-bold mb-1 text-sm">Período</label>
+                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
                 </div>
                 <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
-                <app-botones-exportar tipo="compras" [estado]="filtroEstado" />
+                <app-botones-exportar tipo="compras" [estado]="filtroEstado" [tipoCompra]="filtroTipo" [idProveedor]="filtroProveedor" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
             </div>
             <p-table
                 #dt
@@ -119,7 +140,7 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
                         <td>{{ compra.id }}</td>
                         <td>{{ formatFecha(compra.fecha) }}</td>
                         <td>{{ compra.proveedor?.nombre || '-' }}</td>
-                        <td>{{ compra.productor?.nombre || '-' }}</td>
+                        <td>{{ nombreProductor(compra) }}</td>
                         <td><p-tag [value]="etiquetaTipo(compra)" [severity]="severidadTipo(compra)" /></td>
                         <td class="text-right">
                             <div>{{ formatBs(compra.total) }}</div>
@@ -161,25 +182,27 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
         <p-drawer [(visible)]="dialogNueva" header="Nueva compra" position="full" styleClass="compra-drawer">
             <div class="compra-drawer-cuerpo">
                 <aside class="compra-drawer-catalogo">
-                    <div class="flex items-start justify-between gap-2 mb-1">
-                        <div class="font-semibold text-lg">Inventario</div>
-                        <p-button label="Registrar producto" icon="pi pi-plus" size="small" (onClick)="abrirNuevoProducto()" />
+                    <div class="compra-drawer-catalogo-cabeza">
+                        <div class="flex items-start justify-between gap-2 mb-1">
+                            <div class="font-semibold text-lg">Inventario</div>
+                            <p-button label="Registrar producto" icon="pi pi-plus" size="small" (onClick)="abrirNuevoProducto()" />
+                        </div>
+                        <p class="text-muted-color text-sm mt-0 mb-3">Filtre por categoría y pulse un producto para agregarlo al formulario.</p>
+                        <div class="mb-3">
+                            <p-selectbutton
+                                [options]="categoriasFiltro"
+                                optionLabel="label"
+                                optionValue="value"
+                                [(ngModel)]="filtroCategoriaId"
+                                [allowEmpty]="false"
+                                styleClass="flex flex-wrap"
+                            />
+                        </div>
+                        <div class="mb-3">
+                            <input pInputText class="w-full" [(ngModel)]="busquedaProducto" placeholder="Buscar producto..." />
+                        </div>
                     </div>
-                    <p class="text-muted-color text-sm mt-0 mb-3">Filtre por categoría y pulse un producto para agregarlo al formulario.</p>
-                    <div class="mb-3">
-                        <p-selectbutton
-                            [options]="categoriasFiltro"
-                            optionLabel="label"
-                            optionValue="value"
-                            [(ngModel)]="filtroCategoriaId"
-                            [allowEmpty]="false"
-                            styleClass="flex flex-wrap"
-                        />
-                    </div>
-                    <div class="mb-3">
-                        <input pInputText class="w-full" [(ngModel)]="busquedaProducto" placeholder="Buscar producto..." />
-                    </div>
-                    <div class="flex flex-col gap-2">
+                    <div class="compra-drawer-catalogo-lista">
                         <button
                             type="button"
                             class="compra-producto"
@@ -211,17 +234,17 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
                         <div class="grid grid-cols-12 gap-3">
                             <div class="col-span-12 md:col-span-6">
                                 <div class="flex items-center justify-between gap-2 mb-2">
-                                    <label class="flex items-center gap-1 font-bold">Proveedor <app-ayuda-campo texto="Titular de la cuenta. Ahí se registra la deuda y los pagos." posicion="right" /></label>
+                                    <label class="flex items-center gap-1 font-bold">Proveedor <app-ayuda-campo texto="Titular de la cuenta. Un proveedor puede tener varios productores." posicion="right" /></label>
                                     <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirNuevoProveedor('proveedor')" />
                                 </div>
-                                <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProveedor" placeholder="Seleccione proveedor" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
+                                <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProveedor" (ngModelChange)="onProveedorChange()" placeholder="Seleccione proveedor" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
                             </div>
                             <div class="col-span-12 md:col-span-6" *ngIf="esChala">
                                 <div class="flex items-center justify-between gap-2 mb-2">
-                                    <label class="flex items-center gap-1 font-bold">Productor <app-ayuda-campo texto="De quién procede el arroz. Puede coincidir con el proveedor, pero es un campo aparte." posicion="left" /></label>
+                                    <label class="flex items-center gap-1 font-bold">Productor <app-ayuda-campo texto="Opcional. Si no elige, el productor es el mismo proveedor. Úselo cuando otro nombre entrega el arroz." posicion="left" /></label>
                                     <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirNuevoProveedor('productor')" />
                                 </div>
-                                <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProductor" placeholder="Seleccione productor" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
+                                <p-select [options]="productores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProductor" placeholder="Mismo que el proveedor" [showClear]="true" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
                             </div>
                             <div class="col-span-12 md:col-span-6">
                                 <label class="flex items-center gap-1 font-bold mb-2">Fecha <app-ayuda-campo texto="Fecha del documento." posicion="left" /></label>
@@ -299,8 +322,8 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
                                             </div>
                                         </td>
                                         <td>
-                                            <span *ngIf="esChala">fanega</span>
-                                            <input *ngIf="!esChala" pInputText class="w-full" [(ngModel)]="linea.unidad" maxlength="20" />
+                                            <span *ngIf="esChala">Fanega</span>
+                                            <p-select *ngIf="!esChala" [options]="unidades" optionLabel="label" optionValue="value" [(ngModel)]="linea.unidad" placeholder="Unidad" fluid appendTo="body" [baseZIndex]="2100" />
                                         </td>
                                         <td>
                                             <app-input-numero *ngIf="esChala" tipo="cantidad" [(ngModel)]="fanegas" [min]="0" (ngModelChange)="sincronizarLineaChala()" />
@@ -321,8 +344,8 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
                                 </ng-template>
                             </p-table>
                             <div class="text-right mt-3" *ngIf="esChala">
-                                <div class="font-semibold">Total USD: {{ formatUsd(totalUsdChala()) }}</div>
-                                <div class="font-semibold text-lg">Equivalente Bs: {{ formatBs(totalBsChala()) }}</div>
+                                <div class="font-semibold">Total: {{ formatUsd(totalUsdChala()) }}</div>
+                                <div class="font-semibold text-lg">Equivalente: {{ formatBs(totalBsChala()) }}</div>
                             </div>
                             <div class="text-right font-semibold mt-3" *ngIf="!esChala">Total: {{ formatBs(totalLineas()) }}</div>
                             <div class="text-right text-muted-color break-words">Se paga ahora: {{ formatBs(pagoAlRegistrar()) }} · Quedará pendiente: {{ formatBs(pendienteEstimado()) }}</div>
@@ -340,7 +363,11 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
                             <div class="col-span-12 md:col-span-4">
                                 <label class="flex items-center gap-1 font-bold mb-2">Plazo de pago <app-ayuda-campo texto="Cuándo debe pagarse el saldo. No cambia el precio ni los abonos. Opcional." posicion="top" /></label>
                                 <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid appendTo="body" [baseZIndex]="2100" />
-                                <small class="block text-muted-color mt-1" *ngIf="plazoDias > 0">Vence el {{ vencimientoEstimado }}</small>
+                                <small class="block text-muted-color mt-1" *ngIf="diasPlazoEfectivo() > 0">Vence el {{ vencimientoEstimado }} · PLAZO: {{ diasPlazoEfectivo() }} {{ diasPlazoEfectivo() === 1 ? 'día' : 'días' }}</small>
+                            </div>
+                            <div class="col-span-12 md:col-span-4" *ngIf="plazoDias === -2">
+                                <label class="flex items-center gap-1 font-bold mb-2">Días de plazo <app-ayuda-campo texto="Cantidad de días para pagar el saldo. Sale en la boleta como PLAZO: N días." posicion="left" /></label>
+                                <app-input-numero tipo="cantidad" [(ngModel)]="plazoDiasPersonal" [min]="1" />
                             </div>
                             <div class="col-span-12 md:col-span-4" *ngIf="plazoDias === -1">
                                 <label class="flex items-center gap-1 font-bold mb-2">Fecha de vencimiento <app-ayuda-campo texto="Día en que debe cancelarse el saldo al proveedor." posicion="left" /></label>
@@ -380,17 +407,27 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
 
         <p-dialog header="Registrar producto" [(visible)]="dialogProducto" [modal]="true" [appendTo]="'body'" [baseZIndex]="2000" [style]="{ width: '28rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-3">
-                <div>
+                <div class="campo-form">
                     <label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Ej.: Bolsa arpillera 46 kg." posicion="right" /></label>
-                    <input pInputText class="w-full" [(ngModel)]="formProducto.nombre" />
+                    <p-iconfield iconPosition="right">
+                        <input pInputText class="w-full" name="nombreProductoCompra" [(ngModel)]="formProducto.nombre" (blur)="tocadoNombreProducto = true" [class.ng-dirty]="mostrarNombreProducto" [class.ng-invalid]="!!errorNombreProducto" [class.ng-valid]="okNombreProducto" />
+                        <p-inputicon [styleClass]="okNombreProducto ? 'pi pi-check text-green-500' : errorNombreProducto ? 'pi pi-times text-red-500' : ''" />
+                    </p-iconfield>
+                    <div class="campo-feedback-error" *ngIf="errorNombreProducto">{{ errorNombreProducto }}</div>
+                    <div class="campo-feedback-ok" *ngIf="okNombreProducto">Correcto</div>
                 </div>
-                <div>
+                <div class="campo-form">
                     <label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Agrupa el producto en el inventario." posicion="right" /></label>
-                    <p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="formProducto.id_categoria" placeholder="Categoría" fluid appendTo="body" [baseZIndex]="2200" />
+                    <p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="formProducto.id_categoria" placeholder="Elegí la categoría" [styleClass]="errorCategoriaProducto ? 'ng-dirty ng-invalid' : okCategoriaProducto ? 'ng-dirty ng-valid' : ''" fluid appendTo="body" [baseZIndex]="2200" (onChange)="tocadoCategoriaProducto = true" />
+                    <div class="campo-feedback-error" *ngIf="errorCategoriaProducto">{{ errorCategoriaProducto }}</div>
+                    <div class="campo-feedback-ok" *ngIf="okCategoriaProducto">Correcto</div>
                 </div>
-                <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Unidad <app-ayuda-campo texto="Ej.: Unidad, Fanega, Quintal o kg. No use solo números: la cantidad va en otro campo." posicion="right" /></label>
-                    <input pInputText class="w-full" [(ngModel)]="formProducto.unidad_medida" />
+                <div class="campo-form">
+                    <label class="block font-bold mb-1">Unidad de medida</label>
+                    <p class="text-xs text-muted-color mt-0 mb-2">Kilo, Fanega, Quintal o Unidad. La cantidad va en otro campo.</p>
+                    <p-select [options]="unidades" optionLabel="label" optionValue="value" [(ngModel)]="formProducto.unidad_medida" placeholder="Elegí la unidad" [styleClass]="okUnidadProducto ? 'ng-dirty ng-valid' : errorUnidadProducto ? 'ng-dirty ng-invalid' : ''" fluid appendTo="body" [baseZIndex]="2200" (onChange)="tocadoUnidadProducto = true" />
+                    <div class="campo-feedback-error" *ngIf="errorUnidadProducto">{{ errorUnidadProducto }}</div>
+                    <div class="campo-feedback-ok" *ngIf="okUnidadProducto">Correcto</div>
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Precio de compra <app-ayuda-campo texto="Costo de referencia. Se puede cambiar en esta compra." posicion="right" /></label>
@@ -432,12 +469,13 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
             <ng-container *ngIf="detalle">
                 <div class="mb-3">
                     {{ detalle.proveedor?.nombre }}
-                    <span *ngIf="detalle.productor"> · Productor {{ detalle.productor.nombre }}</span>
+                    <span> · Productor {{ nombreProductor(detalle) }}</span>
                     · {{ formatFecha(detalle.fecha) }}
                 </div>
                 <p-tag [value]="etiquetaTipo(detalle)" [severity]="severidadTipo(detalle)" styleClass="mb-3" />
                 <p-tag [value]="detalle.estado" [severity]="severidad(detalle.estado)" styleClass="mb-3 ml-2" />
-                <span class="text-muted-color ml-2" *ngIf="detalle.fecha_vencimiento">Vence {{ formatFechaCorta(detalle.fecha_vencimiento) }}</span>
+                <span class="text-muted-color ml-2" *ngIf="detalle.plazo_dias">Plazo {{ detalle.plazo_dias }} {{ detalle.plazo_dias === 1 ? 'día' : 'días' }}</span>
+                <span class="text-muted-color ml-2" *ngIf="detalle.fecha_vencimiento"> · Vence {{ formatFechaCorta(detalle.fecha_vencimiento) }}</span>
                 <div class="text-sm text-muted-color mb-3" *ngIf="detalle.concepto || detalle.boleta || detalle.chofer || detalle.placa || detalle.fanegas">
                     <span *ngIf="detalle.concepto">{{ detalle.concepto }} · </span>
                     <span *ngIf="detalle.boleta">Boleta {{ detalle.boleta }} · </span>
@@ -495,11 +533,21 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
         }
         .compra-drawer-catalogo,
         .compra-drawer-formulario {
-            padding: 1.25rem;
+            padding: 1rem 1.25rem;
             overflow: auto;
         }
         .compra-drawer-catalogo {
+            display: flex;
+            flex-direction: column;
             border-bottom: 1px solid var(--p-content-border-color, #e5e7eb);
+        }
+        .compra-drawer-catalogo-cabeza {
+            flex-shrink: 0;
+        }
+        .compra-drawer-catalogo-lista {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
         }
         .compra-drawer-formulario {
             display: flex;
@@ -512,14 +560,15 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA } from '../../shared/utils/
                 height: calc(100vh - 4.5rem);
                 min-height: 0;
             }
-            .compra-drawer-catalogo,
-            .compra-drawer-formulario {
-                width: 50%;
-                height: 100%;
-            }
             .compra-drawer-catalogo {
+                width: 38%;
+                height: 100%;
                 border-bottom: 0;
                 border-right: 1px solid var(--p-content-border-color, #e5e7eb);
+            }
+            .compra-drawer-formulario {
+                width: 62%;
+                height: 100%;
             }
         }
         .compra-producto {
@@ -597,6 +646,7 @@ export class ComprasPage implements OnInit {
     filtrarTabla = filtrarTabla;
     compras: Compra[] = [];
     proveedores: Proveedor[] = [];
+    productores: Productor[] = [];
     productos: ProductoLista[] = [];
     categorias: CategoriaProducto[] = [];
     filtroCategoriaId: number | null = null;
@@ -611,8 +661,21 @@ export class ComprasPage implements OnInit {
     guardandoProducto = false;
     guardandoProveedor = false;
     formProducto = this.productoVacio();
+    unidades = UNIDADES_MEDIDA;
+    enviadoProducto = false;
+    tocadoNombreProducto = false;
+    tocadoCategoriaProducto = false;
+    tocadoUnidadProducto = false;
     formProveedor = this.proveedorVacio();
     filtroEstado = '';
+    filtroTipo = '';
+    filtroProveedor: number | null = null;
+    rango: Date[] | null = null;
+    tiposFiltro = [
+        { label: 'Arroz en chala', value: 'CHALA' },
+        { label: 'Bolsas y empaques', value: 'BOLSAS' },
+        { label: 'Otros / servicios', value: 'OTROS' }
+    ];
     estados = [
         { label: 'Todas', value: '' },
         { label: 'Pendiente', value: 'PENDIENTE' },
@@ -629,6 +692,8 @@ export class ComprasPage implements OnInit {
         { label: 'ORO / CALIDAD', value: 'ORO / CALIDAD' },
         { label: 'EPAGRI', value: 'EPAGRI' },
         { label: 'MAX-18', value: 'MAX-18' },
+        { label: 'MAC-18', value: 'MAC-18' },
+        { label: 'KHAJA', value: 'KHAJA' },
         { label: 'Otro', value: 'OTRO' }
     ];
     plazosCredito = [
@@ -636,6 +701,7 @@ export class ComprasPage implements OnInit {
         { label: '7 días', value: 7 },
         { label: '15 días', value: 15 },
         { label: '30 días', value: 30 },
+        { label: 'Otros días', value: -2 },
         { label: 'Fecha exacta', value: -1 }
     ];
     modosPago = [
@@ -644,6 +710,7 @@ export class ComprasPage implements OnInit {
     ];
     modoPago = 'CONTADO';
     plazoDias = 0;
+    plazoDiasPersonal = 7;
     fechaVencimiento: Date | null = null;
     hoy = new Date();
     tipoCompra: TipoCompra = 'CHALA';
@@ -676,13 +743,22 @@ export class ComprasPage implements OnInit {
     formatFecha = formatFecha;
     formatFechaCorta = formatFechaCorta;
 
+    nombreProductor(compra: Compra): string {
+        return compra.productor?.nombre || compra.proveedor?.nombre || '-';
+    }
+
+    private queryPendienteProducto: number | null = null;
+
     constructor(
         private comprasService: ComprasService,
         private proveedoresService: ProveedoresService,
+        private productoresService: ProductoresService,
         private productosService: ProductosService,
         private exportarService: ExportarService,
         private empresaService: EmpresaService,
-        private aviso: AvisoService
+        private aviso: AvisoService,
+        private route: ActivatedRoute,
+        private router: Router
     ) {}
 
     get esChala(): boolean {
@@ -698,18 +774,39 @@ export class ComprasPage implements OnInit {
             return 'Elija el arroz en chala del inventario. La variedad se indica en el ítem. Total USD = fanegas × precio. Total Bs = USD × tipo de cambio. El pago (contado o abono) se registra en Bs.';
         }
         if (this.esBolsas) {
-            return 'Las bolsas entran al inventario una sola vez. Las salidas se registran en Bolsas y empaques; no son ventas.';
+            return 'Las bolsas entran al inventario al guardar esta compra. Las salidas se registran en Bolsas y empaques; no se venden.';
         }
-        return 'Empaque, insumos o un servicio fiado. Lo que se paga ahora sale de caja. Luz o combustible van a Gastos.';
+        return 'Insumos o un servicio fiado. Las bolsas van en tipo Bolsas y empaques. Luz o combustible van a Gastos.';
     }
 
     get categoriasFiltro(): { label: string; value: number | null }[] {
-        return [{ label: 'Todas', value: null }, ...this.categorias.map((c) => ({ label: c.nombre, value: c.id }))];
+        const lista = this.categorias.filter((c) => {
+            const nombre = (c.nombre || '').toLowerCase();
+            const esEmpaque = nombre.includes('empaque') || nombre.includes('bolsa');
+            if (this.esBolsas) {
+                return esEmpaque;
+            }
+            if (this.esChala) {
+                return nombre.includes('chala');
+            }
+            return !esEmpaque;
+        });
+        const extra = this.esBolsas || this.esChala ? [] : [{ label: 'Todas', value: null }];
+        return [...extra, ...lista.map((c) => ({ label: c.nombre, value: c.id }))];
     }
 
     get productosCatalogo(): ProductoLista[] {
         const q = this.busquedaProducto.trim().toLowerCase();
         return this.productos.filter((p) => {
+            if (this.esBolsas && !this.esProductoBolsa(p)) {
+                return false;
+            }
+            if (this.esChala && !this.esProductoChala(p)) {
+                return false;
+            }
+            if (!this.esBolsas && !this.esChala && this.esProductoBolsa(p)) {
+                return false;
+            }
             const categoriaId = p.categoria?.id ?? p.id_categoria ?? null;
             if (this.filtroCategoriaId != null && categoriaId !== this.filtroCategoriaId) {
                 return false;
@@ -740,11 +837,26 @@ export class ComprasPage implements OnInit {
         this.cargarCategorias();
         this.proveedoresService.listar().subscribe({ next: (data) => (this.proveedores = data) });
         this.empresaService.cargar().subscribe();
+        this.route.queryParamMap.subscribe((params) => this.aplicarQueryNueva(params));
+    }
+
+    get fechaDesde(): string | undefined {
+        return ymdDesdeRango(this.rango);
+    }
+
+    get fechaHasta(): string | undefined {
+        return ymdHastaRango(this.rango);
     }
 
     cargar(): void {
         this.cargando = true;
-        this.comprasService.listar({ estado: this.filtroEstado || undefined }).subscribe({
+        this.comprasService.listar({
+            estado: this.filtroEstado || undefined,
+            tipo_compra: this.filtroTipo || undefined,
+            id_proveedor: this.filtroProveedor || undefined,
+            fecha_desde: this.fechaDesde,
+            fecha_hasta: this.fechaHasta
+        }).subscribe({
             next: (data) => {
                 this.compras = data;
                 this.cargando = false;
@@ -773,10 +885,34 @@ export class ComprasPage implements OnInit {
         this.aplicarFiltroCategoriaTipo();
         if (this.esChala) {
             this.sincronizarLineaChala();
+            this.cargarProductores();
         }
     }
 
+    onProveedorChange(): void {
+        this.idProductor = null;
+        this.cargarProductores();
+    }
+
+    cargarProductores(): void {
+        if (!this.idProveedor) {
+            this.productores = [];
+            return;
+        }
+        this.productoresService.listar({ id_proveedor: this.idProveedor, libres: false }).subscribe({
+            next: (data) => (this.productores = data)
+        });
+    }
+
     agregarDesdeCatalogo(producto: ProductoLista): void {
+        if (this.esBolsas && !this.esProductoBolsa(producto)) {
+            this.aviso.aviso('Bolsas y empaques', 'Solo se compran tipos de bolsa. Cambie el tipo de compra para otro ítem.');
+            return;
+        }
+        if (!this.esBolsas && this.esProductoBolsa(producto)) {
+            this.aviso.aviso('Bolsas y empaques', 'Cambie el tipo de compra a Bolsas y empaques para registrar esa entrada.');
+            return;
+        }
         if (this.esChala) {
             if (!this.esProductoChala(producto)) {
                 this.aviso.aviso('Compra de chala', 'Seleccione un arroz en chala del inventario. Cambie el tipo para agregar otro ítem.');
@@ -795,7 +931,7 @@ export class ComprasPage implements OnInit {
         const linea = vacia || this.lineaVacia();
         linea.id_producto = producto.id;
         linea.descripcion = producto.nombre;
-        linea.unidad = producto.unidad_medida || (this.esBolsas ? 'unidad' : '');
+        linea.unidad = producto.unidad_medida || (this.esBolsas ? 'Unidad' : '');
         linea.cantidad = Number(linea.cantidad || 0) > 0 ? Number(linea.cantidad) : 1;
         linea.precio_unitario = Number(producto.precio_compra || 0);
         linea.subtotal = roundMoney(linea.cantidad * linea.precio_unitario);
@@ -815,27 +951,72 @@ export class ComprasPage implements OnInit {
         return mediaUrl(path, 'producto');
     }
 
+    get mostrarNombreProducto(): boolean {
+        return this.enviadoProducto || this.tocadoNombreProducto;
+    }
+
+    get mostrarCategoriaProducto(): boolean {
+        return this.enviadoProducto || this.tocadoCategoriaProducto;
+    }
+
+    get mostrarUnidadProducto(): boolean {
+        return this.enviadoProducto || this.tocadoUnidadProducto;
+    }
+
+    get errorNombreProducto(): string | null {
+        if (!this.mostrarNombreProducto) {
+            return null;
+        }
+        return this.formProducto.nombre?.trim() ? null : 'El nombre es obligatorio.';
+    }
+
+    get okNombreProducto(): boolean {
+        return this.mostrarNombreProducto && !this.errorNombreProducto;
+    }
+
+    get errorCategoriaProducto(): string | null {
+        if (!this.mostrarCategoriaProducto) {
+            return null;
+        }
+        return this.formProducto.id_categoria ? null : 'Elegí una categoría.';
+    }
+
+    get okCategoriaProducto(): boolean {
+        return this.mostrarCategoriaProducto && !this.errorCategoriaProducto;
+    }
+
+    get errorUnidadProducto(): string | null {
+        if (!this.mostrarUnidadProducto) {
+            return null;
+        }
+        return esUnidadMedidaValida(this.formProducto.unidad_medida) ? null : MENSAJE_UNIDAD_MEDIDA;
+    }
+
+    get okUnidadProducto(): boolean {
+        return this.mostrarUnidadProducto && !this.errorUnidadProducto;
+    }
+
     abrirNuevoProducto(): void {
         this.formProducto = this.productoVacio();
+        this.enviadoProducto = false;
+        this.tocadoNombreProducto = false;
+        this.tocadoCategoriaProducto = false;
+        this.tocadoUnidadProducto = false;
         if (this.filtroCategoriaId) {
             this.formProducto.id_categoria = this.filtroCategoriaId;
         }
         if (this.esBolsas) {
-            this.formProducto.unidad_medida = 'unidad';
+            this.formProducto.unidad_medida = 'Unidad';
         }
         if (this.esChala) {
-            this.formProducto.unidad_medida = 'fanega';
+            this.formProducto.unidad_medida = 'Fanega';
         }
         this.dialogProducto = true;
     }
 
     guardarProducto(): void {
-        if (!this.formProducto.nombre.trim()) {
-            this.aviso.aviso('Validación', 'El nombre del producto es obligatorio');
-            return;
-        }
-        if (!esUnidadMedidaValida(this.formProducto.unidad_medida)) {
-            this.aviso.aviso('Validación', MENSAJE_UNIDAD_MEDIDA);
+        this.enviadoProducto = true;
+        if (this.errorNombreProducto || this.errorCategoriaProducto || this.errorUnidadProducto) {
             return;
         }
         this.guardandoProducto = true;
@@ -844,7 +1025,7 @@ export class ComprasPage implements OnInit {
             precio_venta: 0,
             precio_compra: Number(this.formProducto.precio_compra || 0),
             stock: Number(this.formProducto.stock || 0),
-            unidad_medida: this.formProducto.unidad_medida || 'unidad',
+            unidad_medida: this.formProducto.unidad_medida || 'Unidad',
             path_imagen: imagenDefault('producto'),
             id_categoria: this.formProducto.id_categoria || undefined
         }).subscribe({
@@ -868,6 +1049,10 @@ export class ComprasPage implements OnInit {
     }
 
     abrirNuevoProveedor(destino: 'proveedor' | 'productor' = 'proveedor'): void {
+        if (destino === 'productor' && !this.idProveedor) {
+            this.aviso.aviso('Validación', 'Seleccione primero el proveedor. El productor queda asociado a esa cuenta.');
+            return;
+        }
         this.destinoNuevo = destino;
         this.formProveedor = this.proveedorVacio();
         this.dialogProveedor = true;
@@ -879,7 +1064,7 @@ export class ComprasPage implements OnInit {
             return;
         }
         this.guardandoProveedor = true;
-        this.proveedoresService.crear({
+        const payload = {
             nombre: this.formProveedor.nombre.trim(),
             nit_ci: this.formProveedor.nit_ci || '',
             telefono: this.formProveedor.telefono || '',
@@ -887,28 +1072,41 @@ export class ComprasPage implements OnInit {
             observacion: '',
             activo: true,
             path_imagen: imagenDefault('proveedor')
-        }).subscribe({
+        };
+        const esProductor = this.destinoNuevo === 'productor';
+        if (esProductor && !this.idProveedor) {
+            this.guardandoProveedor = false;
+            this.aviso.aviso('Validación', 'Seleccione primero el proveedor');
+            return;
+        }
+        const peticion = esProductor
+            ? this.productoresService.crear({ ...payload, id_proveedor: this.idProveedor! })
+            : this.proveedoresService.crear(payload);
+        peticion.subscribe({
             next: (res) => {
                 this.guardandoProveedor = false;
                 this.dialogProveedor = false;
-                this.aviso.ok('Proveedor', res.mensaje);
+                this.aviso.ok(esProductor ? 'Productor' : 'Proveedor', res.mensaje);
                 const creado = res.data;
+                if (esProductor) {
+                    this.cargarProductores();
+                    if (creado?.id) {
+                        this.idProductor = creado.id;
+                    }
+                    return;
+                }
                 this.proveedoresService.listar().subscribe({
                     next: (data) => {
                         this.proveedores = data;
                         if (creado?.id) {
-                            if (this.destinoNuevo === 'productor') {
-                                this.idProductor = creado.id;
-                            } else {
-                                this.idProveedor = creado.id;
-                            }
+                            this.idProveedor = creado.id;
                         }
                     }
                 });
             },
             error: (err) => {
                 this.guardandoProveedor = false;
-                this.aviso.error(err, 'No se pudo registrar el proveedor');
+                this.aviso.error(err, esProductor ? 'No se pudo registrar el productor' : 'No se pudo registrar el proveedor');
             }
         });
     }
@@ -958,12 +1156,20 @@ export class ComprasPage implements OnInit {
         return pendiente > 0 ? pendiente : 0;
     }
 
+    diasPlazoEfectivo(): number {
+        if (this.plazoDias === -2) {
+            return Math.max(0, Math.round(Number(this.plazoDiasPersonal) || 0));
+        }
+        return this.plazoDias > 0 ? this.plazoDias : 0;
+    }
+
     get vencimientoEstimado(): string {
-        if (this.plazoDias <= 0) {
+        const dias = this.diasPlazoEfectivo();
+        if (dias <= 0) {
             return '';
         }
         const fecha = new Date();
-        fecha.setDate(fecha.getDate() + this.plazoDias);
+        fecha.setDate(fecha.getDate() + dias);
         return formatFechaCorta(fecha);
     }
 
@@ -974,8 +1180,9 @@ export class ComprasPage implements OnInit {
         if (this.plazoDias === -1 && this.fechaVencimiento) {
             return { fecha_vencimiento: this.fechaYmd(this.fechaVencimiento) };
         }
-        if (this.plazoDias > 0) {
-            return { plazo_dias: this.plazoDias };
+        const dias = this.diasPlazoEfectivo();
+        if (dias > 0) {
+            return { plazo_dias: dias };
         }
         return {};
     }
@@ -993,6 +1200,10 @@ export class ComprasPage implements OnInit {
     }
 
     private validarPago(): boolean {
+        if (this.modoPago === 'CREDITO' && this.plazoDias === -2 && this.diasPlazoEfectivo() < 1) {
+            this.aviso.aviso('Validación', 'Indique los días de plazo');
+            return false;
+        }
         if (this.modoPago === 'CREDITO' && this.plazoDias === -1 && !this.fechaVencimiento) {
             this.aviso.aviso('Validación', 'Indique la fecha de vencimiento o elija un plazo en días');
             return false;
@@ -1010,7 +1221,7 @@ export class ComprasPage implements OnInit {
         const linea = this.lineas[0] || this.lineaVacia();
         const producto = this.productos.find((p) => p.id === this.idProductoChala);
         linea.descripcion = producto?.nombre || '';
-        linea.unidad = producto?.unidad_medida || 'fanega';
+        linea.unidad = producto?.unidad_medida || 'Fanega';
         linea.cantidad = Number(this.fanegas || 0);
         linea.precio_unitario = Number(this.precioFanega || 0);
         linea.subtotal = this.totalUsdChala();
@@ -1042,10 +1253,6 @@ export class ComprasPage implements OnInit {
     guardar(): void {
         if (!this.idProveedor) {
             this.aviso.aviso('Validación', 'Seleccione un proveedor');
-            return;
-        }
-        if (this.esChala && !this.idProductor) {
-            this.aviso.aviso('Validación', 'Seleccione el productor del arroz');
             return;
         }
         if (this.esChala) {
@@ -1111,11 +1318,11 @@ export class ComprasPage implements OnInit {
         const producto = this.productos.find((p) => p.id === linea.id_producto);
         if (producto) {
             linea.descripcion = producto.nombre;
-            linea.unidad = producto.unidad_medida || (this.esBolsas ? 'unidad' : '');
+            linea.unidad = producto.unidad_medida || (this.esBolsas ? 'Unidad' : '');
             linea.precio_unitario = Number(producto.precio_compra || 0);
         } else {
             linea.descripcion = '';
-            linea.unidad = this.esBolsas ? 'unidad' : '';
+            linea.unidad = this.esBolsas ? 'Unidad' : '';
         }
     }
 
@@ -1151,7 +1358,7 @@ export class ComprasPage implements OnInit {
         }
         this.enviar({
             id_proveedor: this.idProveedor!,
-            id_productor: this.idProductor!,
+            id_productor: this.idProductor || undefined,
             fecha: this.fechaYmd(this.fechaCompra),
             tipo_compra: 'CHALA',
             concepto,
@@ -1166,7 +1373,7 @@ export class ComprasPage implements OnInit {
                 cantidad: Number(this.fanegas),
                 precio_unitario: Number(this.precioFanega),
                 id_producto: producto.id,
-                unidad: producto.unidad_medida || 'fanega'
+                unidad: producto.unidad_medida || 'Fanega'
             }],
             ...this.extrasPago()
         }, this.pagoAlRegistrar() > 0
@@ -1249,6 +1456,7 @@ export class ComprasPage implements OnInit {
         this.pagoInicial = 0;
         this.modoPago = 'CONTADO';
         this.plazoDias = 0;
+        this.plazoDiasPersonal = 7;
         this.fechaVencimiento = null;
         this.hoy = new Date();
         this.metodoPago = 'EFECTIVO';
@@ -1278,12 +1486,56 @@ export class ComprasPage implements OnInit {
                 if (this.esChala && this.dialogNueva) {
                     this.sincronizarLineaChala();
                 }
+                this.intentarAgregarProductoQuery();
             }
         });
     }
 
     private cargarCategorias(): void {
-        this.productosService.categorias().subscribe({ next: (data) => (this.categorias = data) });
+        this.productosService.categorias().subscribe({
+            next: (data) => {
+                this.categorias = data;
+                if (this.dialogNueva) {
+                    this.aplicarFiltroCategoriaTipo();
+                }
+            }
+        });
+    }
+
+    private aplicarQueryNueva(params: ParamMap): void {
+        const nueva = params.get('nueva') === '1' || params.get('nueva') === 'true';
+        const tipo = params.get('tipo');
+        const productoId = Number(params.get('producto'));
+        if (!nueva && !tipo && !productoId) {
+            return;
+        }
+        this.abrirNueva();
+        if (tipo === 'BOLSAS' || tipo === 'CHALA' || tipo === 'OTROS') {
+            this.tipoCompra = tipo;
+            this.onTipoChange();
+        }
+        if (productoId) {
+            this.queryPendienteProducto = productoId;
+            this.intentarAgregarProductoQuery();
+        }
+        this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+    }
+
+    private intentarAgregarProductoQuery(): void {
+        if (!this.queryPendienteProducto) {
+            return;
+        }
+        if (!this.productos.length) {
+            return;
+        }
+        const producto = this.productos.find((p) => p.id === this.queryPendienteProducto);
+        if (!producto) {
+            this.aviso.aviso('Compra', 'No se encontró ese tipo de bolsa en el inventario');
+            this.queryPendienteProducto = null;
+            return;
+        }
+        this.agregarDesdeCatalogo(producto);
+        this.queryPendienteProducto = null;
     }
 
     private aplicarFiltroCategoriaTipo(): void {
@@ -1305,9 +1557,7 @@ export class ComprasPage implements OnInit {
     }
 
     private esProductoBolsa(p: ProductoLista): boolean {
-        const nombre = (p.nombre || '').toLowerCase();
-        const categoria = (p.categoria?.nombre || '').toLowerCase();
-        return categoria.includes('empaque') || categoria.includes('bolsa') || nombre.includes('bolsa') || nombre.includes('empaque') || nombre.includes('arpillera');
+        return esProductoEmpaque(p);
     }
 
     conceptoValor(): string {
@@ -1332,11 +1582,11 @@ export class ComprasPage implements OnInit {
     }
 
     private lineaVacia(): LineaCompra {
-        return { descripcion: '', id_producto: null, unidad: this.esBolsas ? 'unidad' : '', cantidad: 1, precio_unitario: 0, subtotal: 0 };
+        return { descripcion: '', id_producto: null, unidad: this.esBolsas ? 'Unidad' : '', cantidad: 1, precio_unitario: 0, subtotal: 0 };
     }
 
     private productoVacio(): { nombre: string; id_categoria: number | null; unidad_medida: string; precio_compra: number; stock: number } {
-        return { nombre: '', id_categoria: null, unidad_medida: 'unidad', precio_compra: 0, stock: 0 };
+        return { nombre: '', id_categoria: null, unidad_medida: 'Unidad', precio_compra: 0, stock: 0 };
     }
 
     private proveedorVacio(): { nombre: string; nit_ci: string; telefono: string } {

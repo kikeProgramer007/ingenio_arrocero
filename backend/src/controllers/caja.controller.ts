@@ -3,7 +3,7 @@ import { Op, WhereOptions } from 'sequelize';
 import { Caja, Compra, MovimientoCaja, sequelize, User, Venta } from '../models';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
-import { getAuthUser } from '../utils/auth-user';
+import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
 import { clasificarDiferencia, roundMoney, toMoney } from '../utils/money';
 import {
     ESTADO_CAJA,
@@ -21,7 +21,7 @@ import {
     categoriaCorrespondeAlTipo
 } from '../dtos/caja.dto';
 
-const usuarioAtributos = ['id', 'username'];
+const usuarioAtributos = ['id', 'username', 'nombre'];
 
 export class CajaController {
     public static async obtenerAbierta(req: Request, res: Response): Promise<void> {
@@ -218,8 +218,15 @@ export class CajaController {
                 return;
             }
 
+            const where: any = { id_caja: req.params.id };
+            if (typeof req.query.tipo === 'string' && req.query.tipo) {
+                where.tipo = req.query.tipo;
+            }
+            if (typeof req.query.metodo === 'string' && req.query.metodo) {
+                where.metodo_pago = req.query.metodo;
+            }
             const movimientos = await MovimientoCaja.findAll({
-                where: { id_caja: req.params.id },
+                where,
                 include: [{ model: User, as: 'usuario', attributes: usuarioAtributos }],
                 order: [['fecha', 'DESC'], ['id', 'DESC']]
             });
@@ -372,12 +379,8 @@ export class CajaController {
             saldo_contado: saldoContado,
             diferencia,
             resultado_arqueo: diferencia == null ? null : clasificarDiferencia(diferencia),
-            usuario_apertura: caja.usuarioApertura
-                ? { id: caja.usuarioApertura.id, username: caja.usuarioApertura.username }
-                : null,
-            usuario_cierre: caja.usuarioCierre
-                ? { id: caja.usuarioCierre.id, username: caja.usuarioCierre.username }
-                : null
+            usuario_apertura: mapUsuarioResumen(caja.usuarioApertura),
+            usuario_cierre: mapUsuarioResumen(caja.usuarioCierre)
         };
     }
 
@@ -423,9 +426,7 @@ export class CajaController {
             origen: movimiento.origen,
             origen_id: movimiento.origen_id,
             fecha: movimiento.fecha,
-            usuario: movimiento.usuario
-                ? { id: movimiento.usuario.id, username: movimiento.usuario.username }
-                : null
+            usuario: mapUsuarioResumen(movimiento.usuario)
         };
     }
 }

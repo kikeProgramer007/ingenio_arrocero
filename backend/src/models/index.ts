@@ -12,6 +12,7 @@ import { Venta } from './venta.model';
 import { VentaDetalle } from './venta-detalle.model';
 import { Cobranza } from './cobranza.model';
 import { Proveedor } from './proveedor.model';
+import { Productor } from './productor.model';
 import { Compra } from './compra.model';
 import { CompraDetalle } from './compra-detalle.model';
 import { PagoProveedor } from './pago-proveedor.model';
@@ -66,8 +67,10 @@ Cliente.hasMany(Cobranza, { foreignKey: 'id_cliente', as: 'cobranzas' });
 
 Proveedor.hasMany(Compra, { foreignKey: 'id_proveedor', as: 'compras' });
 Compra.belongsTo(Proveedor, { foreignKey: 'id_proveedor', as: 'proveedor' });
-Proveedor.hasMany(Compra, { foreignKey: 'id_productor', as: 'comprasComoProductor' });
-Compra.belongsTo(Proveedor, { foreignKey: 'id_productor', as: 'productor' });
+Proveedor.hasMany(Productor, { foreignKey: 'id_proveedor', as: 'productores' });
+Productor.belongsTo(Proveedor, { foreignKey: 'id_proveedor', as: 'proveedor' });
+Productor.hasMany(Compra, { foreignKey: 'id_productor', as: 'compras' });
+Compra.belongsTo(Productor, { foreignKey: 'id_productor', as: 'productor' });
 Compra.belongsTo(User, { foreignKey: 'id_usuario', as: 'usuario' });
 User.hasMany(Compra, { foreignKey: 'id_usuario', as: 'compras' });
 
@@ -121,6 +124,7 @@ export {
   VentaDetalle,
   Cobranza,
   Proveedor,
+  Productor,
   Compra,
   CompraDetalle,
   PagoProveedor,

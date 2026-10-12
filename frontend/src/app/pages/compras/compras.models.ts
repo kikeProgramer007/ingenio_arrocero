@@ -1,3 +1,15 @@
+export interface Productor {
+    id: number;
+    id_proveedor?: number | null;
+    nombre: string;
+    nit_ci?: string | null;
+    telefono?: string | null;
+    direccion?: string | null;
+    observacion?: string | null;
+    activo: boolean;
+    path_imagen?: string | null;
+}
+
 export interface Proveedor {
     id: number;
     nombre: string;
@@ -45,7 +57,7 @@ export interface Compra {
     fecha_vencimiento?: string | null;
     productor?: { id: number; nombre: string } | null;
     proveedor: { id: number; nombre: string } | null;
-    usuario: { id: number; username: string } | null;
+    usuario: { id: number; username: string; nombre?: string | null } | null;
     detalles?: LineaCompra[];
     pagos?: PagoProveedor[];
 }
@@ -74,7 +86,7 @@ export interface PagoProveedor {
         tipo_cambio?: number | null;
         total_usd?: number | null;
     } | null;
-    usuario?: { id: number; username: string } | null;
+    usuario?: { id: number; username: string; nombre?: string | null } | null;
 }
 
 export interface CrearCompraPayload {

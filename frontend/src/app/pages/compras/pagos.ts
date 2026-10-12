@@ -5,12 +5,15 @@ import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
+import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TextareaModule } from 'primeng/textarea';
 import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
-import { Compra, PagoProveedor } from './compras.models';
-import { ComprasService } from './compras.service';
+import { nombreUsuario } from '../../shared/utils/usuario';
+import { Compra, PagoProveedor, Proveedor } from './compras.models';
+import { ComprasService, ProveedoresService } from './compras.service';
+import { METODOS_DOCUMENTO_FILTRO, ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
 import { ExportarService } from '../../shared/services/exportar.service';
 import { formatUsd } from '../../shared/utils/money';
 import { TooltipModule } from 'primeng/tooltip';
@@ -37,6 +40,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         ButtonModule,
         DialogModule,
         InputTextModule,
+        DatePickerModule,
         SelectModule,
         TableModule,
         TextareaModule,
@@ -66,12 +70,25 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" [compact]="true" />
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+            <div class="barra-listado">
+                <div class="campo-wide">
+                    <label class="block font-bold mb-1 text-sm">Proveedor</label>
+                    <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroProveedor" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo">
+                    <label class="block font-bold mb-1 text-sm">Método</label>
+                    <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo-fecha">
+                    <label class="block font-bold mb-1 text-sm">Período</label>
+                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
+                </div>
+                <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
-                <app-botones-exportar tipo="pagos" />
+                <app-botones-exportar tipo="pagos" [idProveedor]="filtroProveedor" [metodo]="filtroMetodo" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
             </div>
             <p-table
                 #dt
@@ -84,7 +101,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} pagos"
-                [globalFilterFields]="['fecha', 'proveedor.nombre', 'id_compra', 'usuario.username']"
+                [globalFilterFields]="['fecha', 'proveedor.nombre', 'id_compra', 'usuario.username', 'usuario.nombre']"
                 [rowHover]="true"
                 sortMode="single"
                 responsiveLayout="scroll"
@@ -114,7 +131,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         </td>
                         <td class="text-right">{{ formatBs(item.compra?.saldo_pendiente) }}</td>
                         <td>{{ etiquetaPago(item) }}</td>
-                        <td>{{ item.usuario?.username || '-' }}</td>
+                        <td>{{ nombreUsuario(item.usuario) }}</td>
                         <td>
                             <p-button
                                 icon="pi pi-ellipsis-v"
@@ -166,7 +183,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     <input pInputText class="w-full" [(ngModel)]="referencia" />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Nota interna del pago." posicion="top" /></label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Por lo siguiente <app-ayuda-campo texto="Texto que sale en el comprobante de egreso. Ej.: pago a cuenta de compra de arroz." posicion="top" /></label>
                     <textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea>
                 </div>
             </div>
@@ -181,7 +198,12 @@ export class PagosPage implements OnInit {
     filasTabla = FILAS_TABLA;
     filtrarTabla = filtrarTabla;
     pagos: PagoProveedor[] = [];
+    proveedores: Proveedor[] = [];
     pendientes: Compra[] = [];
+    filtroProveedor: number | null = null;
+    filtroMetodo = '';
+    rango: Date[] | null = null;
+    metodosFiltro = METODOS_DOCUMENTO_FILTRO;
     cargando = false;
     guardando = false;
     dialog = false;
@@ -195,6 +217,7 @@ export class PagosPage implements OnInit {
     observacion = '';
     saldoPendiente = 0;
     formatBs = formatBs;
+    nombreUsuario = nombreUsuario;
     formatUsd = formatUsd;
     formatFecha = formatFecha;
     etiquetaPago = etiquetaPago;
@@ -221,17 +244,32 @@ export class PagosPage implements OnInit {
 
     constructor(
         private comprasService: ComprasService,
+        private proveedoresService: ProveedoresService,
         private exportarService: ExportarService,
         private aviso: AvisoService
     ) {}
 
+    get fechaDesde(): string | undefined {
+        return ymdDesdeRango(this.rango);
+    }
+
+    get fechaHasta(): string | undefined {
+        return ymdHastaRango(this.rango);
+    }
+
     ngOnInit(): void {
+        this.proveedoresService.listar({ activos: 'todos' }).subscribe({ next: (data) => (this.proveedores = data) });
         this.cargar();
     }
 
     cargar(): void {
         this.cargando = true;
-        this.comprasService.listarPagos().subscribe({
+        this.comprasService.listarPagos({
+            id_proveedor: this.filtroProveedor || undefined,
+            metodo: this.filtroMetodo || undefined,
+            fecha_desde: this.fechaDesde,
+            fecha_hasta: this.fechaHasta
+        }).subscribe({
             next: (data) => {
                 this.pagos = data;
                 this.cargando = false;
@@ -296,7 +334,7 @@ export class PagosPage implements OnInit {
             return;
         }
         this.guardando = true;
-        const visor = this.exportarService.abrirVentanaEspera('Generando recibo de pago...');
+        const visor = this.exportarService.abrirVentanaEspera('Generando comprobante de egreso...');
         this.comprasService.crearPago({
             id_compra: this.idCompra,
             monto: this.monto,

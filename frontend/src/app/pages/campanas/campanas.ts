@@ -4,6 +4,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
+import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
@@ -18,7 +19,9 @@ import { MetodoPagoComponent } from '../../shared/components/metodo-pago';
 import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
 import { TooltipModule } from 'primeng/tooltip';
 import { Menu, MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
@@ -26,7 +29,7 @@ import { MenuItem } from 'primeng/api';
 @Component({
     selector: 'app-campanas',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent, TooltipModule, MenuModule],
+    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent, BotonesExportarComponent, TooltipModule, MenuModule],
     template: `
         <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -37,11 +40,21 @@ import { MenuItem } from 'primeng/api';
             <p-button label="Nueva campaña" icon="pi pi-plus" (onClick)="dialogCampana = true" />
         </div>
         <div class="card">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+            <div class="barra-listado">
+                <div class="campo campo-sm">
+                    <label class="block font-bold mb-1 text-sm">Estado</label>
+                    <p-select [options]="estadosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Todas" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo-fecha">
+                    <label class="block font-bold mb-1 text-sm">Período</label>
+                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Inicio" fluid />
+                </div>
+                <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
+                <app-botones-exportar tipo="campanas" [estado]="filtroEstado" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
             </div>
             <p-table
                 #dt
@@ -123,6 +136,12 @@ export class CampanasPage implements OnInit {
     filtrarTabla = filtrarTabla;
     campanas: any[] = [];
     proveedores: any[] = [];
+    filtroEstado = '';
+    rango: Date[] | null = null;
+    estadosFiltro = [
+        { label: 'Abierta', value: 'ABIERTA' },
+        { label: 'Cerrada', value: 'CERRADA' }
+    ];
     productos: any[] = [];
     cargando = false;
     guardando = false;
@@ -141,9 +160,27 @@ export class CampanasPage implements OnInit {
         this.cargar();
     }
 
+    get fechaDesde(): string | undefined {
+        return ymdDesdeRango(this.rango);
+    }
+
+    get fechaHasta(): string | undefined {
+        return ymdHastaRango(this.rango);
+    }
+
     cargar(): void {
         this.cargando = true;
-        this.http.get<any[]>(apiUrl('/api/campanas')).subscribe({
+        const params: { estado?: string; fecha_desde?: string; fecha_hasta?: string } = {};
+        if (this.filtroEstado) {
+            params.estado = this.filtroEstado;
+        }
+        if (this.fechaDesde) {
+            params.fecha_desde = this.fechaDesde;
+        }
+        if (this.fechaHasta) {
+            params.fecha_hasta = this.fechaHasta;
+        }
+        this.http.get<any[]>(apiUrl('/api/campanas'), { params }).subscribe({
             next: (d) => { this.campanas = d; this.cargando = false; },
             error: (e) => { this.cargando = false; this.aviso.error(e, 'No se pudo cargar'); }
         });

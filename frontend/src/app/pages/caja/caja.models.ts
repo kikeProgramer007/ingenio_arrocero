@@ -1,6 +1,7 @@
 export interface UsuarioCaja {
     id: number;
     username: string;
+    nombre?: string | null;
 }
 
 export interface MovimientoCaja {

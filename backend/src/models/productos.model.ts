@@ -39,7 +39,7 @@ export const Productos = sequelize.define('productos', {
     unidad_medida: {
         type: DataTypes.STRING(30),
         allowNull: false,
-        defaultValue: 'kg'
+        defaultValue: 'Kilo'
     },
     path_imagen:{
         type: DataTypes.STRING(255),

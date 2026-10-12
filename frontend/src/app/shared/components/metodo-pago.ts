@@ -56,6 +56,22 @@ const OPCIONES = [
                 <span *ngIf="montoTotal > 0"> / total {{ formatBs(montoTotal) }}</span>
             </div>
         </div>
+        <div class="metodo-pago-cambio" *ngIf="muestraCambio">
+            <p class="metodo-pago-ayuda">Si el cliente entrega más efectivo, indique lo recibido para ver el cambio.</p>
+            <div class="metodo-pago-montos">
+                <div>
+                    <label>Recibido en efectivo</label>
+                    <app-input-numero [ngModel]="recibido" (ngModelChange)="cambiarRecibido($event)" [disabled]="deshabilitado" />
+                </div>
+                <div>
+                    <label>Cambio</label>
+                    <div class="metodo-pago-cambio-valor" [class.metodo-pago-cambio-ok]="cambio > 0" [class.metodo-pago-cambio-falta]="recibidoInsuficiente">
+                        {{ formatBs(cambio) }}
+                    </div>
+                    <small class="metodo-pago-ayuda" *ngIf="recibidoInsuficiente">Falta {{ formatBs(faltaRecibido) }}</small>
+                </div>
+            </div>
+        </div>
     `,
     styles: [`
         .metodo-pago-grid {
@@ -152,6 +168,24 @@ const OPCIONES = [
         }
         .metodo-pago-suma-ok { color: var(--green-600, #16a34a); }
         .metodo-pago-suma-error { color: var(--red-500, #ef4444); }
+        .metodo-pago-cambio {
+            margin-top: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+        }
+        .metodo-pago-cambio-valor {
+            display: flex;
+            align-items: center;
+            min-height: 2.5rem;
+            padding: 0 0.75rem;
+            border: 1px solid var(--surface-border);
+            border-radius: var(--p-border-radius, 6px);
+            background: var(--surface-ground, #f9fafb);
+            font-weight: 700;
+        }
+        .metodo-pago-cambio-ok { color: var(--green-600, #16a34a); }
+        .metodo-pago-cambio-falta { color: var(--red-500, #ef4444); }
         @media (max-width: 520px) {
             .metodo-pago-grid,
             .metodo-pago-montos {
@@ -165,12 +199,15 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
     @Input() montoTotal = 0;
     @Input() montoEfectivo = 0;
     @Input() montoQr = 0;
+    /** Solo ventas/cobranzas: el cliente puede entregar más efectivo y ver el cambio. */
+    @Input() mostrarCambio = false;
     @Output() montoEfectivoChange = new EventEmitter<number>();
     @Output() montoQrChange = new EventEmitter<number>();
 
     opciones = OPCIONES;
     valor = '';
     deshabilitado = false;
+    recibido = 0;
     formatBs = formatBs;
 
     private onChange: (value: string) => void = () => undefined;
@@ -187,9 +224,43 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
         return this.suma === toMoney(this.montoTotal) && this.montoEfectivo > 0 && this.montoQr > 0;
     }
 
+    get muestraCambio(): boolean {
+        if (!this.mostrarCambio) {
+            return false;
+        }
+        return this.valor === METODO_PAGO.EFECTIVO || this.valor === METODO_PAGO.MIXTO;
+    }
+
+    get efectivoACobrar(): number {
+        if (this.valor === METODO_PAGO.EFECTIVO) {
+            return toMoney(this.montoTotal);
+        }
+        if (this.valor === METODO_PAGO.MIXTO) {
+            return toMoney(this.montoEfectivo);
+        }
+        return 0;
+    }
+
+    get cambio(): number {
+        const extra = toMoney(this.recibido) - this.efectivoACobrar;
+        return extra > 0 ? extra : 0;
+    }
+
+    get recibidoInsuficiente(): boolean {
+        return toMoney(this.recibido) > 0 && toMoney(this.recibido) < this.efectivoACobrar;
+    }
+
+    get faltaRecibido(): number {
+        const falta = this.efectivoACobrar - toMoney(this.recibido);
+        return falta > 0 ? toMoney(falta) : 0;
+    }
+
     ngOnChanges(changes: SimpleChanges): void {
         if (changes['montoTotal'] && this.valor === METODO_PAGO.MIXTO && !changes['montoTotal'].firstChange) {
             this.cambiarEfectivo(this.montoEfectivo);
+        }
+        if ((changes['montoTotal'] || changes['montoEfectivo']) && this.muestraCambio) {
+            this.ajustarRecibido();
         }
     }
 
@@ -202,11 +273,20 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
         this.onTouched();
         if (value === METODO_PAGO.EFECTIVO) {
             this.emitir(toMoney(this.montoTotal), 0);
+            this.recibido = toMoney(this.montoTotal);
         } else if (value === METODO_PAGO.QR) {
             this.emitir(0, toMoney(this.montoTotal));
+            this.recibido = 0;
         } else if (value === METODO_PAGO.MIXTO && this.montoEfectivo <= 0 && this.montoQr <= 0) {
             this.emitir(0, 0);
+            this.recibido = 0;
+        } else {
+            this.ajustarRecibido();
         }
+    }
+
+    cambiarRecibido(value: number | null): void {
+        this.recibido = toMoney(value);
     }
 
     cambiarEfectivo(value: number | null): void {
@@ -223,6 +303,11 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
 
     writeValue(value: string | null): void {
         this.valor = value || '';
+        if (this.muestraCambio) {
+            this.ajustarRecibido();
+        } else {
+            this.recibido = 0;
+        }
     }
 
     registerOnChange(fn: (value: string) => void): void {
@@ -242,5 +327,15 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
         this.montoQr = qr;
         this.montoEfectivoChange.emit(efectivo);
         this.montoQrChange.emit(qr);
+        if (this.muestraCambio) {
+            this.ajustarRecibido();
+        }
+    }
+
+    private ajustarRecibido(): void {
+        const due = this.efectivoACobrar;
+        if (toMoney(this.recibido) < due) {
+            this.recibido = due;
+        }
     }
 }

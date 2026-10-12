@@ -1,6 +1,6 @@
 /**
- * Vacía movimientos y maestros de prueba para que el cliente empiece limpio.
- * Conserva usuario, perfil, menú, empresa, categorías y productos (stock en 0).
+ * Vacía movimientos, maestros de prueba e inventario para que el cliente empiece limpio.
+ * Conserva usuario, perfil, menú, empresa y categorías. Recarga el catálogo de fotos (stock 0).
  *
  * Uso: npx tsc && node dist/scripts/limpiar-movimientos.js --yes
  */
@@ -9,7 +9,7 @@ import sequelize from '../db/connection';
 import { QueryTypes } from 'sequelize';
 import { assertBaseDeUsuario } from '../utils/db-sync';
 import { seedInventarioBase } from '../seed/inventario.seed';
-import { Productos } from '../models/productos.model';
+import { seedCatalogoFotos } from '../seed/catalogo-fotos.seed';
 
 const TABLAS_BORRAR = [
     'cobranzas',
@@ -27,10 +27,12 @@ const TABLAS_BORRAR = [
     'movimientos_caja',
     'cajas',
     'clientes',
-    'proveedores'
+    'proveedores',
+    'productores',
+    'productos'
 ];
 
-const TABLAS_CONSERVAR = ['user', 'perfil', 'programas', 'perfil_programas', 'empresa', 'categorias_producto', 'productos'];
+const TABLAS_CONSERVAR = ['user', 'perfil', 'programas', 'perfil_programas', 'empresa', 'categorias_producto'];
 
 async function contar(tabla: string): Promise<number> {
     const filas = await sequelize.query<{ n: number }>(`SELECT COUNT(*) AS n FROM \`${tabla}\``, {
@@ -85,17 +87,17 @@ async function main(): Promise<void> {
         await sequelize.query('SET FOREIGN_KEY_CHECKS = 1');
     }
 
-    await Productos.update({ stock: 0 }, { where: {} });
     await seedInventarioBase();
+    await seedCatalogoFotos();
 
     const despues: Record<string, number> = {};
-    for (const tabla of [...TABLAS_BORRAR, ...TABLAS_CONSERVAR]) {
+    for (const tabla of [...TABLAS_BORRAR, ...TABLAS_CONSERVAR, 'productos']) {
         if (await existeTabla(tabla)) {
             despues[tabla] = await contar(tabla);
         }
     }
     console.log('Después:', despues);
-    console.log('Listo. Usuario, menú y empresa se conservaron. Stock de productos en 0.');
+    console.log('Listo. Usuario, menú y empresa se conservaron. Catálogo de fotos recargado (stock 0).');
     await sequelize.close();
 }
 

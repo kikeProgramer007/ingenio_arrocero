@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { Compra, CompraDetalle, Empresa, PagoProveedor, Productos, Proveedor, sequelize, User } from '../models';
+import { CategoriaProducto, Compra, CompraDetalle, Empresa, PagoProveedor, Productor, Productos, Proveedor, sequelize, User } from '../models';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
-import { getAuthUser } from '../utils/auth-user';
+import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
 import { obtenerCajaAbierta, registrarEgresosPartidos } from '../utils/caja-ingreso';
 import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
@@ -11,12 +11,13 @@ import { ESTADO_COMPRA, estadoCompraPorSaldo, inferirTipoCompra, TIPO_CAMBIO_DEF
 import { CrearCompraDTO, CrearPagoProveedorDTO } from '../dtos/compra.dto';
 import { camposPagoDocumento } from '../utils/metodo-pago';
 import { esCompraServicio } from '../utils/cuenta-proveedor';
-import { parseFechaLocal, ymdLocal } from '../utils/fecha';
+import { aplicarFiltroFecha, parseFechaLocal, ymdLocal } from '../utils/fecha';
 import { datosEmpresa, normalizarTipoCambio, refrescarEmpresa } from '../utils/empresa';
-import { MENSAJE_UNIDAD_MEDIDA, unidadMedidaInvalida } from '../utils/unidad-medida';
+import { esProductoEmpaque } from '../utils/empaque';
+import { MENSAJE_UNIDAD_MEDIDA, normalizarUnidadMedida, unidadMedidaInvalida } from '../utils/unidad-medida';
 import { resolverPlazoCredito } from '../utils/credito';
 
-const usuarioAtributos = ['id', 'username'];
+const usuarioAtributos = ['id', 'username', 'nombre'];
 
 function fechaCompra(valor?: string): Date {
     if (!valor) {
@@ -80,7 +81,7 @@ function mapPago(item: any) {
             }
             : null,
         monto_usd: item.compra ? usdReferencial(item.monto, item.compra.tipo_cambio) : null,
-        usuario: item.usuario ? { id: item.usuario.id, username: item.usuario.username } : null
+        usuario: mapUsuarioResumen(item.usuario)
     };
 }
 
@@ -113,7 +114,7 @@ function mapCompra(compra: any) {
         fecha_vencimiento: compra.fecha_vencimiento || null,
         productor: compra.productor ? { id: compra.productor.id, nombre: compra.productor.nombre } : null,
         proveedor: compra.proveedor ? { id: compra.proveedor.id, nombre: compra.proveedor.nombre } : null,
-        usuario: compra.usuario ? { id: compra.usuario.id, username: compra.usuario.username } : null,
+        usuario: mapUsuarioResumen(compra.usuario),
         detalles: (compra.detalles || []).map(mapLinea),
         pagos: (compra.pagos || []).map(mapPago)
     };
@@ -121,7 +122,7 @@ function mapCompra(compra: any) {
 
 const includesCompra = [
     { model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre'] },
-    { model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] },
+    { model: Productor, as: 'productor', attributes: ['id', 'nombre'] },
     { model: User, as: 'usuario', attributes: usuarioAtributos },
     { model: CompraDetalle, as: 'detalles' },
     { model: PagoProveedor, as: 'pagos' }
@@ -131,19 +132,23 @@ export class CompraController {
     public static async listar(req: Request, res: Response): Promise<void> {
         try {
             const where: any = {};
-            const { estado, id_proveedor } = req.query;
+            const { estado, id_proveedor, tipo_compra } = req.query;
             if (typeof estado === 'string' && estado) {
                 where.estado = estado;
             }
             if (typeof id_proveedor === 'string' && id_proveedor) {
                 where.id_proveedor = Number(id_proveedor);
             }
+            aplicarFiltroFecha(where, req.query);
             const compras = await Compra.findAll({
                 where,
                 include: includesCompra,
                 order: [['fecha', 'DESC'], ['id', 'DESC']]
             });
-            res.status(200).json(compras.map(mapCompra));
+            const filtradas = typeof tipo_compra === 'string' && tipo_compra
+                ? compras.filter((c) => inferirTipoCompra(c.get({ plain: true })) === tipo_compra)
+                : compras;
+            res.status(200).json(filtradas.map(mapCompra));
         } catch (error) {
             handleError(res, error, 'Error al listar compras');
         }
@@ -208,7 +213,7 @@ export class CompraController {
                 precio_unitario: precio,
                 subtotal,
                 id_producto: linea.id_producto || null,
-                unidad: (linea.unidad || (esChala ? 'fanega' : '')).trim() || null
+                unidad: (linea.unidad || (esChala ? 'Fanega' : '')).trim() || null
             };
         });
         const total = esChala
@@ -235,18 +240,24 @@ export class CompraController {
             let idProductor: number | null = null;
             if (esChala) {
                 const id = Number(datos.id_productor);
-                if (!id) {
-                    await transaction.rollback();
-                    res.status(400).json({ mensaje: 'Seleccione el productor del arroz' });
-                    return;
+                if (id) {
+                    const productor = await Productor.findByPk(id, { transaction });
+                    if (!productor || !productor.get('activo')) {
+                        await transaction.rollback();
+                        res.status(400).json({ mensaje: 'El productor no existe o está inactivo' });
+                        return;
+                    }
+                    const dueño = Number(productor.get('id_proveedor'));
+                    if (dueño && dueño !== Number(datos.id_proveedor)) {
+                        await transaction.rollback();
+                        res.status(400).json({ mensaje: 'El productor no pertenece a este proveedor' });
+                        return;
+                    }
+                    if (!dueño) {
+                        await productor.update({ id_proveedor: datos.id_proveedor }, { transaction });
+                    }
+                    idProductor = id;
                 }
-                const productor = await Proveedor.findByPk(id, { transaction });
-                if (!productor || !productor.get('activo')) {
-                    await transaction.rollback();
-                    res.status(400).json({ mensaje: 'El productor no existe o está inactivo' });
-                    return;
-                }
-                idProductor = id;
             }
 
             let cajaAbierta = null;
@@ -297,8 +308,11 @@ export class CompraController {
 
             const idCompra = compra.get('id') as number;
             for (const linea of lineas) {
-                if (linea.id_producto && (!linea.descripcion || !linea.unidad)) {
-                    const producto = await Productos.findByPk(linea.id_producto, { transaction });
+                if (linea.id_producto) {
+                    const producto = await Productos.findByPk(linea.id_producto, {
+                        transaction,
+                        include: [{ model: CategoriaProducto, as: 'categoria', attributes: ['id', 'nombre'] }]
+                    });
                     if (producto) {
                         if (!linea.descripcion) {
                             linea.descripcion = String(producto.get('nombre'));
@@ -306,7 +320,24 @@ export class CompraController {
                         if (!linea.unidad) {
                             linea.unidad = String(producto.get('unidad_medida') || '') || null;
                         }
+                        const esEmpaque = esProductoEmpaque({
+                            nombre: producto.get('nombre'),
+                            categoria: (producto as any).categoria
+                        });
+                        if (esEmpaque && tipoCompra !== TIPO_COMPRA.BOLSAS) {
+                            await transaction.rollback();
+                            res.status(400).json({ mensaje: 'Las bolsas y empaques se compran con tipo Bolsas y empaques.' });
+                            return;
+                        }
+                        if (!esEmpaque && tipoCompra === TIPO_COMPRA.BOLSAS) {
+                            await transaction.rollback();
+                            res.status(400).json({ mensaje: 'En bolsas y empaques solo se compran tipos de bolsa del inventario.' });
+                            return;
+                        }
                     }
+                }
+                if (linea.unidad) {
+                    linea.unidad = normalizarUnidadMedida(linea.unidad) || linea.unidad;
                 }
                 if (linea.unidad && unidadMedidaInvalida(linea.unidad)) {
                     await transaction.rollback();
@@ -399,6 +430,10 @@ export class PagoProveedorController {
             if (typeof req.query.id_proveedor === 'string' && req.query.id_proveedor) {
                 where.id_proveedor = Number(req.query.id_proveedor);
             }
+            if (typeof req.query.metodo === 'string' && req.query.metodo) {
+                where.metodo_pago = req.query.metodo;
+            }
+            aplicarFiltroFecha(where, req.query);
             const pagos = await PagoProveedor.findAll({
                 where,
                 include: [

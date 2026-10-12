@@ -48,6 +48,14 @@ export class BotonesExportarComponent {
     @Input() q?: string;
     @Input() idProductor?: number | null;
     @Input() tipoCompra?: string;
+    @Input() metodo?: string;
+    @Input() categoria?: string;
+    @Input() idProveedor?: number | null;
+    @Input() procedencia?: string;
+    @Input() activos?: string;
+    @Input() tipoMovimiento?: string;
+    @Input() origen?: string;
+    @Input() rol?: string;
     @Input() disabled = false;
 
     cargando: FormatoExport | null = null;
@@ -71,7 +79,15 @@ export class BotonesExportarComponent {
             id: this.id || undefined,
             q: this.q?.trim() || undefined,
             id_productor: this.idProductor || undefined,
-            tipo_compra: this.tipoCompra || undefined
+            tipo_compra: this.tipoCompra || undefined,
+            metodo: this.metodo || undefined,
+            categoria: this.categoria || undefined,
+            id_proveedor: this.idProveedor || undefined,
+            procedencia: this.procedencia || undefined,
+            activos: this.activos || undefined,
+            tipo_movimiento: this.tipoMovimiento || undefined,
+            origen: this.origen || undefined,
+            rol: this.rol || undefined
         };
         this.exportarService.descargar(params).subscribe({
             next: () => {

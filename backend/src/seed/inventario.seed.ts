@@ -21,7 +21,7 @@ export async function seedInventarioBase(): Promise<void> {
                 precio_compra: 0,
                 stock: 0,
                 stock_minimo: 0,
-                unidad_medida: 'kg',
+                unidad_medida: 'Fanega',
                 path_imagen: '/uploads/defaults/producto.svg',
                 id_categoria: chala.get('id'),
                 eliminado: false
@@ -38,7 +38,7 @@ export async function seedInventarioBase(): Promise<void> {
                 precio_compra: 0,
                 stock: 0,
                 stock_minimo: 0,
-                unidad_medida: 'kg',
+                unidad_medida: 'Kilo',
                 path_imagen: '/uploads/defaults/producto.svg',
                 id_categoria: pilado.get('id'),
                 eliminado: false

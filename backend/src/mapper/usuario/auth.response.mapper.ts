@@ -10,6 +10,7 @@ export class AuthResponseMapper extends AbstractMapper<any, UserDto> {
       return {
         id: source.id,
         username: source.username,
+        nombre: source.nombre || source.username,
         perfil: { id: 0, nombre: 'Sin perfil' },
         programas: []
       };
@@ -44,6 +45,7 @@ export class AuthResponseMapper extends AbstractMapper<any, UserDto> {
     return {
       id: source.id,
       username: source.username,
+      nombre: source.nombre || source.username,
       perfil,
       programas
     };

@@ -2,6 +2,7 @@ import { ESTADO_COMPRA, inferirTipoCompra, TIPO_COMPRA, TIPOS_COMPRA } from '../
 import { parseFechaLocal } from './fecha';
 import { toQty } from './inventario';
 import { roundMoney, toMoney } from './money';
+import { normalizarUnidadMedida } from './unidad-medida';
 
 export type TipoKardexProveedor = 'SALDO ANTERIOR' | 'COMPRA' | 'SERVICIO' | 'PAGO' | 'ACOPIO' | 'PAGO ACOPIO';
 
@@ -91,7 +92,7 @@ export function armarInventarioProveedor(compras: any[], acopios: any[]): LineaI
             actual = {
                 id_producto: Number.isFinite(pid) && pid > 0 ? pid : null,
                 producto,
-                unidad: unidad.trim() || 'kg',
+                unidad: normalizarUnidadMedida(unidad) || 'Kilo',
                 compras: 0,
                 acopio: 0,
                 entregado: 0
@@ -107,7 +108,7 @@ export function armarInventarioProveedor(compras: any[], acopios: any[]): LineaI
                 continue;
             }
             const nombre = String(detalle.producto?.nombre || detalle.descripcion || 'Producto');
-            const unidad = String(detalle.unidad || detalle.producto?.unidad_medida || 'kg');
+            const unidad = String(detalle.unidad || detalle.producto?.unidad_medida || 'Kilo');
             const linea = fila(detalle.id_producto, nombre, unidad);
             linea.compras = toQty(linea.compras + toQty(detalle.cantidad));
         }
@@ -115,7 +116,7 @@ export function armarInventarioProveedor(compras: any[], acopios: any[]): LineaI
 
     for (const acopio of acopios) {
         const nombre = String(acopio.producto?.nombre || acopio.descripcion || 'Acopio');
-        const unidad = String(acopio.producto?.unidad_medida || 'kg');
+        const unidad = String(acopio.producto?.unidad_medida || 'Kilo');
         const linea = fila(acopio.id_producto, nombre, unidad);
         linea.acopio = toQty(linea.acopio + toQty(acopio.cantidad));
     }
@@ -186,7 +187,13 @@ function idProductorDe(origen: any): number | null {
 }
 
 function nombreProductorDe(origen: any): string {
-    return String(origen?.productor?.nombre || origen?.compra?.productor?.nombre || '').trim();
+    return String(
+        origen?.productor?.nombre
+        || origen?.compra?.productor?.nombre
+        || origen?.proveedor?.nombre
+        || origen?.compra?.proveedor?.nombre
+        || ''
+    ).trim();
 }
 
 function pasaFiltroProductor(idProductor: number | null, filtro?: number | null): boolean {

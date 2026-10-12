@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { CategoriaProducto, CompraDetalle, MovimientoInventario, Productos, sequelize, User } from '../models';
-import { MENSAJE_UNIDAD_MEDIDA, unidadMedidaInvalida } from '../utils/unidad-medida';
+import { esProductoEmpaque } from '../utils/empaque';
+import { MENSAJE_UNIDAD_MEDIDA, normalizarUnidadMedida, unidadMedidaInvalida } from '../utils/unidad-medida';
 import { AjusteStockDTO, CrearProductoDTO } from '../dtos/producto.dto';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
@@ -19,7 +20,7 @@ function mapProducto(item: any) {
         precio_compra: toMoney(item.precio_compra),
         stock: toQty(item.stock),
         stock_minimo: toQty(item.stock_minimo),
-        unidad_medida: item.unidad_medida,
+        unidad_medida: normalizarUnidadMedida(item.unidad_medida) || item.unidad_medida,
         path_imagen: resolverImagen(item.path_imagen, 'producto'),
         eliminado: item.eliminado,
         id_categoria: item.id_categoria,
@@ -143,7 +144,7 @@ export class ProductoController {
         if (!datos) {
             return;
         }
-        const unidad = datos.unidad_medida?.trim() || 'kg';
+        const unidad = normalizarUnidadMedida(datos.unidad_medida) || 'Kilo';
         if (unidadMedidaInvalida(unidad)) {
             res.status(400).json({ mensaje: MENSAJE_UNIDAD_MEDIDA });
             return;
@@ -181,7 +182,7 @@ export class ProductoController {
                 res.status(404).json({ mensaje: 'Producto no encontrado' });
                 return;
             }
-            const unidad = datos.unidad_medida?.trim() || String(producto.get('unidad_medida') || 'kg');
+            const unidad = normalizarUnidadMedida(datos.unidad_medida) || normalizarUnidadMedida(producto.get('unidad_medida')) || 'Kilo';
             if (unidadMedidaInvalida(unidad)) {
                 res.status(400).json({ mensaje: MENSAJE_UNIDAD_MEDIDA });
                 return;
@@ -218,6 +219,20 @@ export class ProductoController {
         const cantidad = toQty(datos.cantidad);
         if (cantidad === 0) {
             res.status(400).json({ mensaje: 'La cantidad de ajuste no puede ser 0' });
+            return;
+        }
+        const productoAjuste = await Productos.findByPk(req.params.id, {
+            include: [{ model: CategoriaProducto, as: 'categoria' }]
+        });
+        if (!productoAjuste || productoAjuste.get('eliminado')) {
+            res.status(404).json({ mensaje: 'Producto no encontrado' });
+            return;
+        }
+        if (cantidad > 0 && esProductoEmpaque({
+            nombre: productoAjuste.get('nombre'),
+            categoria: (productoAjuste as any).categoria
+        })) {
+            res.status(400).json({ mensaje: 'Las bolsas entran por Compras (tipo Bolsas y empaques), no por ajuste.' });
             return;
         }
         const transaction = await sequelize.transaction();
@@ -258,7 +273,7 @@ export class ProductoController {
                 where,
                 include: [
                     { model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] },
-                    { model: User, as: 'usuario', attributes: ['id', 'username'] }
+                    { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
                 ],
                 order: [['fecha', 'DESC'], ['id', 'DESC']],
                 limit: 200

@@ -23,7 +23,7 @@ export const Compra = sequelize.define('compra', {
         type: DataTypes.INTEGER,
         allowNull: true,
         references: {
-            model: 'proveedores',
+            model: 'productores',
             key: 'id'
         },
         onUpdate: 'CASCADE',

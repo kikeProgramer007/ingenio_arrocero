@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import { Gasto, PagoGasto, sequelize, User } from '../models';
+import { aplicarFiltroFecha } from '../utils/fecha';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
-import { getAuthUser } from '../utils/auth-user';
+import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
 import { obtenerCajaAbierta, registrarEgresosPartidos } from '../utils/caja-ingreso';
 import { ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
@@ -28,7 +29,7 @@ function mapPagoGasto(item: any) {
         referencia: item.referencia,
         observacion: item.observacion,
         fecha: item.fecha,
-        usuario: item.usuario ? { id: item.usuario.id, username: item.usuario.username } : null
+        usuario: mapUsuarioResumen(item.usuario)
     };
 }
 
@@ -61,7 +62,7 @@ function mapGasto(item: any) {
         observacion: item.observacion,
         id_caja: item.id_caja,
         fecha: item.fecha,
-        usuario: item.usuario ? { id: item.usuario.id, username: item.usuario.username } : null,
+        usuario: mapUsuarioResumen(item.usuario),
         pagos: (item.pagos || []).map(mapPagoGasto)
     };
 }
@@ -76,11 +77,18 @@ export class GastoController {
             if (typeof req.query.condicion === 'string' && req.query.condicion) {
                 where.condicion = req.query.condicion;
             }
+            if (typeof req.query.metodo === 'string' && req.query.metodo) {
+                where.metodo_pago = req.query.metodo;
+            }
+            if (typeof req.query.categoria === 'string' && req.query.categoria) {
+                where.categoria = req.query.categoria;
+            }
+            aplicarFiltroFecha(where, req.query);
             const gastos = await Gasto.findAll({
                 where,
                 include: [
-                    { model: User, as: 'usuario', attributes: ['id', 'username'] },
-                    { model: PagoGasto, as: 'pagos', include: [{ model: User, as: 'usuario', attributes: ['id', 'username'] }] }
+                    { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] },
+                    { model: PagoGasto, as: 'pagos', include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }] }
                 ],
                 order: [['fecha', 'DESC'], ['id', 'DESC']]
             });
@@ -186,7 +194,7 @@ export class GastoController {
 
             await transaction.commit();
             const creado = await Gasto.findByPk(gasto.get('id') as number, {
-                include: [{ model: User, as: 'usuario', attributes: ['id', 'username'] }]
+                include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }]
             });
             res.status(201).json({ mensaje: 'Registrado correctamente', data: mapGasto(creado) });
         } catch (error) {
@@ -294,8 +302,8 @@ export class GastoController {
             await transaction.commit();
             const actualizado = await Gasto.findByPk(gasto.get('id') as number, {
                 include: [
-                    { model: User, as: 'usuario', attributes: ['id', 'username'] },
-                    { model: PagoGasto, as: 'pagos', include: [{ model: User, as: 'usuario', attributes: ['id', 'username'] }] }
+                    { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] },
+                    { model: PagoGasto, as: 'pagos', include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }] }
                 ]
             });
             res.status(201).json({ mensaje: 'Pago registrado', data: mapGasto(actualizado), pago: mapPagoGasto(pago) });

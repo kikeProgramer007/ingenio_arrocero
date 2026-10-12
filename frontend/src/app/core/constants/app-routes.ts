@@ -21,5 +21,6 @@ export const APP_ROUTES = {
     campanas: '/campanas',
     produccion: '/produccion',
     reportes: '/reportes',
-    empresa: '/empresa'
+    empresa: '/empresa',
+    usuarios: '/usuarios'
 } as const;

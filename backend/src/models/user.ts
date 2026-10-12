@@ -18,6 +18,31 @@ export const User = sequelize.define('user', {
         type: DataTypes.STRING,
         allowNull: false
     },
+    nombre: {
+        type: DataTypes.STRING(120),
+        allowNull: true
+    },
+    ci: {
+        type: DataTypes.STRING(30),
+        allowNull: true
+    },
+    telefono: {
+        type: DataTypes.STRING(30),
+        allowNull: true
+    },
+    email: {
+        type: DataTypes.STRING(120),
+        allowNull: true
+    },
+    cargo: {
+        type: DataTypes.STRING(80),
+        allowNull: true
+    },
+    activo: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true
+    },
     id_perfil: {
         type: DataTypes.INTEGER,
         references: {

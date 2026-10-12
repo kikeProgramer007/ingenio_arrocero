@@ -10,6 +10,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { APP_ROUTES } from '../../core/constants/app-routes';
 import { EmpresaService } from '../../core/services/empresa.service';
 import { ConfirmarService } from '../../shared/services/confirmar.service';
+import { nombreUsuario } from '../../shared/utils/usuario';
 
 @Component({
     selector: 'app-topbar',
@@ -76,7 +77,8 @@ export class AppTopbar {
     ) {}
 
     get usuario(): string {
-        return this.authService.getUser()?.username || 'Cuenta';
+        const nombre = nombreUsuario(this.authService.getUser());
+        return nombre === '-' ? 'Cuenta' : nombre;
     }
 
     toggleDarkMode() {

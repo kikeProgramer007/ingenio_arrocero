@@ -11,8 +11,9 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
-import { Proveedor, CuentaProveedor } from './compras.models';
-import { ProveedoresService } from './compras.service';
+import { Proveedor, Productor, CuentaProveedor } from './compras.models';
+import { ProductoresService, ProveedoresService } from './compras.service';
+import { ConfirmarService } from '../../shared/services/confirmar.service';
 import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
@@ -21,6 +22,7 @@ import { Menu, MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { ESTADOS_ACTIVO_FILTRO } from '../../shared/utils/fecha-filtro';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { formatBs, formatFecha } from '../caja/caja.utils';
 import { formatUsd } from '../../shared/utils/money';
@@ -54,21 +56,26 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Proveedores</div>
-                <div class="text-muted-color">Quienes venden arroz en chala, insumos y servicios</div>
+                <div class="text-muted-color">Quienes venden arroz en chala, insumos y servicios. Cada proveedor puede tener varios productores.</div>
             </div>
             <p-button label="Nuevo proveedor" icon="pi pi-plus" (onClick)="abrirNuevo()" />
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+            <div class="barra-listado">
+                <div class="campo">
+                    <label class="block font-bold mb-1 text-sm">Estado</label>
+                    <p-select [options]="estadosActivo" optionLabel="label" optionValue="value" [(ngModel)]="filtroActivo" fluid appendTo="body" />
+                </div>
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar por nombre o NIT/CI" (buscar)="filtrarTabla(dt, $event)" />
                 </div>
+                <app-botones-exportar tipo="proveedores" [activos]="filtroActivo" />
             </div>
             <p-table
                 #dt
-                [value]="cargando ? [] : proveedores"
+                [value]="cargando ? [] : proveedoresFiltrados"
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
@@ -165,6 +172,96 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
             <ng-template #footer>
                 <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialog = false" />
                 <p-button label="Guardar" [loading]="guardando" (onClick)="guardar()" />
+            </ng-template>
+        </p-dialog>
+
+        <p-dialog
+            [header]="'Productores de ' + (proveedorProductores?.nombre || '')"
+            [(visible)]="dialogProductores"
+            [modal]="true"
+            [style]="{ width: '48rem' }"
+            [breakpoints]="{ '960px': '95vw' }"
+        >
+            <p class="text-muted-color text-sm mb-3">Un proveedor tiene varios productores. Aquí se editan o eliminan. Si ya tiene compras, no se borra: inactívelo.</p>
+            <div class="flex justify-end mb-3">
+                <p-button label="Nuevo productor" icon="pi pi-plus" size="small" (onClick)="abrirNuevoProductor()" />
+            </div>
+            <p-table [value]="productores" [loading]="cargandoProductores" [showLoader]="false" responsiveLayout="scroll">
+                <ng-template #header>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>NIT / CI</th>
+                        <th>Teléfono</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </ng-template>
+                <ng-template #body let-item>
+                    <tr>
+                        <td>
+                            {{ item.nombre }}
+                            <p-tag *ngIf="!item.id_proveedor" value="Sin asignar" severity="warn" class="ml-2" />
+                        </td>
+                        <td>{{ item.nit_ci || '-' }}</td>
+                        <td>{{ item.telefono || '-' }}</td>
+                        <td><p-tag [value]="item.activo ? 'Activo' : 'Inactivo'" [severity]="item.activo ? 'success' : 'secondary'" /></td>
+                        <td class="text-right whitespace-nowrap">
+                            <p-button icon="pi pi-pencil" [rounded]="true" [text]="true" severity="warn" pTooltip="Editar" (onClick)="editarProductor(item)" />
+                            <p-button icon="pi pi-trash" [rounded]="true" [text]="true" severity="danger" pTooltip="Eliminar" (onClick)="eliminarProductor(item)" />
+                        </td>
+                    </tr>
+                </ng-template>
+                <ng-template #emptymessage>
+                    <tr>
+                        <td colspan="5">
+                            <div class="text-center py-6 text-muted-color">Este proveedor aún no tiene productores.</div>
+                        </td>
+                    </tr>
+                </ng-template>
+            </p-table>
+            <ng-template #footer>
+                <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogProductores = false" />
+            </ng-template>
+        </p-dialog>
+
+        <p-dialog
+            [header]="formProductor.id ? 'Editar productor' : 'Nuevo productor'"
+            [(visible)]="dialogProductor"
+            [modal]="true"
+            [appendTo]="'body'"
+            [baseZIndex]="2000"
+            [style]="{ width: '28rem' }"
+            [breakpoints]="{ '960px': '95vw' }"
+        >
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Quién cosechó o entregó el arroz." posicion="right" /></label>
+                    <input pInputText class="w-full" [(ngModel)]="formProductor.nombre" />
+                </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">NIT / CI <app-ayuda-campo texto="Opcional." posicion="right" /></label>
+                    <input pInputText class="w-full" [(ngModel)]="formProductor.nit_ci" />
+                </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Teléfono <app-ayuda-campo texto="Opcional." posicion="right" /></label>
+                    <input pInputText class="w-full" [(ngModel)]="formProductor.telefono" />
+                </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Dirección <app-ayuda-campo texto="Opcional." posicion="right" /></label>
+                    <input pInputText class="w-full" [(ngModel)]="formProductor.direccion" />
+                </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Nota interna. Opcional." posicion="top" /></label>
+                    <textarea pTextarea class="w-full" rows="2" [(ngModel)]="formProductor.observacion"></textarea>
+                </div>
+                <div class="flex items-center gap-2" *ngIf="formProductor.id">
+                    <p-toggleswitch [(ngModel)]="formProductor.activo" />
+                    <span>Activo</span>
+                </div>
+            </div>
+            <ng-template #footer>
+                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogProductor = false" />
+                <p-button label="Guardar" [loading]="guardandoProductor" (onClick)="guardarProductor()" />
             </ng-template>
         </p-dialog>
 
@@ -293,9 +390,30 @@ export class ProveedoresPage implements OnInit {
     filasTabla = FILAS_TABLA;
     filtrarTabla = filtrarTabla;
     proveedores: Proveedor[] = [];
+    filtroActivo = 'todos';
+    estadosActivo = ESTADOS_ACTIVO_FILTRO;
+
+    get proveedoresFiltrados(): Proveedor[] {
+        return this.proveedores.filter((p) => {
+            if (this.filtroActivo === 'activos' && !p.activo) {
+                return false;
+            }
+            if (this.filtroActivo === 'inactivos' && p.activo) {
+                return false;
+            }
+            return true;
+        });
+    }
     cargando = false;
     guardando = false;
     dialog = false;
+    dialogProductores = false;
+    dialogProductor = false;
+    cargandoProductores = false;
+    guardandoProductor = false;
+    proveedorProductores: Proveedor | null = null;
+    productores: Productor[] = [];
+    formProductor: Productor = this.productorVacio();
     dialogCuenta = false;
     cargandoCuenta = false;
     form: Proveedor = this.vacio();
@@ -314,7 +432,12 @@ export class ProveedoresPage implements OnInit {
     formatUsd = formatUsd;
     formatFecha = formatFecha;
 
-    constructor(private proveedoresService: ProveedoresService, private aviso: AvisoService) {}
+    constructor(
+        private proveedoresService: ProveedoresService,
+        private productoresService: ProductoresService,
+        private confirmar: ConfirmarService,
+        private aviso: AvisoService
+    ) {}
 
     ngOnInit(): void {
         this.cargar();
@@ -342,6 +465,12 @@ export class ProveedoresPage implements OnInit {
     abrirAcciones(event: Event, menu: Menu, item: Proveedor): void {
         this.itemsAcciones = [
             {
+                label: 'Productores',
+                icon: 'pi pi-users',
+                iconStyle: { color: '#0f766e' },
+                command: () => this.abrirProductores(item)
+            },
+            {
                 label: 'Estado de cuenta',
                 icon: 'pi pi-book menu-icon-ver',
                 iconStyle: { color: '#3b82f6' },
@@ -360,6 +489,112 @@ export class ProveedoresPage implements OnInit {
     editar(item: Proveedor): void {
         this.form = { ...item };
         this.dialog = true;
+    }
+
+    abrirProductores(item: Proveedor): void {
+        this.proveedorProductores = item;
+        this.dialogProductores = true;
+        this.cargarProductores();
+    }
+
+    cargarProductores(): void {
+        if (!this.proveedorProductores?.id) {
+            return;
+        }
+        this.cargandoProductores = true;
+        this.productoresService.listar({
+            id_proveedor: this.proveedorProductores.id,
+            activos: 'todos',
+            libres: false
+        }).subscribe({
+            next: (data) => {
+                this.productores = data;
+                this.cargandoProductores = false;
+            },
+            error: (err) => {
+                this.cargandoProductores = false;
+                this.aviso.error(err, 'No se pudieron cargar los productores');
+            }
+        });
+    }
+
+    abrirNuevoProductor(): void {
+        this.formProductor = this.productorVacio();
+        this.dialogProductor = true;
+    }
+
+    editarProductor(item: Productor): void {
+        this.formProductor = { ...item };
+        this.dialogProductor = true;
+    }
+
+    guardarProductor(): void {
+        if (!this.formProductor.nombre?.trim()) {
+            this.aviso.aviso('Validación', 'El nombre es obligatorio');
+            return;
+        }
+        if (!this.proveedorProductores?.id) {
+            return;
+        }
+        this.guardandoProductor = true;
+        const payload = {
+            id_proveedor: this.proveedorProductores.id,
+            nombre: this.formProductor.nombre.trim(),
+            nit_ci: this.formProductor.nit_ci || '',
+            telefono: this.formProductor.telefono || '',
+            direccion: this.formProductor.direccion || '',
+            observacion: this.formProductor.observacion || '',
+            activo: this.formProductor.activo,
+            path_imagen: this.formProductor.path_imagen || imagenDefault('proveedor')
+        };
+        const req = this.formProductor.id
+            ? this.productoresService.actualizar(this.formProductor.id, payload)
+            : this.productoresService.crear(payload);
+        req.subscribe({
+            next: (res) => {
+                this.guardandoProductor = false;
+                this.dialogProductor = false;
+                this.aviso.ok('Productor', res.mensaje);
+                this.cargarProductores();
+            },
+            error: (err) => {
+                this.guardandoProductor = false;
+                this.aviso.error(err, 'No se pudo guardar el productor');
+            }
+        });
+    }
+
+    async eliminarProductor(item: Productor): Promise<void> {
+        const ok = await this.confirmar.pedir({
+            titulo: 'Eliminar productor',
+            mensaje: `¿Eliminar a ${item.nombre}? Si ya tiene compras, no se podrá borrar.`,
+            peligro: true,
+            aceptar: 'Eliminar'
+        });
+        if (!ok) {
+            return;
+        }
+        this.productoresService.eliminar(item.id).subscribe({
+            next: (res) => {
+                this.aviso.ok('Productor', res.mensaje);
+                this.cargarProductores();
+            },
+            error: (err) => this.aviso.error(err, 'No se pudo eliminar el productor')
+        });
+    }
+
+    private productorVacio(): Productor {
+        return {
+            id: 0,
+            id_proveedor: this.proveedorProductores?.id || null,
+            nombre: '',
+            nit_ci: '',
+            telefono: '',
+            direccion: '',
+            observacion: '',
+            activo: true,
+            path_imagen: imagenDefault('proveedor')
+        };
     }
 
     verCuenta(item: Proveedor): void {

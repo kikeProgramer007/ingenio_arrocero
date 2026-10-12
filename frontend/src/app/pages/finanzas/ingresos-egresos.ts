@@ -11,6 +11,7 @@ import { ControlIngresosEgresos, MovimientoResumen } from '../caja/caja.models';
 import { CajaService } from '../caja/caja.service';
 import { METODOS_PAGO_OPTIONS, ORIGEN_MOVIMIENTO_OPTIONS, TIPOS_MOVIMIENTO_OPTIONS } from '../caja/caja.constants';
 import { etiquetaCategoria, etiquetaMetodo, etiquetaOrigen, formatBs, formatFechaCorta, formatHora } from '../caja/caja.utils';
+import { nombreUsuario } from '../../shared/utils/usuario';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
@@ -21,6 +22,7 @@ import { AvisoService } from '../../shared/services/aviso.service';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { APP_ROUTES } from '../../core/constants/app-routes';
+import { ExportarService } from '../../shared/services/exportar.service';
 
 @Component({
     selector: 'app-ingresos-egresos',
@@ -47,24 +49,24 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-[calc(50%-0.25rem)] sm:w-[11rem] min-w-0">
+            <div class="barra-listado">
+                <div class="campo">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Tipo <app-ayuda-campo texto="Ingreso: dinero que entra. Egreso: dinero que sale. Una venta a crédito no aparece hasta el cobro." posicion="bottom" /></label>
-                    <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" [showClear]="true" fluid />
+                    <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
                 </div>
-                <div class="w-[calc(50%-0.25rem)] sm:min-w-[12rem] sm:flex-1 sm:max-w-[16rem] min-w-0">
+                <div class="campo-wide">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Origen <app-ayuda-campo texto="De dónde nació el movimiento: venta, cobranza, gasto, pago, manual, etc." posicion="bottom" /></label>
-                    <p-select [options]="origenesFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroOrigen" placeholder="Todos" [showClear]="true" fluid />
+                    <p-select [options]="origenesFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroOrigen" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
                 </div>
-                <div class="w-full sm:w-[12rem] min-w-0">
+                <div class="campo">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Método <app-ayuda-campo texto="En el libro, Mixto se parte: un asiento de efectivo y otro de QR." posicion="left" /></label>
-                    <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid />
+                    <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
                 </div>
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
-                <app-botones-exportar tipo="movimientos" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
+                <app-botones-exportar tipo="movimientos" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" [tipoMovimiento]="filtroTipo" [origen]="filtroOrigen" [metodo]="filtroMetodo" />
             </div>
             <p-table
                 #dt
@@ -77,7 +79,7 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} movimientos"
-                [globalFilterFields]="['tipo', 'origen', 'concepto', 'contraparte', 'metodo_pago', 'usuario.username']"
+                [globalFilterFields]="['tipo', 'origen', 'concepto', 'contraparte', 'metodo_pago', 'usuario.username', 'usuario.nombre']"
                 [rowHover]="true"
                 sortMode="single"
                 responsiveLayout="scroll"
@@ -108,8 +110,17 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
                         <td>{{ etiquetaMetodo(mov.metodo_pago) }}</td>
                         <td class="text-green-600 font-medium">{{ mov.ingreso ? formatBs(mov.ingreso) : '-' }}</td>
                         <td class="text-red-500 font-medium">{{ mov.egreso ? formatBs(mov.egreso) : '-' }}</td>
-                        <td>{{ mov.usuario?.username || '-' }}</td>
-                        <td>
+                        <td>{{ nombreUsuario(mov.usuario) }}</td>
+                        <td class="whitespace-nowrap">
+                            <p-button
+                                icon="pi pi-file-pdf"
+                                [rounded]="true"
+                                [outlined]="true"
+                                severity="danger"
+                                pTooltip="Ver boleta"
+                                tooltipPosition="left"
+                                (onClick)="exportarMovimiento(mov.id)"
+                            />
                             <p-button
                                 *ngIf="rutaOrigen(mov)"
                                 icon="pi pi-external-link"
@@ -154,13 +165,14 @@ export class IngresosEgresosPage implements OnInit {
     origenesFiltro = ORIGEN_MOVIMIENTO_OPTIONS;
     metodosFiltro = METODOS_PAGO_OPTIONS;
     formatBs = formatBs;
+    nombreUsuario = nombreUsuario;
     formatHora = formatHora;
     formatFechaCorta = formatFechaCorta;
     etiquetaOrigen = etiquetaOrigen;
     etiquetaMetodo = etiquetaMetodo;
     etiquetaCategoria = etiquetaCategoria;
 
-    constructor(private cajaService: CajaService, private aviso: AvisoService) {}
+    constructor(private cajaService: CajaService, private aviso: AvisoService, private exportarService: ExportarService) {}
 
     get fechaDesde(): string | undefined {
         return this.rango?.[0] ? this.ymd(this.rango[0]) : undefined;
@@ -204,6 +216,13 @@ export class IngresosEgresosPage implements OnInit {
                 return false;
             }
             return true;
+        });
+    }
+
+    exportarMovimiento(id: number): void {
+        const visor = this.exportarService.abrirVentanaEspera('Generando boleta...');
+        this.exportarService.mostrarPdf({ tipo: 'movimiento', formato: 'pdf', id }, visor).subscribe({
+            error: (err) => this.aviso.error(err, 'No se pudo generar la boleta')
         });
     }
 

@@ -123,7 +123,7 @@ export class ReportesPage implements OnInit {
                     { label: 'Anulaciones', value: formatBs(d.caja?.anulaciones_venta) },
                     { label: 'Por cobrar', value: formatBs(d.ventas.por_cobrar) },
                     { label: 'Compras', value: `${d.compras.cantidad} · ${formatBs(d.compras.total)}` },
-                    { label: 'Por pagar', value: formatBs(d.compras.por_pagar) },
+                    { label: 'Por pagar compras', value: formatBs(d.compras.por_pagar) },
                     { label: 'Gastos', value: formatBs(d.gastos) },
                     { label: 'Retiros', value: formatBs(d.retiros) },
                     { label: 'Acopios', value: `${d.acopios.cantidad} · ${formatBs(d.acopios.total)}` },

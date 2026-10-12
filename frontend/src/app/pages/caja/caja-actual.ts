@@ -31,7 +31,9 @@ import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { extrasPagoMixto, mensajePagoMixto } from '../../shared/utils/pago-mixto';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { METODOS_DOCUMENTO_FILTRO } from '../../shared/utils/fecha-filtro';
 import { ExportarService } from '../../shared/services/exportar.service';
+import { nombreUsuario } from '../../shared/utils/usuario';
 
 @Component({
     selector: 'app-caja-actual',
@@ -142,15 +144,24 @@ import { ExportarService } from '../../shared/services/exportar.service';
             </div>
 
             <div class="card">
-                <div class="flex flex-wrap items-end gap-3 mb-4">
-                    <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                <div class="barra-listado">
+                    <div class="campo">
+                        <label class="block font-bold mb-1 text-sm">Tipo</label>
+                        <p-select [options]="tipos" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    </div>
+                    <div class="campo">
+                        <label class="block font-bold mb-1 text-sm">Método</label>
+                        <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    </div>
+                    <div class="campo-buscar">
                         <label class="block font-bold mb-1 text-sm">Buscar</label>
                         <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                     </div>
+                    <app-botones-exportar tipo="movimientos" [idCaja]="caja.id" [tipoMovimiento]="filtroTipo" [metodo]="filtroMetodo" />
                 </div>
                 <p-table
                     #dt
-                    [value]="cargandoTabla ? [] : (caja.movimientos || [])"
+                    [value]="cargandoTabla ? [] : movimientosFiltrados"
                     [loading]="cargandoTabla"
                     [showLoader]="false"
                     [paginator]="true"
@@ -159,7 +170,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
                     [rowsPerPageOptions]="filasTabla"
                     [showCurrentPageReport]="true"
                     currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} movimientos"
-                    [globalFilterFields]="['tipo', 'categoria', 'concepto', 'metodo_pago', 'usuario.username']"
+                    [globalFilterFields]="['tipo', 'categoria', 'concepto', 'metodo_pago', 'usuario.username', 'usuario.nombre']"
                     [rowHover]="true"
                     sortMode="single"
                     responsiveLayout="scroll"
@@ -174,6 +185,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
                             <th>Ingreso</th>
                             <th>Egreso</th>
                             <th>Usuario</th>
+                            <th></th>
                         </tr>
                     </ng-template>
                     <ng-template #body let-mov>
@@ -187,15 +199,18 @@ import { ExportarService } from '../../shared/services/exportar.service';
                             <td>{{ etiquetaMetodo(mov.metodo_pago) }}</td>
                             <td class="text-green-600 font-medium">{{ mov.ingreso ? formatBs(mov.ingreso) : '-' }}</td>
                             <td class="text-red-500 font-medium">{{ mov.egreso ? formatBs(mov.egreso) : '-' }}</td>
-                            <td>{{ mov.usuario?.username || '-' }}</td>
+                            <td>{{ nombreUsuario(mov.usuario) }}</td>
+                            <td>
+                                <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" pTooltip="Ver boleta" tooltipPosition="left" (onClick)="exportarMovimiento(mov.id)" />
+                            </td>
                         </tr>
                     </ng-template>
                     <ng-template #loadingbody>
-                        <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
+                        <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="9" [fila]="f"></tr>
                     </ng-template>
                     <ng-template #emptymessage>
                         <tr>
-                            <td colspan="8">
+                            <td colspan="9">
                                 <div class="text-center py-8 text-muted-color">
                                     <i class="pi pi-inbox text-4xl mb-3 block"></i>
                                     No existen movimientos registrados en esta caja.
@@ -218,7 +233,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
                     <p-select [options]="categorias" optionLabel="label" optionValue="value" [(ngModel)]="movimiento.categoria" placeholder="Selecciona" fluid appendTo="body" [baseZIndex]="2100" />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Concepto <app-ayuda-campo texto="Ej.: Ajuste de caja, préstamo recibido, pago suelto." posicion="right" /></label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Por lo siguiente <app-ayuda-campo texto="Sale en la boleta. Ej.: entrega de efectivo para compra de aceite, ajuste de caja." posicion="right" /></label>
                     <input pInputText [(ngModel)]="movimiento.concepto" fluid />
                 </div>
                 <div>
@@ -293,14 +308,30 @@ export class CajaActual implements OnInit {
     dialogCierre = false;
     saldoContado = 0;
     observacionCierre = '';
+    filtroTipo = '';
+    filtroMetodo = '';
+    metodosFiltro = METODOS_DOCUMENTO_FILTRO;
     tipos = TIPOS_MOVIMIENTO_OPTIONS;
     categorias = CATEGORIAS_POR_TIPO[TIPO_MOVIMIENTO.INGRESO];
     movimiento: CrearMovimientoRequest = this.movimientoVacio();
 
     formatBs = formatBs;
+    nombreUsuario = nombreUsuario;
     formatHora = formatHora;
     etiquetaCategoria = etiquetaCategoria;
     etiquetaMetodo = etiquetaMetodo;
+
+    get movimientosFiltrados() {
+        return (this.caja?.movimientos || []).filter((mov) => {
+            if (this.filtroTipo && mov.tipo !== this.filtroTipo) {
+                return false;
+            }
+            if (this.filtroMetodo && mov.metodo_pago !== this.filtroMetodo) {
+                return false;
+            }
+            return true;
+        });
+    }
 
     constructor(
         private cajaService: CajaService,
@@ -391,6 +422,7 @@ export class CajaActual implements OnInit {
             return;
         }
         this.guardando = true;
+        const visor = this.exportarService.abrirVentanaEspera('Generando boleta...');
         this.cajaService.crearMovimiento(this.caja.id, {
             ...this.movimiento,
             concepto: this.movimiento.concepto.trim(),
@@ -399,13 +431,27 @@ export class CajaActual implements OnInit {
             next: (res) => {
                 this.guardando = false;
                 this.dialogMovimiento = false;
-                this.aviso.ok('Movimiento', res.mensaje);
+                this.aviso.ok('Movimiento', 'Movimiento registrado. Se abre la boleta.');
                 this.cargar();
+                const id = res.data?.id;
+                if (id) {
+                    this.exportarMovimiento(id, visor);
+                } else {
+                    visor?.close();
+                }
             },
             error: (err) => {
+                visor?.close();
                 this.guardando = false;
                 this.aviso.error(err, 'No se pudo registrar el movimiento');
             }
+        });
+    }
+
+    exportarMovimiento(id: number, visor?: Window | null): void {
+        const ventana = visor ?? this.exportarService.abrirVentanaEspera('Generando boleta...');
+        this.exportarService.mostrarPdf({ tipo: 'movimiento', formato: 'pdf', id }, ventana).subscribe({
+            error: (err) => this.aviso.error(err, 'No se pudo generar la boleta')
         });
     }
 
@@ -490,6 +536,7 @@ export class CajaActual implements OnInit {
     }
 
     private obtenerUsername(): string {
-        return this.authService.getUser()?.username || 'Usuario';
+        const nombre = nombreUsuario(this.authService.getUser());
+        return nombre === '-' ? 'Usuario' : nombre;
     }
 }

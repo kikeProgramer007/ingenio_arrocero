@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import { Productos, Produccion, sequelize, User } from '../models';
+import { aplicarFiltroFecha } from '../utils/fecha';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
-import { getAuthUser } from '../utils/auth-user';
+import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
 import { aplicarStock, TIPO_INVENTARIO, toQty } from '../utils/inventario';
 import { CrearProduccionDTO } from '../dtos/campana.dto';
 
@@ -16,18 +17,21 @@ function mapProduccion(item: any) {
         observacion: item.observacion,
         producto_origen: item.productoOrigen ? { id: item.productoOrigen.id, nombre: item.productoOrigen.nombre } : null,
         producto_destino: item.productoDestino ? { id: item.productoDestino.id, nombre: item.productoDestino.nombre } : null,
-        usuario: item.usuario ? { id: item.usuario.id, username: item.usuario.username } : null
+        usuario: mapUsuarioResumen(item.usuario)
     };
 }
 
 export class ProduccionController {
-    public static async listar(_req: Request, res: Response): Promise<void> {
+    public static async listar(req: Request, res: Response): Promise<void> {
         try {
+            const where: any = {};
+            aplicarFiltroFecha(where, req.query);
             const items = await Produccion.findAll({
+                where,
                 include: [
                     { model: Productos, as: 'productoOrigen', attributes: ['id', 'nombre'] },
                     { model: Productos, as: 'productoDestino', attributes: ['id', 'nombre'] },
-                    { model: User, as: 'usuario', attributes: ['id', 'username'] }
+                    { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
                 ],
                 order: [['fecha', 'DESC'], ['id', 'DESC']]
             });
@@ -104,7 +108,7 @@ export class ProduccionController {
                 include: [
                     { model: Productos, as: 'productoOrigen', attributes: ['id', 'nombre'] },
                     { model: Productos, as: 'productoDestino', attributes: ['id', 'nombre'] },
-                    { model: User, as: 'usuario', attributes: ['id', 'username'] }
+                    { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
                 ]
             });
             res.status(201).json({ mensaje: 'Producción registrada', data: mapProduccion(creado) });

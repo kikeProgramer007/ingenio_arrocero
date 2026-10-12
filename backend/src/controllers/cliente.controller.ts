@@ -25,10 +25,15 @@ function mapCliente(cliente: any) {
 export class ClienteController {
     public static async listar(req: Request, res: Response): Promise<void> {
         try {
-            const { q, activos } = req.query;
+            const { q, activos, procedencia } = req.query;
             const where: any = {};
-            if (activos !== 'todos') {
+            if (activos === 'inactivos') {
+                where.activo = false;
+            } else if (activos !== 'todos') {
                 where.activo = true;
+            }
+            if (typeof procedencia === 'string' && procedencia) {
+                where.procedencia = procedencia;
             }
             if (typeof q === 'string' && q.trim()) {
                 where[Op.or] = [

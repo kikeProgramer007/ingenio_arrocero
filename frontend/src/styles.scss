@@ -36,3 +36,81 @@
     flex-direction: column;
 }
 
+.campo-form .p-inputtext.ng-dirty.ng-invalid,
+.campo-form .p-inputtext.ng-invalid.ng-dirty,
+.campo-form .p-select.p-invalid,
+.campo-form .p-select.ng-dirty.ng-invalid {
+    border-color: #dc3545 !important;
+}
+
+.campo-form .p-inputtext.ng-dirty.ng-valid,
+.campo-form .p-select.ng-dirty.ng-valid:not(.p-invalid) {
+    border-color: #198754 !important;
+}
+
+.campo-feedback-error,
+.campo-feedback-ok {
+    font-size: 0.8125rem;
+    margin-top: 0.35rem;
+}
+
+.campo-feedback-error {
+    color: #dc3545;
+}
+
+.campo-feedback-ok {
+    color: #198754;
+}
+
+.barra-listado {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.barra-listado > .campo {
+    min-width: 0;
+    width: calc(50% - 0.375rem);
+}
+
+.barra-listado > .campo-fecha,
+.barra-listado > .campo-buscar,
+.barra-listado > .campo-wide {
+    width: 100%;
+}
+
+@media (min-width: 640px) {
+    .barra-listado > .campo {
+        width: 11rem;
+    }
+
+    .barra-listado > .campo-sm {
+        width: 9.5rem;
+    }
+
+    .barra-listado > .campo-fecha {
+        width: 16rem;
+    }
+
+    .barra-listado > .campo-wide {
+        width: 14rem;
+        flex: 1 1 14rem;
+        max-width: 20rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .barra-listado > .campo-buscar {
+        width: 18rem;
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 639px) {
+    .barra-listado > app-botones-exportar {
+        width: 100%;
+    }
+}
+

@@ -8,13 +8,16 @@ import { ApiMensaje, Cliente, Cobranza, CrearVentaPayload, Venta } from './venta
 export class ClientesService {
     constructor(private http: HttpClient) {}
 
-    listar(params?: { q?: string; activos?: string }): Observable<Cliente[]> {
+    listar(params?: { q?: string; activos?: string; procedencia?: string }): Observable<Cliente[]> {
         let httpParams = new HttpParams();
         if (params?.q) {
             httpParams = httpParams.set('q', params.q);
         }
         if (params?.activos) {
             httpParams = httpParams.set('activos', params.activos);
+        }
+        if (params?.procedencia) {
+            httpParams = httpParams.set('procedencia', params.procedencia);
         }
         return this.http.get<Cliente[]>(apiUrl('/api/clientes'), { params: httpParams });
     }
@@ -61,13 +64,22 @@ export class VentasService {
         return this.http.put<ApiMensaje<Venta>>(apiUrl(`/api/ventas/${id}/anular`), {});
     }
 
-    listarCobranzas(filtros?: { id_venta?: number; id_cliente?: number }): Observable<Cobranza[]> {
+    listarCobranzas(filtros?: { id_venta?: number; id_cliente?: number; metodo?: string; fecha_desde?: string; fecha_hasta?: string }): Observable<Cobranza[]> {
         let params = new HttpParams();
         if (filtros?.id_venta) {
             params = params.set('id_venta', String(filtros.id_venta));
         }
         if (filtros?.id_cliente) {
             params = params.set('id_cliente', String(filtros.id_cliente));
+        }
+        if (filtros?.metodo) {
+            params = params.set('metodo', filtros.metodo);
+        }
+        if (filtros?.fecha_desde) {
+            params = params.set('fecha_desde', filtros.fecha_desde);
+        }
+        if (filtros?.fecha_hasta) {
+            params = params.set('fecha_hasta', filtros.fecha_hasta);
         }
         return this.http.get<Cobranza[]>(apiUrl('/api/cobranzas'), { params });
     }

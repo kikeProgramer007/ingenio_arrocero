@@ -21,6 +21,7 @@ import { Menu, MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { nombreUsuario } from '../../shared/utils/usuario';
 
 @Component({
     selector: 'app-caja-historial',
@@ -49,21 +50,22 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-full sm:w-[9.5rem] min-w-0">
+            <div class="barra-listado">
+                <div class="campo campo-sm">
                     <label class="block font-bold mb-1 text-sm">Estado</label>
-                    <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="estado" placeholder="Estado" fluid />
+                    <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="estado" placeholder="Estado" fluid appendTo="body" />
                 </div>
-                <div class="w-full sm:w-[15rem] min-w-0">
+                <div class="campo-fecha">
                     <label class="block font-bold mb-1 text-sm">Período</label>
                     <p-datepicker selectionMode="range" [(ngModel)]="rangoFechas" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
                 </div>
                 <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
                 <p-button label="Limpiar" icon="pi pi-times" severity="secondary" [outlined]="true" (onClick)="limpiar()" />
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
+                <app-botones-exportar tipo="cajas" [estado]="estado" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
             </div>
 
             <p-table
@@ -77,7 +79,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} cajas"
-                [globalFilterFields]="['fecha_apertura', 'usuario_apertura.username', 'estado']"
+                [globalFilterFields]="['fecha_apertura', 'usuario_apertura.username', 'usuario_apertura.nombre', 'estado']"
                 [rowHover]="true"
                 sortMode="single"
                 responsiveLayout="scroll"
@@ -99,7 +101,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 <ng-template #body let-caja>
                     <tr>
                         <td>{{ formatFecha(caja.fecha_apertura) }}</td>
-                        <td>{{ caja.usuario_apertura?.username || '-' }}</td>
+                        <td>{{ nombreUsuario(caja.usuario_apertura) }}</td>
                         <td>{{ formatBs(caja.saldo_inicial) }}</td>
                         <td>{{ formatBs(caja.ingresos) }}</td>
                         <td>{{ formatBs(caja.egresos) }}</td>
@@ -208,6 +210,7 @@ export class CajaHistorial implements OnInit {
     itemsAcciones: MenuItem[] = [];
 
     formatBs = formatBs;
+    nombreUsuario = nombreUsuario;
     formatFecha = formatFecha;
     formatHora = formatHora;
     etiquetaCategoria = etiquetaCategoria;
@@ -218,6 +221,14 @@ export class CajaHistorial implements OnInit {
         private exportarService: ExportarService,
         private aviso: AvisoService
     ) {}
+
+    get fechaDesde(): string | undefined {
+        return this.rangoFechas?.[0] ? this.toIsoDate(this.rangoFechas[0]) : undefined;
+    }
+
+    get fechaHasta(): string | undefined {
+        return this.rangoFechas?.[1] ? this.toIsoDate(this.rangoFechas[1]) : this.fechaDesde;
+    }
 
     ngOnInit(): void {
         this.cargar();

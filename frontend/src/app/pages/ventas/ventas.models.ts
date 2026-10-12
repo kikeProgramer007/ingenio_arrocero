@@ -37,7 +37,7 @@ export interface Venta {
     dias_atraso?: number | null;
     situacion?: string;
     cliente: { id: number; nombre: string } | null;
-    usuario: { id: number; username: string } | null;
+    usuario: { id: number; username: string; nombre?: string | null } | null;
     detalles?: LineaVenta[];
     cobranzas?: Cobranza[];
 }
@@ -56,7 +56,7 @@ export interface Cobranza {
     fecha: string;
     cliente?: { id: number; nombre: string } | null;
     venta?: { id: number; total: number; saldo_pendiente?: number; estado: string } | null;
-    usuario?: { id: number; username: string } | null;
+    usuario?: { id: number; username: string; nombre?: string | null } | null;
 }
 
 export interface CrearVentaPayload {

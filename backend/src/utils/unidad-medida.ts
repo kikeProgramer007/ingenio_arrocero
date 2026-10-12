@@ -1,14 +1,32 @@
-export const MENSAJE_UNIDAD_MEDIDA = 'Ingresa una unidad de medida válida, por ejemplo: Unidad, Fanega o Quintal';
+export const MENSAJE_UNIDAD_MEDIDA = 'Elegí una unidad de medida: Kilo, Fanega, Quintal o Unidad.';
 
-/** Letras (con acentos), números y espacios. Debe incluir al menos una letra. */
-const REGEX_UNIDAD = /^(?=.*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 ]+$/;
+export const UNIDADES_MEDIDA = ['Kilo', 'Fanega', 'Quintal', 'Unidad'] as const;
 
-export function esUnidadMedidaValida(valor: unknown): boolean {
+const ALIAS: Record<string, string> = {
+    kg: 'Kilo',
+    kilo: 'Kilo',
+    kilos: 'Kilo',
+    fanega: 'Fanega',
+    fanegas: 'Fanega',
+    qq: 'Quintal',
+    quintal: 'Quintal',
+    quintales: 'Quintal',
+    unidad: 'Unidad',
+    unidades: 'Unidad',
+    und: 'Unidad'
+};
+
+export function normalizarUnidadMedida(valor: unknown): string {
     const texto = String(valor ?? '').trim();
     if (!texto) {
-        return false;
+        return '';
     }
-    return REGEX_UNIDAD.test(texto);
+    return ALIAS[texto.toLowerCase()] || texto;
+}
+
+export function esUnidadMedidaValida(valor: unknown): boolean {
+    const texto = normalizarUnidadMedida(valor);
+    return (UNIDADES_MEDIDA as readonly string[]).includes(texto);
 }
 
 export function unidadMedidaInvalida(valor: unknown): boolean {

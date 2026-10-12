@@ -4,13 +4,16 @@ import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
+import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { etiquetaPago, formatBs, formatFecha, formatFechaCorta, esErrorCajaCerrada } from '../caja/caja.utils';
-import { Cobranza, Venta } from './ventas.models';
-import { VentasService } from './ventas.service';
+import { nombreUsuario } from '../../shared/utils/usuario';
+import { Cliente, Cobranza, Venta } from './ventas.models';
+import { ClientesService, VentasService } from './ventas.service';
+import { METODOS_DOCUMENTO_FILTRO, ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
 import { EstadoVacioComponent } from '../../shared/components/estado-vacio';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
 import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
@@ -24,6 +27,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
     selector: 'app-cobranzas',
@@ -34,6 +38,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         ButtonModule,
         DialogModule,
         InputTextModule,
+        DatePickerModule,
         SelectModule,
         TableModule,
         TagModule,
@@ -46,7 +51,8 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         AyudaCampoComponent,
         MetodoPagoComponent,
         InputNumeroComponent,
-        TablaBusquedaComponent
+        TablaBusquedaComponent,
+        TooltipModule
     ],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
@@ -130,12 +136,25 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         </div>
 
         <div class="card">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+            <div class="barra-listado">
+                <div class="campo-wide">
+                    <label class="block font-bold mb-1 text-sm">Cliente</label>
+                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCliente" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo">
+                    <label class="block font-bold mb-1 text-sm">Método</label>
+                    <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo-fecha">
+                    <label class="block font-bold mb-1 text-sm">Período</label>
+                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
+                </div>
+                <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
-                <app-botones-exportar tipo="cobranzas" />
+                <app-botones-exportar tipo="cobranzas" [idCliente]="filtroCliente" [metodo]="filtroMetodo" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
             </div>
             <p-table
                 #dt
@@ -148,7 +167,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} cobranzas"
-                [globalFilterFields]="['fecha', 'cliente.nombre', 'id_venta', 'usuario.username']"
+                [globalFilterFields]="['fecha', 'cliente.nombre', 'id_venta', 'usuario.username', 'usuario.nombre']"
                 [rowHover]="true"
                 sortMode="single"
                 responsiveLayout="scroll"
@@ -162,6 +181,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <th>Método</th>
                         <th>Saldo restante</th>
                         <th>Usuario</th>
+                        <th></th>
                     </tr>
                 </ng-template>
                 <ng-template #body let-item>
@@ -172,15 +192,18 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                         <td>{{ formatBs(item.monto) }}</td>
                         <td>{{ etiquetaPago(item) }}</td>
                         <td>{{ formatBs(item.venta?.saldo_pendiente) }}</td>
-                        <td>{{ item.usuario?.username || '-' }}</td>
+                        <td>{{ nombreUsuario(item.usuario) }}</td>
+                        <td>
+                            <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" pTooltip="Ver boleta" tooltipPosition="left" (onClick)="exportarCobranza(item.id)" />
+                        </td>
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
-                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="7" [fila]="f"></tr>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
                     <tr>
-                        <td colspan="7">
+                        <td colspan="8">
                             <app-estado-vacio
                                 icono="pi pi-money-bill"
                                 titulo="No hay cobranzas registradas"
@@ -211,14 +234,14 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR va al banco. Efectivo al cajón. Mixto parte el cobro." posicion="right" /></label>
-                    <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="monto" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
+                    <app-metodo-pago [(ngModel)]="metodoPago" [montoTotal]="monto" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" [mostrarCambio]="true" />
                 </div>
                 <div>
                     <label class="flex items-center gap-1 font-bold mb-2">Referencia <app-ayuda-campo texto="Ej.: nro. de transferencia o QR. Opcional en efectivo." posicion="top" /></label>
                     <input pInputText class="w-full" [(ngModel)]="referencia" />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Nota interna del cobro. No cambia el monto." posicion="top" /></label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Por lo siguiente <app-ayuda-campo texto="Texto que sale en la boleta. Ej.: cobranza de depósito, abono a la venta." posicion="top" /></label>
                     <textarea pTextarea class="w-full" rows="2" [(ngModel)]="observacion"></textarea>
                 </div>
             </div>
@@ -233,7 +256,12 @@ export class CobranzasPage implements OnInit {
     filasTabla = FILAS_TABLA;
     filtrarTabla = filtrarTabla;
     cobranzas: Cobranza[] = [];
+    clientes: Cliente[] = [];
     pendientes: Venta[] = [];
+    filtroCliente: number | null = null;
+    filtroMetodo = '';
+    rango: Date[] | null = null;
+    metodosFiltro = METODOS_DOCUMENTO_FILTRO;
     diasAviso = 7;
     filtroSituacion = '';
     filtrosSituacion = [
@@ -257,6 +285,7 @@ export class CobranzasPage implements OnInit {
     observacion = '';
     pendientePorCobrar = 0;
     formatBs = formatBs;
+    nombreUsuario = nombreUsuario;
     formatFecha = formatFecha;
     formatFechaCorta = formatFechaCorta;
     etiquetaPago = etiquetaPago;
@@ -313,15 +342,29 @@ export class CobranzasPage implements OnInit {
         ];
     }
 
-    constructor(private ventasService: VentasService, private aviso: AvisoService, private exportarService: ExportarService) {}
+    constructor(private ventasService: VentasService, private clientesService: ClientesService, private aviso: AvisoService, private exportarService: ExportarService) {}
+
+    get fechaDesde(): string | undefined {
+        return ymdDesdeRango(this.rango);
+    }
+
+    get fechaHasta(): string | undefined {
+        return ymdHastaRango(this.rango);
+    }
 
     ngOnInit(): void {
+        this.clientesService.listar({ activos: 'todos' }).subscribe({ next: (data) => (this.clientes = data) });
         this.cargar();
     }
 
     cargar(): void {
         this.cargando = true;
-        this.ventasService.listarCobranzas().subscribe({
+        this.ventasService.listarCobranzas({
+            id_cliente: this.filtroCliente || undefined,
+            metodo: this.filtroMetodo || undefined,
+            fecha_desde: this.fechaDesde,
+            fecha_hasta: this.fechaHasta
+        }).subscribe({
             next: (data) => {
                 this.cobranzas = data;
                 this.cargando = false;
@@ -388,7 +431,7 @@ export class CobranzasPage implements OnInit {
             return;
         }
         this.guardando = true;
-        const visor = this.exportarService.abrirVentanaEspera('Generando nota de venta...');
+        const visor = this.exportarService.abrirVentanaEspera('Generando boleta de cobranza...');
         this.ventasService.crearCobranza({
             id_venta: this.idVenta,
             monto: this.monto,
@@ -397,16 +440,14 @@ export class CobranzasPage implements OnInit {
             observacion: this.observacion || undefined,
             ...extrasPagoMixto(this.metodoPago, this.montoEfectivo, this.montoQr)
         }).subscribe({
-            next: () => {
+            next: (res) => {
                 this.guardando = false;
                 this.dialog = false;
-                this.aviso.ok('Cobranza', 'Cobro registrado. Se abre la nota de venta actualizada.');
-                const idVenta = this.idVenta;
+                this.aviso.ok('Cobranza', 'Cobro registrado. Se abre la boleta.');
                 this.cargar();
-                if (idVenta) {
-                    this.exportarService.mostrarPdf({ tipo: 'venta', formato: 'pdf', id: idVenta }, visor).subscribe({
-                        error: (err) => this.aviso.error(err, 'No se pudo generar el PDF de la venta')
-                    });
+                const id = res.data?.id;
+                if (id) {
+                    this.exportarCobranza(id, visor);
                 } else {
                     visor?.close();
                 }
@@ -420,6 +461,13 @@ export class CobranzasPage implements OnInit {
                 }
                 this.aviso.error(err, 'No se pudo registrar la cobranza');
             }
+        });
+    }
+
+    exportarCobranza(id: number, visor?: Window | null): void {
+        const ventana = visor ?? this.exportarService.abrirVentanaEspera('Generando boleta de cobranza...');
+        this.exportarService.mostrarPdf({ tipo: 'cobranza', formato: 'pdf', id }, ventana).subscribe({
+            error: (err) => this.aviso.error(err, 'No se pudo generar la boleta de cobranza')
         });
     }
 }

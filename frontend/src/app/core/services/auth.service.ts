@@ -9,6 +9,7 @@ export interface LoginResponse {
     user: {
         id: number;
         username: string;
+        nombre?: string | null;
         programas?: unknown[];
     };
 }

@@ -114,7 +114,10 @@ export class AppMenu {
             },
             {
                 label: 'Configuración',
-                items: [link(APP_ROUTES.empresa, 'Empresa', 'pi pi-building')]
+                items: [
+                    link(APP_ROUTES.empresa, 'Empresa', 'pi pi-building'),
+                    link(APP_ROUTES.usuarios, 'Usuarios', 'pi pi-users')
+                ]
             }
         ];
     }

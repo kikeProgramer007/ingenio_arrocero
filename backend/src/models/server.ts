@@ -7,6 +7,7 @@ import routeDashboard from '../routes/dashboard.routes';
 import routeClientes from '../routes/cliente.routes';
 import routeVentas, { cobranzaRouter } from '../routes/venta.routes';
 import routeProveedores from '../routes/proveedor.routes';
+import routeProductores from '../routes/productor.routes';
 import routeCompras, { pagoProveedorRouter } from '../routes/compra.routes';
 import routeGastos from '../routes/gasto.routes';
 import routeProductos from '../routes/producto.routes';
@@ -17,9 +18,10 @@ import routeUploads from '../routes/upload.routes';
 import routeEmpresa from '../routes/empresa.routes';
 import { seedProgramasCaja } from '../seed/programas-caja.seed';
 import { seedInventarioBase } from '../seed/inventario.seed';
+import { seedCatalogoFotos } from '../seed/catalogo-fotos.seed';
 import { sequelize } from '../models';
 import { assertBaseDeUsuario, shouldAlterSchema } from '../utils/db-sync';
-import { asegurarEsquemaClientes, asegurarEsquemaCompras, asegurarEsquemaEmpresa, asegurarEsquemaGastos, asegurarEsquemaPagoMixto, asegurarEsquemaPagosGasto, asegurarEsquemaVentas } from '../utils/ensure-schema';
+import { asegurarEsquemaClientes, asegurarEsquemaCompras, asegurarEsquemaEmpresa, asegurarEsquemaGastos, asegurarEsquemaPagoMixto, asegurarEsquemaPagosGasto, asegurarEsquemaProductores, asegurarEsquemaUsuarios, asegurarEsquemaVentas } from '../utils/ensure-schema';
 import { asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
 import { asegurarEmpresa } from '../utils/empresa';
 
@@ -50,6 +52,7 @@ class Server {
         this.app.use('/api/ventas', routeVentas);
         this.app.use('/api/cobranzas', cobranzaRouter);
         this.app.use('/api/proveedores', routeProveedores);
+        this.app.use('/api/productores', routeProductores);
         this.app.use('/api/compras', routeCompras);
         this.app.use('/api/pagos', pagoProveedorRouter);
         this.app.use('/api/gastos', routeGastos);
@@ -86,8 +89,11 @@ class Server {
             await asegurarEsquemaClientes();
             await asegurarEsquemaVentas();
             await asegurarEsquemaCompras();
+            await asegurarEsquemaProductores();
+            await asegurarEsquemaUsuarios();
             await seedProgramasCaja();
             await seedInventarioBase();
+            await seedCatalogoFotos();
             await asegurarEmpresa();
             console.log(`Base de datos sincronizada (db=${dbName}, alter=${alter})`);
         } catch (error) {

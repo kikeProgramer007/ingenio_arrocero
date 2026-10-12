@@ -55,9 +55,9 @@ export class CrearCompraDTO {
     @IsInt({ message: 'El proveedor es obligatorio' })
     id_proveedor!: number;
 
-    @ValidateIf((o) => o.tipo_compra === TIPO_COMPRA.CHALA)
+    @IsOptional()
     @Type(() => Number)
-    @IsInt({ message: 'El productor es obligatorio en arroz en chala' })
+    @IsInt({ message: 'El productor no es válido' })
     id_productor?: number;
 
     @IsOptional()

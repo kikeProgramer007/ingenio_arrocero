@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
+import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TextareaModule } from 'primeng/textarea';
@@ -14,12 +15,14 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
+import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
 
 @Component({
     selector: 'app-produccion',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, SelectModule, TableModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TablaBusquedaComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, DialogModule, SelectModule, TableModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TablaBusquedaComponent, BotonesExportarComponent],
     template: `
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div class="min-w-0">
@@ -29,11 +32,17 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <p-button label="Nueva producción" icon="pi pi-plus" (onClick)="dialog = true" />
         </div>
         <div class="card">
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
+            <div class="barra-listado">
+                <div class="campo-fecha">
+                    <label class="block font-bold mb-1 text-sm">Período</label>
+                    <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
+                </div>
+                <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
+                <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
+                <app-botones-exportar tipo="produccion" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
             </div>
             <p-table
                 #dt
@@ -89,6 +98,7 @@ export class ProduccionPage implements OnInit {
     filtrarTabla = filtrarTabla;
     items: any[] = [];
     productos: any[] = [];
+    rango: Date[] | null = null;
     cargando = false;
     guardando = false;
     dialog = false;
@@ -102,9 +112,24 @@ export class ProduccionPage implements OnInit {
         this.cargar();
     }
 
+    get fechaDesde(): string | undefined {
+        return ymdDesdeRango(this.rango);
+    }
+
+    get fechaHasta(): string | undefined {
+        return ymdHastaRango(this.rango);
+    }
+
     cargar(): void {
         this.cargando = true;
-        this.http.get<any[]>(apiUrl('/api/producciones')).subscribe({
+        const params: { fecha_desde?: string; fecha_hasta?: string } = {};
+        if (this.fechaDesde) {
+            params.fecha_desde = this.fechaDesde;
+        }
+        if (this.fechaHasta) {
+            params.fecha_hasta = this.fechaHasta;
+        }
+        this.http.get<any[]>(apiUrl('/api/producciones'), { params }).subscribe({
             next: (d) => { this.items = d; this.cargando = false; },
             error: (e) => { this.cargando = false; this.aviso.error(e, 'No se pudo completar la operación'); }
         });

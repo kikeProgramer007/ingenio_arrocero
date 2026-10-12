@@ -1,3 +1,5 @@
+import { Op } from 'sequelize';
+
 export function inicioFinDia(fecha = new Date()): { inicio: Date; fin: Date } {
     const inicio = new Date(fecha);
     inicio.setHours(0, 0, 0, 0);
@@ -60,6 +62,38 @@ export function fechaComoDia(valor: unknown): Date | null {
         return new Date(valor.getUTCFullYear(), valor.getUTCMonth(), valor.getUTCDate());
     }
     return null;
+}
+
+export function aplicarFiltroFecha(
+    where: Record<string, any>,
+    query: { fecha_desde?: unknown; fecha_hasta?: unknown },
+    campo = 'fecha'
+): void {
+    const desde = typeof query.fecha_desde === 'string' && query.fecha_desde
+        ? parseFechaLocal(query.fecha_desde)
+        : null;
+    const hasta = typeof query.fecha_hasta === 'string' && query.fecha_hasta
+        ? parseFechaLocal(query.fecha_hasta)
+        : null;
+    const rango: Record<symbol, Date> = {};
+    if (desde && !Number.isNaN(desde.getTime())) {
+        const inicio = new Date(desde);
+        inicio.setHours(0, 0, 0, 0);
+        rango[Op.gte] = inicio;
+    }
+    if (hasta && !Number.isNaN(hasta.getTime())) {
+        const fin = new Date(hasta);
+        fin.setHours(23, 59, 59, 999);
+        rango[Op.lte] = fin;
+    }
+    if (Object.getOwnPropertySymbols(rango).length) {
+        where[campo] = { ...(where[campo] || {}), ...rango };
+    }
+}
+
+export function hayPeriodoQuery(query: { fecha_desde?: unknown; fecha_hasta?: unknown }): boolean {
+    return (typeof query.fecha_desde === 'string' && !!query.fecha_desde)
+        || (typeof query.fecha_hasta === 'string' && !!query.fecha_hasta);
 }
 
 export function rangoDesdeQuery(desde?: unknown, hasta?: unknown): { inicio: Date; fin: Date } {
