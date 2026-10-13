@@ -1,6 +1,7 @@
 import { Transaction } from 'sequelize';
 import { MovimientoInventario, TIPO_INVENTARIO } from '../models/movimiento-inventario.model';
 import { Productos } from '../models/productos.model';
+import { ReservaProducto } from '../models/despacho.model';
 
 function toQty(value: unknown): number {
     const n = typeof value === 'string' ? parseFloat(value) : Number(value);
@@ -30,6 +31,10 @@ export async function aplicarStock(params: {
     }
     const actual = toQty(producto.get('stock'));
     const nuevo = toQty(actual + params.delta);
+    const reserva = await ReservaProducto.findByPk(params.idProducto, { transaction: params.transaction, lock: params.transaction.LOCK.UPDATE });
+    if (params.delta < 0 && nuevo < toQty(reserva?.get('cantidad') || 0)) {
+        return { ok: false, mensaje: 'La salida consumiria productos reservados para ventas' };
+    }
     if (nuevo < 0) {
         return { ok: false, mensaje: `Stock insuficiente de ${producto.get('nombre')} (disponible ${actual})` };
     }

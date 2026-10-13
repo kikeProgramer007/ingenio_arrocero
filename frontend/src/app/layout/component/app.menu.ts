@@ -103,6 +103,7 @@ export class AppMenu {
                 label: 'Operaciones',
                 items: [
                     link(APP_ROUTES.inventario, 'Inventario', 'pi pi-th-large'),
+                    ...(byUrl.has(APP_ROUTES.despachos) ? [link(APP_ROUTES.despachos, 'Despachos', 'pi pi-truck')] : []),
                     link(APP_ROUTES.empaques, 'Bolsas y empaques', 'pi pi-inbox'),
                     link(APP_ROUTES.campanas, 'Campañas de acopio', 'pi pi-sun'),
                     link(APP_ROUTES.produccion, 'Producción', 'pi pi-cog')

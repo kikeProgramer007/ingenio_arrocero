@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
+import { createHash } from 'crypto';
 import { CategoriaProducto, Cliente, Cobranza, Productos, sequelize, User, Venta, VentaDetalle } from '../models';
-import { Op } from 'sequelize';
+import { Op, UniqueConstraintError } from 'sequelize';
 import { handleError } from '../utils/error.handler';
 import { aplicarFiltroFecha, parseFechaLocal, ymdLocal } from '../utils/fecha';
 import { resolverPlazoCredito } from '../utils/credito';
@@ -14,6 +15,8 @@ import { cobradoVenta, diasAtraso, diasParaVencer, ESTADO_VENTA, estadoVentaPorS
 import { CrearCobranzaDTO, CrearVentaDTO } from '../dtos/venta.dto';
 import { camposPagoDocumento, conceptoPorCanal, partesDesdeDocumento } from '../utils/metodo-pago';
 import { esProductoEmpaque } from '../utils/empaque';
+import { VentaEntrega, ReservaVenta } from '../models/despacho.model';
+import { cantidadEntrega, despachosHabilitados, ErrorDespacho, liberarReservas, registrarDespacho, reservarLinea } from '../servicios/despachos.servicio';
 
 const usuarioAtributos = ['id', 'username', 'nombre'];
 
@@ -28,7 +31,7 @@ function mapLinea(detalle: any) {
     };
 }
 
-function mapVenta(venta: any) {
+export function mapVenta(venta: any) {
     const total = toMoney(venta.total);
     const saldo = toMoney(venta.saldo_pendiente);
     return {
@@ -39,6 +42,7 @@ function mapVenta(venta: any) {
         saldo_pendiente: saldo,
         pagado: cobradoVenta(total, saldo, venta.estado),
         estado: venta.estado,
+        estado_despacho: venta.entrega?.estado || 'ANTERIOR',
         observacion: venta.observacion,
         plazo_dias: venta.plazo_dias != null ? Number(venta.plazo_dias) : null,
         fecha_vencimiento: venta.fecha_vencimiento || null,
@@ -48,7 +52,10 @@ function mapVenta(venta: any) {
         situacion: situacionCobranza(venta.fecha_vencimiento, saldo, venta.estado),
         cliente: venta.cliente ? { id: venta.cliente.id, nombre: venta.cliente.nombre } : null,
         usuario: mapUsuarioResumen(venta.usuario),
-        detalles: (venta.detalles || []).map(mapLinea),
+        detalles: (venta.detalles || []).map((d: any) => {
+            const r = (venta.reservas || []).find((r: any) => r.id_detalle === d.id);
+            return { ...mapLinea(d), unidad: r?.unidad || null, entregado: r ? Number(r.entregado) : null, pendiente: r ? Number(r.pendiente) : null };
+        }),
         cobranzas: (venta.cobranzas || []).map(mapCobranza)
     };
 }
@@ -72,7 +79,9 @@ function mapCobranza(item: any) {
     };
 }
 
-const includesVenta = [
+export const includesVenta = [
+    { model: VentaEntrega, as: 'entrega' },
+    { model: ReservaVenta, as: 'reservas' },
     { model: Cliente, as: 'cliente', attributes: ['id', 'nombre'] },
     { model: User, as: 'usuario', attributes: usuarioAtributos },
     { model: VentaDetalle, as: 'detalles' },
@@ -145,6 +154,14 @@ export class VentaController {
             return;
         }
 
+        const nuevoFlujo = despachosHabilitados();
+        const solicitud = createHash('sha256').update(JSON.stringify(datos)).digest('hex');
+        if (datos.entrega && !nuevoFlujo) {
+            res.status(409).json({ mensaje: 'El nuevo flujo de despachos aun no esta habilitado' }); return;
+        }
+        if (nuevoFlujo && (!datos.entrega || !datos.clave)) {
+            res.status(400).json({ mensaje: 'Indique modalidad de entrega y clave de solicitud' }); return;
+        }
         const pagoInicial = toMoney(datos.pago_inicial || 0);
         const lineas = datos.lineas.map((linea) => {
             const cantidad = Number(linea.cantidad);
@@ -170,6 +187,14 @@ export class VentaController {
 
         const transaction = await sequelize.transaction();
         try {
+            if (nuevoFlujo) {
+                const anterior = await VentaEntrega.findOne({ where: { clave: datos.clave }, transaction });
+                if (anterior) {
+                    const v = await Venta.findByPk(Number(anterior.get('id_venta')), { transaction, include: includesVenta });
+                    if (Number(v?.get('id_usuario')) !== usuario.id || anterior.get('solicitud') !== solicitud) throw new ErrorDespacho('Clave de solicitud ya utilizada con otros datos');
+                    await transaction.commit(); res.status(200).json({ mensaje: 'Venta ya registrada', data: mapVenta(v) }); return;
+                }
+            }
             const cliente = await Cliente.findByPk(datos.id_cliente, { transaction });
             if (!cliente || !cliente.get('activo')) {
                 await transaction.rollback();
@@ -207,7 +232,15 @@ export class VentaController {
             }, { transaction });
 
             const idVenta = venta.get('id') as number;
-            for (const linea of lineas) {
+            if (nuevoFlujo) await VentaEntrega.create({ id_venta: idVenta, clave: datos.clave, solicitud, estado: lineas.some(l => l.id_producto) ? 'PENDIENTE' : 'NO_APLICA' }, { transaction });
+            const inicial: { id_detalle: number; cantidad: number }[] = [];
+            // Bloquear antes de insertar detalles evita actualizar bloqueos compartidos de sus FK.
+            for (const id of [...new Set(lineas.map(l => l.id_producto).filter((id): id is number => !!id))].sort((a, b) => a - b)) {
+                const producto = await Productos.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+                if (!producto || producto.get('eliminado')) throw new ErrorDespacho('Producto inexistente o inactivo', 400);
+            }
+            // Mantener el mismo orden de bloqueo en ventas concurrentes.
+            for (const linea of [...lineas].sort((a, b) => (a.id_producto || 0) - (b.id_producto || 0))) {
                 if (linea.id_producto) {
                     const producto = await Productos.findByPk(linea.id_producto, {
                         transaction,
@@ -225,8 +258,14 @@ export class VentaController {
                         return;
                     }
                 }
-                await VentaDetalle.create({ ...linea, id_venta: idVenta }, { transaction });
-                if (linea.id_producto) {
+                const detalle = await VentaDetalle.create({ ...linea, id_venta: idVenta }, { transaction });
+                if (linea.id_producto && nuevoFlujo) {
+                    await reservarLinea(detalle, transaction);
+                    const original = datos.lineas[lineas.indexOf(linea)];
+                    const cantidad = datos.entrega === 'COMPLETA' ? linea.cantidad : datos.entrega === 'POSTERIOR' ? 0 : cantidadEntrega(original.entregar_ahora ?? 0, linea.cantidad);
+                    inicial.push({ id_detalle: Number(detalle.get('id')), cantidad });
+                }
+                if (linea.id_producto && !nuevoFlujo) {
                     const stock = await aplicarStock({
                         transaction,
                         idProducto: linea.id_producto,
@@ -245,6 +284,11 @@ export class VentaController {
                 }
             }
 
+            if (nuevoFlujo && inicial.some(l => l.cantidad > 0)) {
+                await registrarDespacho(idVenta, { clave: `${datos.clave}_inicial`, persona_retira: datos.persona_retira || '', lineas: inicial }, usuario.id, transaction);
+            } else if (nuevoFlujo && datos.entrega === 'PARCIAL' && inicial.length) {
+                throw new ErrorDespacho('La entrega parcial requiere al menos una cantidad positiva', 400);
+            }
             if (pagoInicial > 0 && cajaAbierta) {
                 const pagoDoc = camposPagoDocumento(datos, pagoInicial);
                 if (!pagoDoc.ok) {
@@ -294,6 +338,15 @@ export class VentaController {
             res.status(201).json({ mensaje: 'Venta registrada', data: mapVenta(creada) });
         } catch (error) {
             await transaction.rollback();
+            if (nuevoFlujo && error instanceof UniqueConstraintError) {
+                const anterior = await VentaEntrega.findOne({ where: { clave: datos.clave } });
+                const v = anterior ? await Venta.findByPk(Number(anterior.get('id_venta')), { include: includesVenta }) : null;
+                if (v && Number(v.get('id_usuario')) === usuario.id && anterior?.get('solicitud') === solicitud) {
+                    res.status(200).json({ mensaje: 'Venta ya registrada', data: mapVenta(v) }); return;
+                }
+                res.status(409).json({ mensaje: 'Clave de solicitud ya utilizada con otros datos' }); return;
+            }
+            if (error instanceof ErrorDespacho) { res.status(error.status).json({ mensaje: error.message }); return; }
             handleError(res, error, 'Error al registrar la venta');
         }
     }
@@ -331,6 +384,11 @@ export class VentaController {
             const saldo = toMoney(venta.get('saldo_pendiente'));
             const cobrado = roundMoney(total - saldo);
             const clienteNombre = cliente?.get('nombre') || 'Cliente';
+            const entrega = await VentaEntrega.findByPk(idVenta, { transaction, lock: transaction.LOCK.UPDATE });
+            if (entrega) await liberarReservas(idVenta, transaction);
+            else if (despachosHabilitados() && detalles.some(l => l.get('id_producto'))) {
+                throw new ErrorDespacho('Venta anterior: resuelva su entrega y devolucion por separado antes de anular');
+            }
 
             if (cobrado > 0) {
                 const cajaAbierta = await obtenerCajaAbierta(transaction);
@@ -378,6 +436,7 @@ export class VentaController {
             }
 
             for (const linea of detalles) {
+                if (entrega) continue;
                 const idProducto = linea.get('id_producto') as number | null;
                 if (!idProducto) {
                     continue;
@@ -410,6 +469,7 @@ export class VentaController {
             res.status(200).json({ mensaje: 'Venta anulada', data: mapVenta(anulada) });
         } catch (error) {
             await transaction.rollback();
+            if (error instanceof ErrorDespacho) { res.status(error.status).json({ mensaje: error.message }); return; }
             handleError(res, error, 'Error al anular la venta');
         }
     }

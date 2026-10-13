@@ -10,6 +10,7 @@ import { getAuthUser } from '../utils/auth-user';
 import { toMoney } from '../utils/money';
 import { aplicarStock, TIPO_INVENTARIO, toQty } from '../utils/inventario';
 import { imagenParaGuardar, resolverImagen } from '../utils/imagen';
+import { ReservaProducto } from '../models/despacho.model';
 
 function mapProducto(item: any) {
     return {
@@ -82,7 +83,13 @@ export class ProductoController {
                 include: [{ model: CategoriaProducto, as: 'categoria' }],
                 order: [['nombre', 'ASC']]
             });
-            const lista = productos.map(mapProducto);
+            const reservas = await ReservaProducto.findAll();
+            const porProducto = new Map(reservas.map(r => [Number(r.get('id_producto')), toQty(r.get('cantidad'))]));
+            const lista = productos.map(p => {
+                const item = mapProducto(p);
+                const reservado = porProducto.get(item.id) || 0;
+                return { ...item, reservado, disponible: toQty(item.stock - reservado), bajo_minimo: toQty(item.stock - reservado) <= item.stock_minimo };
+            });
             if (req.query.totales === '1') {
                 const totales = await totalesPorProducto(lista.map((p) => p.id));
                 res.status(200).json(lista.map((p) => ({ ...p, ...(totales.get(p.id) || { entradas: 0, salidas: 0 }) })));
@@ -176,16 +183,23 @@ export class ProductoController {
         if (!datos) {
             return;
         }
+        const transaction = await sequelize.transaction();
         try {
-            const producto = await Productos.findByPk(req.params.id);
+            const producto = await Productos.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
             if (!producto || producto.get('eliminado')) {
+                await transaction.rollback();
                 res.status(404).json({ mensaje: 'Producto no encontrado' });
                 return;
             }
             const unidad = normalizarUnidadMedida(datos.unidad_medida) || normalizarUnidadMedida(producto.get('unidad_medida')) || 'Kilo';
             if (unidadMedidaInvalida(unidad)) {
+                await transaction.rollback();
                 res.status(400).json({ mensaje: MENSAJE_UNIDAD_MEDIDA });
                 return;
+            }
+            const reserva = await ReservaProducto.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+            if (Number(reserva?.get('cantidad') || 0) > 0 && unidad !== producto.get('unidad_medida')) {
+                await transaction.rollback(); res.status(409).json({ mensaje: 'No cambie la unidad de un producto con reservas pendientes' }); return;
             }
             await producto.update({
                 nombre: datos.nombre.trim(),
@@ -196,12 +210,14 @@ export class ProductoController {
                 unidad_medida: unidad,
                 path_imagen: imagenParaGuardar(datos.path_imagen ?? (producto.get('path_imagen') as string), 'producto'),
                 id_categoria: datos.id_categoria ?? producto.get('id_categoria')
-            });
+            }, { transaction });
+            await transaction.commit();
             const actualizado = await Productos.findByPk(producto.get('id') as number, {
                 include: [{ model: CategoriaProducto, as: 'categoria' }]
             });
             res.status(200).json({ mensaje: 'Producto actualizado', data: mapProducto(actualizado) });
         } catch (error) {
+            if (!(transaction as any).finished) await transaction.rollback();
             handleError(res, error, 'Error al actualizar el producto');
         }
     }

@@ -23,6 +23,14 @@ import { MovimientoInventario } from './movimiento-inventario.model';
 import { Campana, Acopio } from './campana.model';
 import { Produccion } from './produccion.model';
 import { Empresa } from './empresa.model';
+import { Despacho, ReservaProducto, ReservaVenta, VentaEntrega } from './despacho.model';
+
+Venta.hasOne(VentaEntrega, { foreignKey: 'id_venta', as: 'entrega' });
+Venta.hasMany(ReservaVenta, { foreignKey: 'id_venta', as: 'reservas' });
+ReservaVenta.belongsTo(Venta, { foreignKey: 'id_venta', as: 'venta' });
+Venta.hasMany(Despacho, { foreignKey: 'id_venta', as: 'despachos' });
+Despacho.belongsTo(Venta, { foreignKey: 'id_venta', as: 'venta' });
+Despacho.belongsTo(User, { foreignKey: 'id_usuario', as: 'usuario' });
 
 User.belongsTo(Perfil, { foreignKey: 'id_perfil' });
 Perfil.hasMany(User, { foreignKey: 'id_perfil' });
@@ -111,6 +119,7 @@ Produccion.belongsTo(Productos, { foreignKey: 'id_producto_destino', as: 'produc
 Produccion.belongsTo(User, { foreignKey: 'id_usuario', as: 'usuario' });
 
 export {
+  Despacho, ReservaProducto, ReservaVenta, VentaEntrega,
   sequelize,
   User,
   Programas,

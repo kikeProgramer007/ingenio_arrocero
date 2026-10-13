@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
+import { ReservaProducto } from '../models/despacho.model';
 import { Acopio, Caja, Campana, CategoriaProducto, Cliente, Compra, CompraDetalle, Gasto, MovimientoCaja, PagoGasto, PagoProveedor, Produccion, Productor, Productos, Proveedor, User, Venta, VentaDetalle, Cobranza } from '../models';
 import { handleError } from '../utils/error.handler';
 import { clasificarDiferencia, formatBs, formatUsd, roundMoney, toMoney } from '../utils/money';
@@ -1141,6 +1142,7 @@ export class ReporteController {
             order: [['nombre', 'ASC']],
             limit: 2000
         });
+        const reservas = new Map((await ReservaProducto.findAll()).map(r => [Number(r.get('id_producto')), Number(r.get('cantidad'))]));
         const filas = productos.map((p: any) => {
             const stock = Number(p.stock);
             const minimo = Number(p.stock_minimo);
@@ -1149,10 +1151,12 @@ export class ReporteController {
                 p.categoria?.nombre || '-',
                 p.unidad_medida || '-',
                 stock,
+                reservas.get(p.id) || 0,
+                stock - (reservas.get(p.id) || 0),
                 minimo,
                 toMoney(p.precio_venta),
                 toMoney(p.precio_compra),
-                stock <= minimo ? 'Bajo mínimo' : 'OK'
+                stock - (reservas.get(p.id) || 0) <= minimo ? 'Bajo mínimo' : 'OK'
             ];
         });
         return {
@@ -1160,7 +1164,7 @@ export class ReporteController {
             titulo: 'Inventario de productos',
             subtitulo: `Generado ${fmtFecha(new Date())}`,
             resumen: [{ label: 'Productos', valor: String(productos.length) }],
-            columnas: ['Producto', 'Categoría', 'Unidad', 'Stock', 'Mínimo', 'P. venta', 'P. compra', 'Estado'],
+            columnas: ['Producto', 'Categoría', 'Unidad', 'Existencia física', 'Reservado', 'Disponible', 'Mínimo', 'P. venta', 'P. compra', 'Estado'],
             filas
         };
     }

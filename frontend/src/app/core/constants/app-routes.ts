@@ -17,6 +17,7 @@ export const APP_ROUTES = {
     retiros: '/retiros',
     ingresosEgresos: '/ingresos-egresos',
     inventario: '/inventario',
+    despachos: '/despachos',
     empaques: '/empaques',
     campanas: '/campanas',
     produccion: '/produccion',

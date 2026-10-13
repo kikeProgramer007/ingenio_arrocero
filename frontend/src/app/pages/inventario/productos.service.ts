@@ -9,6 +9,8 @@ export interface ProductoLista {
     precio_venta: number;
     precio_compra: number;
     stock: number;
+    reservado?: number;
+    disponible?: number;
     unidad_medida: string;
     path_imagen?: string | null;
     id_categoria?: number | null;

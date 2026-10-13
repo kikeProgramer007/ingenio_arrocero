@@ -15,6 +15,7 @@ export const APP_RUTAS = {
     RETIROS: '/retiros',
     INGRESOS_EGRESOS: '/ingresos-egresos',
     INVENTARIO: '/inventario',
+    DESPACHOS: '/despachos',
     EMPAQUES: '/empaques',
     CAMPANAS: '/campanas',
     PRODUCCION: '/produccion',
@@ -24,6 +25,7 @@ export const APP_RUTAS = {
 } as const;
 
 export const PROGRAMAS_SEED = [
+    { nombre_programa: 'Despachos', url: APP_RUTAS.DESPACHOS, class_icon: 'pi pi-truck', es_expandible: false, nro_posicion: 62 },
     {
         nombre_programa: 'Dashboard',
         url: APP_RUTAS.DASHBOARD,

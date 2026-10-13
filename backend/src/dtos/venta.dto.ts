@@ -18,6 +18,11 @@ import {
 import { METODOS_PAGO } from '../constants/caja.constants';
 
 export class LineaVentaDTO {
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    @Min(0)
+    entregar_ahora?: number;
     @ValidateIf((o) => !o.id_producto)
     @IsNotEmpty({ message: 'Indique un producto o una descripción' })
     @IsString()
@@ -25,7 +30,7 @@ export class LineaVentaDTO {
     descripcion?: string;
 
     @Type(() => Number)
-    @IsNumber({}, { message: 'La cantidad debe ser numérica' })
+    @IsNumber({ maxDecimalPlaces: 3 }, { message: 'La cantidad debe ser numérica, con hasta tres decimales' })
     @Min(0.001, { message: 'La cantidad debe ser mayor a 0' })
     cantidad!: number;
 
@@ -41,6 +46,19 @@ export class LineaVentaDTO {
 }
 
 export class CrearVentaDTO {
+    @IsOptional()
+    @IsIn(['COMPLETA', 'PARCIAL', 'POSTERIOR'])
+    entrega?: string;
+
+    @IsOptional()
+    @IsString()
+    @Matches(/^[a-zA-Z0-9_-]{8,70}$/)
+    clave?: string;
+
+    @IsOptional()
+    @IsString()
+    @MaxLength(150)
+    persona_retira?: string;
     @Type(() => Number)
     @IsInt({ message: 'El cliente es obligatorio' })
     id_cliente!: number;

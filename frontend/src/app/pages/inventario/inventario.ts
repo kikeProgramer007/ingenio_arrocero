@@ -30,12 +30,18 @@ import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA, UNIDADES_MEDIDA, normalizarUnidadMedida } from '../../shared/utils/unidad-medida';
 import { ProductosService } from './productos.service';
+import { DespachosService } from '../despachos/despachos.service';
+import { DrawerModule } from 'primeng/drawer';
 
 @Component({
     selector: 'app-inventario',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, IconFieldModule, InputIconModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule, MenuModule, TablaBusquedaComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, IconFieldModule, InputIconModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule, MenuModule, TablaBusquedaComponent, DrawerModule],
     template: `
+        <p-drawer [(visible)]="dialogReservas" position="right" [header]="'Reservas · ' + (productoReservas?.nombre || '')" styleClass="!w-full md:!w-[32rem]">
+            <div *ngIf="productoReservas" class="flex flex-wrap gap-4 mb-4"><span>Físico: {{productoReservas.stock}}</span><span>Reservado: {{productoReservas.reservado || 0}}</span><strong>Disponible: {{productoReservas.disponible ?? productoReservas.stock}} {{productoReservas.unidad_medida}}</strong></div>
+            <p-table [value]="reservas" [loading]="cargandoReservas"><ng-template #header><tr><th>Venta</th><th>Cliente</th><th>Pendiente</th></tr></ng-template><ng-template #body let-r><tr><td>#{{r.id_venta}}</td><td>{{r.venta?.cliente?.nombre}}</td><td>{{r.pendiente}} {{r.unidad}}</td></tr></ng-template><ng-template #emptymessage><tr><td colspan="3">No hay reservas pendientes.</td></tr></ng-template></p-table>
+        </p-drawer>
         <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div class="min-w-0">
@@ -76,15 +82,17 @@ import { ProductosService } from './productos.service';
                 responsiveLayout="scroll"
             >
                 <ng-template #header>
-                    <tr><th></th><th>Producto</th><th>Categoría</th><th>Unidad</th><th>Stock</th><th>Mínimo</th><th>P. venta</th><th></th></tr>
+                    <tr><th></th><th>Producto</th><th>Categoría</th><th>Unidad</th><th>Existencia física</th><th>Reservado</th><th>Disponible</th><th>Mínimo</th><th>P. venta</th><th></th></tr>
                 </ng-template>
                 <ng-template #body let-p>
                     <tr>
-                        <td><img [src]="foto(p.path_imagen)" alt="" class="w-10 h-10 rounded-border object-cover" /></td>
+                        <td><img [src]="foto(p.path_imagen)" (error)="imagenProductoFallida($event)" alt="" class="w-10 h-10 rounded-border object-cover" /></td>
                         <td>{{ p.nombre }}</td>
                         <td>{{ p.categoria?.nombre || '-' }}</td>
                         <td [class.text-red-500]="unidadInvalida(p.unidad_medida)">{{ p.unidad_medida }}</td>
-                        <td><p-tag [value]="p.stock" [severity]="p.bajo_minimo ? 'danger' : 'success'" /></td>
+                        <td>{{p.stock}}</td>
+                        <td><p-button [label]="'' + (p.reservado || 0)" [text]="true" pTooltip="Ver ventas con reserva" (onClick)="verReservas(p)" /></td>
+                        <td><p-tag [value]="p.disponible ?? p.stock" [severity]="p.bajo_minimo ? 'danger' : 'success'" /></td>
                         <td>{{ p.stock_minimo }}</td>
                         <td>{{ formatBs(p.precio_venta) }}</td>
                         <td>
@@ -102,10 +110,10 @@ import { ProductosService } from './productos.service';
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
-                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f" [conAvatar]="true"></tr>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="10" [fila]="f" [conAvatar]="true"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
-                    <tr><td colspan="8"><div class="text-center py-8 text-muted-color">No hay productos.</div></td></tr>
+                    <tr><td colspan="10"><div class="text-center py-8 text-muted-color">No hay productos.</div></td></tr>
                 </ng-template>
             </p-table>
         </div>
@@ -173,9 +181,9 @@ import { ProductosService } from './productos.service';
                 [rowHover]="true"
                 responsiveLayout="scroll"
             >
-                <ng-template #header><tr><th>Fecha</th><th>Tipo</th><th>Cant.</th><th>Stock</th><th>Origen</th></tr></ng-template>
+                <ng-template #header><tr><th>Fecha</th><th>Tipo</th><th>Cant.</th><th>Stock</th><th>Origen</th><th>Referencia</th></tr></ng-template>
                 <ng-template #body let-k>
-                    <tr><td>{{ k.fecha | date:'short' }}</td><td>{{ k.tipo }}</td><td>{{ k.cantidad }}</td><td>{{ k.stock_resultante }}</td><td>{{ k.origen }}</td></tr>
+                    <tr><td>{{ k.fecha | date:'short' }}</td><td>{{ k.tipo }}</td><td>{{ k.cantidad }}</td><td>{{ k.stock_resultante }}</td><td>{{ k.origen }} #{{k.origen_id}}</td><td>{{k.observacion}}</td></tr>
                 </ng-template>
             </p-table>
         </p-dialog>
@@ -206,7 +214,15 @@ export class InventarioPage implements OnInit {
     tocadoCategoria = false;
     tocadoUnidad = false;
 
-    constructor(private http: HttpClient, private aviso: AvisoService, private productosService: ProductosService, private router: Router) {}
+    dialogReservas = false; cargandoReservas = false; reservas: any[] = []; productoReservas: any = null;
+    imagenProductoFallida(event: Event): void {
+        const imagen = event.target as HTMLImageElement;
+        imagen.onerror = null;
+        const respaldo = mediaUrl(null, 'producto');
+        if (imagen.src !== respaldo) imagen.src = respaldo;
+    }
+    verReservas(p: any) { this.productoReservas=p; this.reservas=[]; this.dialogReservas=true; this.cargandoReservas=true; this.despachosService.reservas(p.id).subscribe({next:r=>{this.reservas=r;this.cargandoReservas=false;},error:e=>{this.cargandoReservas=false;this.aviso.error(e, 'No se pudieron cargar las reservas');}}); }
+    constructor(private http: HttpClient, private aviso: AvisoService, private productosService: ProductosService, private router: Router, private despachosService: DespachosService) {}
 
     ngOnInit(): void {
         this.http.get<any[]>(apiUrl('/api/productos/categorias')).subscribe({ next: (d) => (this.categorias = d) });

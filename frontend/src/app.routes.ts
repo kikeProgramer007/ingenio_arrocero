@@ -16,6 +16,7 @@ export const appRoutes: Routes = [
             { path: 'caja', loadChildren: () => import('./app/pages/caja/caja.routes'), canActivate: [AuthGuard] },
             { path: 'clientes', loadChildren: () => import('./app/pages/ventas/clientes.routes'), canActivate: [AuthGuard] },
             { path: 'ventas', loadChildren: () => import('./app/pages/ventas/ventas.routes'), canActivate: [AuthGuard] },
+            { path: 'despachos', loadComponent: () => import('./app/pages/despachos/despachos').then(m => m.DespachosComponent), canActivate: [AuthGuard] },
             { path: 'cobranzas', loadChildren: () => import('./app/pages/ventas/cobranzas.routes'), canActivate: [AuthGuard] },
             { path: 'proveedores', loadChildren: () => import('./app/pages/compras/proveedores.routes'), canActivate: [AuthGuard] },
             { path: 'compras', loadChildren: () => import('./app/pages/compras/compras.routes'), canActivate: [AuthGuard] },

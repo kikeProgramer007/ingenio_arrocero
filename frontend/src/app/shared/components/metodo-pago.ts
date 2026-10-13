@@ -4,6 +4,7 @@ import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/f
 import { METODO_PAGO } from '../../pages/caja/caja.constants';
 import { formatBs, toMoney } from '../utils/money';
 import { InputNumeroComponent } from './input-numero';
+import { TooltipModule } from 'primeng/tooltip';
 
 const OPCIONES = [
     { label: 'QR', value: METODO_PAGO.QR, icono: 'pi pi-qrcode' },
@@ -14,7 +15,7 @@ const OPCIONES = [
 @Component({
     selector: 'app-metodo-pago',
     standalone: true,
-    imports: [CommonModule, FormsModule, InputNumeroComponent],
+    imports: [CommonModule, FormsModule, InputNumeroComponent, TooltipModule],
     providers: [
         {
             provide: NG_VALUE_ACCESSOR,
@@ -40,7 +41,7 @@ const OPCIONES = [
             </button>
         </div>
         <div class="metodo-pago-desglose" *ngIf="valor === 'MIXTO'">
-            <p class="metodo-pago-ayuda">Indique cuánto entra en QR (banco) y cuánto en efectivo (cajón). La suma debe ser el total.</p>
+            <p class="metodo-pago-ayuda" *ngIf="!compacto">Indique cuánto entra en QR (banco) y cuánto en efectivo (cajón). La suma debe ser el total.</p>
             <div class="metodo-pago-montos">
                 <div>
                     <label>QR / banco</label>
@@ -57,14 +58,14 @@ const OPCIONES = [
             </div>
         </div>
         <div class="metodo-pago-cambio" *ngIf="muestraCambio">
-            <p class="metodo-pago-ayuda">Si el cliente entrega más efectivo, indique lo recibido para ver el cambio.</p>
+            <p class="metodo-pago-ayuda" *ngIf="!compacto">Si el cliente entrega más efectivo, indique lo recibido para ver el cambio.</p>
             <div class="metodo-pago-montos">
                 <div>
-                    <label>Recibido en efectivo</label>
+                    <label>Recibido en efectivo <i *ngIf="compacto" class="pi pi-info-circle text-muted-color cursor-help" pTooltip="Indica el efectivo que entrega el cliente para calcular el cambio." tooltipPosition="top"></i></label>
                     <app-input-numero [ngModel]="recibido" (ngModelChange)="cambiarRecibido($event)" [disabled]="deshabilitado" />
                 </div>
                 <div>
-                    <label>Cambio</label>
+                    <label>Cambio <i *ngIf="compacto" class="pi pi-info-circle text-muted-color cursor-help" pTooltip="Se calcula automáticamente según el efectivo recibido y el monto a cobrar." tooltipPosition="top"></i></label>
                     <div class="metodo-pago-cambio-valor" [class.metodo-pago-cambio-ok]="cambio > 0" [class.metodo-pago-cambio-falta]="recibidoInsuficiente">
                         {{ formatBs(cambio) }}
                     </div>
@@ -186,6 +187,16 @@ const OPCIONES = [
         }
         .metodo-pago-cambio-ok { color: var(--green-600, #16a34a); }
         .metodo-pago-cambio-falta { color: var(--red-500, #ef4444); }
+        :host(.venta-pago-compacto) { display:contents; }
+        :host(.venta-pago-compacto) .metodo-pago-grid { grid-area:options; }
+        :host(.venta-pago-compacto) .metodo-pago-desglose,
+        :host(.venta-pago-compacto) .metodo-pago-cambio,
+        :host(.venta-pago-compacto) .metodo-pago-montos { display:contents; }
+        :host(.venta-pago-compacto) .metodo-pago-suma { grid-area:sum; }
+        :host(.venta-pago-compacto) .metodo-pago-desglose > .metodo-pago-montos > div:first-child { grid-area:qr; }
+        :host(.venta-pago-compacto) .metodo-pago-desglose > .metodo-pago-montos > div:last-child { grid-area:cash; }
+        :host(.venta-pago-compacto) .metodo-pago-cambio > .metodo-pago-montos > div:first-child { grid-area:received; }
+        :host(.venta-pago-compacto) .metodo-pago-cambio > .metodo-pago-montos > div:last-child { grid-area:change; }
         @media (max-width: 520px) {
             .metodo-pago-grid,
             .metodo-pago-montos {
@@ -196,6 +207,7 @@ const OPCIONES = [
 })
 export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
     @Input() ariaLabel = 'Forma de pago';
+    @Input() compacto = false;
     @Input() montoTotal = 0;
     @Input() montoEfectivo = 0;
     @Input() montoQr = 0;

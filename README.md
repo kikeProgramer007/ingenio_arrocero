@@ -456,7 +456,7 @@ npm run dev
 # Interfaz
 cd frontend
 npm install
-ng serve --o
+ng serve --o  OR npx ng serve --open
 ```
 
 Compilar frontend para producción:

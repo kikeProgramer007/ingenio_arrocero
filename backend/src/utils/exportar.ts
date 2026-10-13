@@ -7,6 +7,7 @@ import { datosEmpresa, rutaLogotipo } from './empresa';
 export type Celda = string | number;
 
 export interface HojaExport {
+    textoCompleto?: boolean;
     nombre: string;
     titulo: string;
     tituloSecundario?: string;
@@ -699,17 +700,12 @@ function anchoTexto(anchoCol: number): number {
     return Math.max(8, anchoCol - PAD * 2);
 }
 
-function lineasCelda(doc: PDFKit.PDFDocument, texto: string, anchoCol: number): number {
-    const lh = Math.max(1, doc.currentLineHeight(true));
-    const h = doc.heightOfString(texto || ' ', {
-        width: anchoTexto(anchoCol),
-        lineGap: 0
-    });
-    return Math.max(1, Math.round(h / lh));
-}
-
 function alturaContenido(doc: PDFKit.PDFDocument, texto: string, anchoCol: number): number {
-    return lineasCelda(doc, texto, anchoCol) * FONT_SIZE;
+    const lineGap = FONT_SIZE - doc.currentLineHeight(true);
+    return doc.heightOfString(texto || ' ', {
+        width: anchoTexto(anchoCol),
+        lineGap
+    });
 }
 
 function alturaBloque(doc: PDFKit.PDFDocument, fila: Celda[], columnas: string[], anchos: number[], negrita: boolean): number {
@@ -734,7 +730,8 @@ function dibujarGrilla(
     columnas: string[],
     anchos: number[],
     bloques: BloqueTabla[],
-    grosor = 0.7
+    grosor = 0.7,
+    textoCompleto = false
 ): number {
     let y = y0;
     bloques.forEach((bloque) => {
@@ -755,7 +752,7 @@ function dibujarGrilla(
                 width: anchoTexto(anchos[i]),
                 align,
                 lineGap,
-                height: contentH + 0.5
+                ...(textoCompleto ? {} : { height: contentH + 0.5 })
             });
             x += anchos[i];
         });
@@ -873,6 +870,7 @@ function limiteContenido(doc: PDFKit.PDFDocument): number {
 
 function pesoColumnaFormal(nombre: string): number {
     const n = nombre.toLowerCase().trim();
+    if (n === 'despachado') return 1.45;
     if (/^n[°º]$|^#$/.test(n)) return 0.4;
     if (/n[°º].*venta/.test(n)) return 0.85;
     if (/^fecha$/.test(n)) return 1.05;
@@ -991,7 +989,8 @@ function dibujarTotalesFormal(
 function dibujarConsultaFormal(
     doc: PDFKit.PDFDocument,
     consulta: { label: string; valor: string }[],
-    startX: number
+    startX: number,
+    textoCompleto = false
 ): void {
     if (!consulta.length) {
         return;
@@ -1001,8 +1000,8 @@ function dibujarConsultaFormal(
     doc.text('Consulta:', startX, doc.y);
     consulta.forEach((item) => {
         const y = doc.y;
-        doc.text(`${item.label}: ${item.valor}`, startX, y, { lineBreak: false });
-        doc.y = y + 11;
+        doc.text(`${item.label}: ${item.valor}`, startX, y, { lineBreak: textoCompleto, width: doc.page.width - startX - doc.page.margins.right });
+        doc.y = textoCompleto ? doc.y + 2 : y + 11;
     });
 }
 
@@ -1045,7 +1044,7 @@ function dibujarHojaFormal(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
         if (!bloques.length) {
             return;
         }
-        dibujarGrilla(doc, startX, doc.y, pageWidth, hoja.columnas, anchos, bloques, 0.4);
+        dibujarGrilla(doc, startX, doc.y, pageWidth, hoja.columnas, anchos, bloques, 0.4, hoja.textoCompleto);
         bloques = [];
     };
     const nuevaPagina = () => {
@@ -1083,7 +1082,7 @@ function dibujarHojaFormal(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
             doc.addPage();
             dibujarEncabezadoFormal(doc, hoja, false);
         }
-        dibujarConsultaFormal(doc, consulta, startX);
+        dibujarConsultaFormal(doc, consulta, startX, hoja.textoCompleto);
     }
     if (hoja.mostrarFirma) {
         if (doc.y + firmaH > bottom()) {

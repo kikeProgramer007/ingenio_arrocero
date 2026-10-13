@@ -22,7 +22,7 @@ export type TipoInputNumero = 'moneda' | 'cantidad';
         <div class="input-numero">
             <span class="input-numero-prefijo" *ngIf="textoPrefijo">{{ textoPrefijo }}</span>
             <p-button
-                *ngIf="tipo === 'cantidad'"
+                *ngIf="tipo === 'cantidad' && !stepperVertical"
                 type="button"
                 icon="pi pi-minus"
                 [outlined]="true"
@@ -37,6 +37,7 @@ export type TipoInputNumero = 'moneda' | 'cantidad';
                 pInputText
                 class="w-full"
                 [class.text-center]="tipo === 'cantidad'"
+                [class.input-con-stepper-vertical]="stepperVertical"
                 [placeholder]="textoVacio"
                 [disabled]="deshabilitado"
                 inputmode="decimal"
@@ -48,7 +49,7 @@ export type TipoInputNumero = 'moneda' | 'cantidad';
                 (blur)="alSalir()"
             />
             <p-button
-                *ngIf="tipo === 'cantidad'"
+                *ngIf="tipo === 'cantidad' && !stepperVertical"
                 type="button"
                 icon="pi pi-plus"
                 [outlined]="true"
@@ -59,6 +60,10 @@ export type TipoInputNumero = 'moneda' | 'cantidad';
                 (mousedown)="$event.preventDefault()"
                 (onClick)="sumar()"
             />
+            <span class="stepper-vertical" *ngIf="tipo === 'cantidad' && stepperVertical">
+                <p-button type="button" icon="pi pi-chevron-up" [text]="true" size="small" ariaLabel="Sumar" [disabled]="deshabilitado" (mousedown)="$event.preventDefault()" (onClick)="sumar()" />
+                <p-button type="button" icon="pi pi-chevron-down" [text]="true" size="small" ariaLabel="Restar" [disabled]="deshabilitado || !puedeRestar" (mousedown)="$event.preventDefault()" (onClick)="restar()" />
+            </span>
         </div>
     `,
     styles: [`
@@ -87,12 +92,25 @@ export type TipoInputNumero = 'moneda' | 'cantidad';
         .text-center {
             text-align: center;
         }
+        .stepper-vertical {
+            display:flex;
+            flex:0 0 2.5rem;
+            flex-direction:column;
+            align-self:stretch;
+            justify-content:center;
+            border-left:1px solid var(--p-form-field-border-color,var(--p-content-border-color));
+        }
+        .stepper-vertical p-button { height:50%; }
+        .stepper-vertical ::ng-deep .p-button { width:100%; height:100%; padding:0; border-radius:0; }
+        :host-context(.input-stepper-vertical) .input-numero { gap:0; border:1px solid var(--p-form-field-border-color,var(--p-content-border-color)); border-radius:var(--p-form-field-border-radius,6px); overflow:hidden; }
+        :host-context(.input-stepper-vertical) .input-numero input { border:0 !important; border-radius:0 !important; box-shadow:none !important; padding-inline:.65rem; text-align:left; }
     `]
 })
 export class InputNumeroComponent implements ControlValueAccessor, AfterViewInit {
     @ViewChild('campo') campo?: ElementRef<HTMLInputElement>;
 
     @Input() tipo: TipoInputNumero = 'moneda';
+    @Input() stepperVertical = false;
     @Input() prefijo?: string;
     @Input() min?: number;
     @Input() step = 1;

@@ -24,6 +24,7 @@ import { assertBaseDeUsuario, shouldAlterSchema } from '../utils/db-sync';
 import { asegurarEsquemaClientes, asegurarEsquemaCompras, asegurarEsquemaEmpresa, asegurarEsquemaGastos, asegurarEsquemaPagoMixto, asegurarEsquemaPagosGasto, asegurarEsquemaProductores, asegurarEsquemaUsuarios, asegurarEsquemaVentas } from '../utils/ensure-schema';
 import { asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
 import { asegurarEmpresa } from '../utils/empresa';
+import routeDespachos from '../routes/despacho.routes';
 
 class Server {
     private app: Application;
@@ -50,6 +51,7 @@ class Server {
         this.app.use('/api/dashboard', routeDashboard);
         this.app.use('/api/clientes', routeClientes);
         this.app.use('/api/ventas', routeVentas);
+        this.app.use('/api/despachos', routeDespachos);
         this.app.use('/api/cobranzas', cobranzaRouter);
         this.app.use('/api/proveedores', routeProveedores);
         this.app.use('/api/productores', routeProductores);

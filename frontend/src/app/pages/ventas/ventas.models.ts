@@ -13,6 +13,10 @@ export interface Cliente {
 }
 
 export interface LineaVenta {
+    unidad?: string;
+    entregado?: number | null;
+    pendiente?: number | null;
+    entregar_ahora?: number;
     id?: number;
     descripcion: string;
     id_producto?: number | null;
@@ -22,6 +26,7 @@ export interface LineaVenta {
 }
 
 export interface Venta {
+    estado_despacho?: string;
     id: number;
     id_cliente: number;
     fecha: string;
@@ -60,9 +65,12 @@ export interface Cobranza {
 }
 
 export interface CrearVentaPayload {
+    entrega?: string;
+    clave?: string;
+    persona_retira?: string;
     id_cliente: number;
     observacion?: string;
-    lineas: { descripcion?: string; cantidad: number; precio_unitario: number; id_producto?: number }[];
+    lineas: { descripcion?: string; cantidad: number; precio_unitario: number; id_producto?: number; entregar_ahora?: number }[];
     pago_inicial?: number;
     metodo_pago?: string;
     monto_efectivo?: number;

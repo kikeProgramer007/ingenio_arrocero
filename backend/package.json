@@ -6,6 +6,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
+    "test:despachos": "npm run build && node tests/despachos.rules.cjs && node tests/despachos.env.cjs && node tests/despachos.api.env.cjs",
+    "test:despachos:isolated": "npm run build && node tests/despachos.integration.cjs",
+    "test:despachos:rules": "npm run build && node tests/despachos.rules.cjs",
+    "test:despachos:env": "npm run build && node tests/despachos.env.cjs",
+    "test:despachos:api": "npm run build && node tests/despachos.api.env.cjs",
+    "migrate:despachos": "npm run build && node dist/scripts/migrar-despachos.js",
     "start": "node dist/index.js",
     "dev": "nodemon dist/index.js",
     "typescript": "tsc --watch"
