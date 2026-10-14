@@ -27,6 +27,8 @@ export interface FiltroDespachos {
     fecha_desde?: string;
     fecha_hasta?: string;
     estado_despacho?: string;
+    sortField?: string;
+    sortOrder?: 1 | -1;
 }
 export function etiquetaDespacho(estado?: string): string {
     return ({ PENDIENTE: 'Despacho pendiente', PARCIAL: 'Despacho parcial', COMPLETO: 'Completo', NO_APLICA: 'No aplica', ANULADA: 'Anulada', ANTERIOR: 'Anterior: por revisar' } as Record<string, string>)[estado || 'ANTERIOR'] || estado || '';

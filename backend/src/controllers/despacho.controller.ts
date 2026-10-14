@@ -79,6 +79,17 @@ function consulta(req: Request) {
     ].includes(estado)
   )
     throw new ErrorDespacho("Estado de despacho invalido", 400);
+  const campoOrden = String(req.query.sortField || "fecha");
+  const direccion = String(req.query.sortOrder) === "1" ? "ASC" : "DESC";
+  const ordenes: Record<string, any[]> = {
+    id: [["id", direccion]],
+    fecha: [["fecha", direccion]],
+    cliente: [[{ model: Cliente, as: "cliente" }, "nombre", direccion]],
+    estado: [["estado", direccion]],
+    estado_despacho: [[{ model: VentaEntrega, as: "entrega" }, "estado", direccion]],
+  };
+  if (!ordenes[campoOrden])
+    throw new ErrorDespacho("Columna de ordenamiento invalida", 400);
   return {
     where,
     include: includesVenta.map((i) =>
@@ -99,10 +110,7 @@ function consulta(req: Request) {
           }
         : i,
     ),
-    order: [
-      ["fecha", "DESC"],
-      ["id", "DESC"],
-    ] as any,
+    order: [...ordenes[campoOrden], ["id", "DESC"]] as any,
   };
 }
 function errorRespuesta(res: Response, error: unknown) {
@@ -118,7 +126,7 @@ function hojaListado(ventas: any[], req: Request): HojaExport {
     titulo: "DESPACHOS DE VENTAS",
     plantilla: "formal",
     consulta: Object.entries(req.query)
-      .filter(([k]) => !["pagina", "limite", "formato"].includes(k))
+      .filter(([k]) => !["pagina", "limite", "formato", "sortField", "sortOrder"].includes(k))
       .map(([label, valor]) => ({ label, valor: String(valor) })),
     columnas: [
       "Venta",
@@ -161,8 +169,16 @@ export class DespachoController {
         100,
         Math.max(1, Math.floor(Number(req.query.limite) || 10)),
       );
+      const opciones = consulta(req);
       const resultado = await Venta.findAndCountAll({
-        ...consulta(req),
+        ...opciones,
+        // Las colecciones se cargan aparte para no multiplicar ventas al paginar.
+        include: opciones.include.map((i) =>
+          ["reservas", "detalles", "cobranzas"].includes(i.as)
+            ? { ...i, separate: true }
+            : i,
+        ),
+        subQuery: false,
         distinct: true,
         limit: limite,
         offset: (pagina - 1) * limite,
