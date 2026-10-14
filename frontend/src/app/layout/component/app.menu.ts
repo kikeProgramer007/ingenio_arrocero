@@ -117,6 +117,7 @@ export class AppMenu {
                 label: 'Configuración',
                 items: [
                     link(APP_ROUTES.empresa, 'Empresa', 'pi pi-building'),
+                    link(APP_ROUTES.plantillasDocumentos, 'Plantillas de documentos', 'pi pi-file-pdf'),
                     link(APP_ROUTES.usuarios, 'Usuarios', 'pi pi-users')
                 ]
             }

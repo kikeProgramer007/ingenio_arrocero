@@ -22,6 +22,7 @@ import { getAuthUser, nombreVisible } from "../utils/auth-user";
 import { enviarExcel, enviarPdf, HojaExport } from "../utils/exportar";
 import { aplicarFiltroFecha } from "../utils/fecha";
 import { handleError } from "../utils/error.handler";
+import { COLUMNAS_DOCUMENTOS } from "../utils/columnas-documentos";
 
 export async function permisoDespacho(
   req: Request,
@@ -128,18 +129,7 @@ function hojaListado(ventas: any[], req: Request): HojaExport {
     consulta: Object.entries(req.query)
       .filter(([k]) => !["pagina", "limite", "formato", "sortField", "sortOrder"].includes(k))
       .map(([label, valor]) => ({ label, valor: String(valor) })),
-    columnas: [
-      "Venta",
-      "Fecha",
-      "Cliente",
-      "Pago",
-      "Despacho",
-      "Producto",
-      "Unidad",
-      "Vendido",
-      "Despachado",
-      "Pendiente",
-    ],
+    columnas: COLUMNAS_DOCUMENTOS.despachos,
     filas: ventas.flatMap((v) =>
       (v.detalles || [])
         .filter((l: any) => l.id_producto)
@@ -313,12 +303,7 @@ export function hojaNotaEntrega(d: any): HojaExport {
         valor: "________________________________",
       },
     ],
-    columnas: [
-      "Producto",
-      "Unidad",
-      "Cantidad entregada",
-      "Cantidad pendiente posterior",
-    ],
+    columnas: COLUMNAS_DOCUMENTOS.nota_entrega,
     filas: d.lineas.map((l: any) => [
       l.descripcion,
       l.unidad,

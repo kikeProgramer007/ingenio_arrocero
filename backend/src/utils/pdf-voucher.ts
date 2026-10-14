@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import PDFDocument from 'pdfkit';
 import { toMoney } from './money';
-import { datosEmpresa, rutaLogotipo } from './empresa';
+import { datosEmpresa, EmpresaDatos, rutaLogotipo } from './empresa';
 import { montoALetrasBs } from './numero-letras';
 
 export interface LineaVoucher {
@@ -31,6 +31,11 @@ export interface DatosVoucher {
     total: number;
     cobrado?: number;
     pendiente?: number;
+}
+
+export interface OpcionesVoucher {
+    empresa?: EmpresaDatos;
+    logotipo?: string | null;
 }
 
 export type TipoReciboMovimiento = 'COBRANZA' | 'COMPROBANTE DE INGRESO' | 'COMPROBANTE DE EGRESO';
@@ -106,8 +111,8 @@ export const PDF_COLOR = {
     fondoResumen: '#FAF6F6'
 };
 
-export function dibujarLogotipo(doc: PDFKit.PDFDocument, x: number, y: number, maxH = 70): number {
-    const logo = rutaLogotipo();
+export function dibujarLogotipo(doc: PDFKit.PDFDocument, x: number, y: number, maxH = 70, logotipo?: string | null): number {
+    const logo = logotipo === undefined ? rutaLogotipo() : logotipo;
     if (!logo) {
         return 0;
     }
@@ -126,17 +131,33 @@ const mmToPt = (mm: number) => mm * PT_POR_MM;
 
 /**
  * Nota de venta/compra en Carta vertical (215,9 × 279,4 mm).
- * Toda la boleta (márgenes + pie) cabe en ~123 mm; la mitad inferior queda vacía.
+ * Medidas en mm excepto alturas, separaciones y tamaños tipográficos en puntos.
  */
 export const NOTA_FORMULARIO = {
     anchoMm: 8.5 * 25.4,
     altoMm: 11 * 25.4,
     contenidoMaxMm: 123,
     margenMm: 7,
-    gapDirTablaMm: 3.5,
-    firmaEspacioMm: 18,
-    filasDetalle: 10,
-    logoH: 22,
+    gapDirTablaMm: 2,
+    firmaEspacioMm: 18 - (1.5 * 12 * 25.4) / 72,
+    filasDetalle: 8,
+    logoH: 32,
+    logoGap: 4,
+    empresaInterlineado: 7,
+    clienteGap: 4,
+    clienteInterlineado: 1,
+    clienteAnchoFraccion: 0.58,
+    clienteColumnaFraccion: 0.5,
+    clienteEtiquetaW: 58,
+    tituloAnchoFraccion: 0.4,
+    numeroOffset: 10,
+    metaOffset: 20,
+    metaInterlineado: 7.5,
+    totalesInterlineado: 8,
+    totalValorW: 72,
+    totalEtiquetaW: 90,
+    firmaEtiquetaGap: 3,
+    registroGap: 12,
     headerH: 12,
     rowMin: 12,
     metaSize: 7,
@@ -168,8 +189,8 @@ function documentoNota(): PDFKit.PDFDocument {
     });
 }
 
-function geometriaVoucher() {
-    const compacto = datosEmpresa().formato_nota === '5.5';
+function geometriaVoucher(empresa = datosEmpresa()) {
+    const compacto = empresa.formato_nota === '5.5';
     return {
         compacto,
         width: 9.5 * INCH,
@@ -196,14 +217,19 @@ export function enviarVoucherPdf(res: Response, baseNombre: string, datos: Datos
     doc.end();
 }
 
-export function bufferVoucherPdf(datos: DatosVoucher): Promise<Buffer> {
+export async function bufferVoucherPdf(datos: DatosVoucher): Promise<Buffer> {
+    return (await bufferVoucherPdfConPaginas(datos)).buffer;
+}
+
+export function bufferVoucherPdfConPaginas(datos: DatosVoucher, opciones: OpcionesVoucher = {}): Promise<{ buffer: Buffer; paginas: number }> {
     return new Promise((resolve, reject) => {
         const doc = documentoNota();
         const chunks: Buffer[] = [];
         doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('end', () => resolve({ buffer: Buffer.concat(chunks), paginas }));
         doc.on('error', reject);
-        dibujarVoucher(doc, datos);
+        dibujarVoucher(doc, datos, opciones);
+        const paginas = doc.bufferedPageRange().count;
         doc.end();
     });
 }
@@ -231,9 +257,23 @@ function folioRecibo(serie: string, numero: number): string {
     return `${serie}-${padNumero(numero)}`;
 }
 
-function dibujarReciboMovimiento(doc: PDFKit.PDFDocument, datos: DatosReciboMovimiento): void {
-    const empresa = datosEmpresa();
-    const g = geometriaVoucher();
+export function bufferReciboPdf(datos: DatosReciboMovimiento, opciones: OpcionesVoucher = {}): Promise<{ buffer: Buffer; paginas: number }> {
+    return new Promise((resolve, reject) => {
+        const g = geometriaVoucher(opciones.empresa);
+        const doc = new PDFDocument({ size: [g.width, g.height], margin: g.margin, bufferPages: true });
+        const chunks: Buffer[] = [];
+        doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+        doc.on('error', reject);
+        doc.on('end', () => resolve({ buffer: Buffer.concat(chunks), paginas }));
+        dibujarReciboMovimiento(doc, datos, opciones);
+        const paginas = doc.bufferedPageRange().count;
+        doc.end();
+    });
+}
+
+function dibujarReciboMovimiento(doc: PDFKit.PDFDocument, datos: DatosReciboMovimiento, opciones: OpcionesVoucher = {}, pagina = 1, continua = false, fragmento = false): void {
+    const empresa = opciones.empresa ?? datosEmpresa();
+    const g = geometriaVoucher(empresa);
     const left = doc.page.margins.left;
     const right = doc.page.width - doc.page.margins.right;
     const width = right - left;
@@ -243,7 +283,7 @@ function dibujarReciboMovimiento(doc: PDFKit.PDFDocument, datos: DatosReciboMovi
     const folio = folioRecibo(datos.serie, datos.numero);
     const tc = datos.tipoCambio && datos.tipoCambio > 0 ? datos.tipoCambio : empresa.tipo_cambio;
 
-    const logoW = dibujarLogotipo(doc, left, top, g.logoH);
+    const logoW = dibujarLogotipo(doc, left, top, g.logoH, opciones.logotipo);
     const headerX = left + logoW;
     const empresaW = Math.max(120, infoW - logoW);
     let y = top;
@@ -289,7 +329,7 @@ function dibujarReciboMovimiento(doc: PDFKit.PDFDocument, datos: DatosReciboMovi
     }
     doc.text(`Método: ${datos.metodo || '-'}`, tituloX, metaY, { width: tituloW, align: 'right' });
     metaY += metaStep;
-    doc.text('Página: 1', tituloX, metaY, { width: tituloW, align: 'right' });
+    doc.text(`Página: ${pagina}`, tituloX, metaY, { width: tituloW, align: 'right' });
 
     y = Math.max(y, metaY) + (g.compacto ? 8 : 12);
     doc.font('Helvetica-Bold').fontSize(g.compacto ? 8 : 9);
@@ -336,7 +376,23 @@ function dibujarReciboMovimiento(doc: PDFKit.PDFDocument, datos: DatosReciboMovi
 
     let rowY = tableTop + headerH;
     const lineas = datos.lineas.length ? datos.lineas : [{ codigo: folio, descripcion: datos.detalle, importe: datos.total }];
-    lineas.forEach((linea) => {
+    doc.font('Helvetica').fontSize(g.metaSize);
+    const altoLinea = (linea: LineaReciboMovimiento) => Math.max(g.rowMin,
+        Math.max(...[linea.codigo, linea.descripcion, numeroTabla(linea.importe)].map((texto, i) =>
+            Math.max(9, doc.heightOfString(texto || '', { width: cols[i].w - 8, align: cols[i].align })))) + (g.compacto ? 4 : 6));
+    const grupos: LineaReciboMovimiento[][] = [[]];
+    const capacidad = doc.page.height - doc.page.margins.bottom - tableTop - headerH - (g.compacto ? 120 : 160);
+    let usado = 0;
+    for (const linea of lineas) {
+        const alto = altoLinea(linea);
+        if (!fragmento && usado > 0 && usado + alto > capacidad) {
+            grupos.push([]);
+            usado = 0;
+        }
+        grupos[grupos.length - 1].push(linea);
+        usado += alto;
+    }
+    grupos[0].forEach((linea) => {
         const celdas = [linea.codigo || '', linea.descripcion || '', numeroTabla(linea.importe)];
         const altos = cols.map((col, i) => Math.max(9, doc.heightOfString(celdas[i], { width: col.w - 8, align: col.align })));
         const rowH = Math.max(g.rowMin, Math.max(...altos) + (g.compacto ? 4 : 6));
@@ -359,6 +415,15 @@ function dibujarReciboMovimiento(doc: PDFKit.PDFDocument, datos: DatosReciboMovi
         }
         vx += col.w;
     });
+
+    if (continua || grupos.length > 1) {
+        doc.font('Helvetica').fontSize(g.metaSize).text('Continúa en la página siguiente', left, rowY + 12, { width, align: 'center' });
+        grupos.slice(1).forEach((grupo, i) => {
+            doc.addPage({ size: [g.width, g.height], margin: g.margin });
+            dibujarReciboMovimiento(doc, { ...datos, lineas: grupo }, opciones, pagina + i + 1, i < grupos.length - 2, true);
+        });
+        return;
+    }
 
     let totY = rowY + (g.compacto ? 8 : 12);
     doc.font('Helvetica').fontSize(g.metaSize);
@@ -388,15 +453,14 @@ function dibujarReciboMovimiento(doc: PDFKit.PDFDocument, datos: DatosReciboMovi
     });
 }
 
-function dibujarLogoNota(doc: PDFKit.PDFDocument, x: number, y: number, alto: number): number {
-    const logo = rutaLogotipo();
+function dibujarLogoNota(doc: PDFKit.PDFDocument, x: number, y: number, alto: number, logotipo?: string | null): number {
+    const logo = logotipo === undefined ? rutaLogotipo() : logotipo;
     if (!logo) {
         return 0;
     }
     try {
-        const ancho = 36;
-        doc.image(logo, x, y, { fit: [ancho, alto] });
-        return ancho + 5;
+        doc.image(logo, x, y, { fit: [alto, alto], align: 'center', valign: 'center' });
+        return alto + NOTA_FORMULARIO.logoGap;
     } catch {
         return 0;
     }
@@ -409,8 +473,8 @@ function textoPlazo(datos: DatosVoucher): string {
     return '';
 }
 
-function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
-    const empresa = datosEmpresa();
+function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher, opciones: OpcionesVoucher = {}): void {
+    const empresa = opciones.empresa ?? datosEmpresa();
     const f = NOTA_FORMULARIO;
     const papel = tamanoNota();
     const left = papel.margin;
@@ -420,9 +484,9 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
     const limiteY = papel.limiteY;
     const meta = f.metaSize;
     const headerH = f.headerH;
-    const totStep = 8;
-    const colVal = 72;
-    const colLbl = 90;
+    const totStep = f.totalesInterlineado;
+    const colVal = f.totalValorW;
+    const colLbl = f.totalEtiquetaW;
     const gapDirTabla = mmToPt(f.gapDirTablaMm);
     const firmaEspacio = mmToPt(f.firmaEspacioMm);
     const detalleH = headerH + f.filasDetalle * f.rowMin;
@@ -457,41 +521,86 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
     };
 
     const lineas = datos.lineas || [];
-    const altos = lineas.map(altoFila);
     const cantTotal = lineas.reduce((acc, linea) => acc + (Number(linea.cantidad) || 0), 0);
+    const usable = detalleH - headerH;
+    // Una descripcion mayor que la tabla continua en fragmentos, sin perder texto.
+    const envolverCelda = (texto: string, ancho: number): string[] => {
+        const resultado: string[] = [];
+        for (const parrafo of texto.split('\n')) {
+            let actual = '';
+            for (const palabra of parrafo.split(/\s+/).filter(Boolean)) {
+                const candidato = actual ? `${actual} ${palabra}` : palabra;
+                if (doc.widthOfString(candidato) <= ancho) {
+                    actual = candidato;
+                    continue;
+                }
+                if (actual) resultado.push(actual);
+                actual = '';
+                for (const letra of palabra) {
+                    if (actual && doc.widthOfString(actual + letra) > ancho) {
+                        resultado.push(actual);
+                        actual = '';
+                    }
+                    actual += letra;
+                }
+            }
+            resultado.push(actual);
+        }
+        return resultado;
+    };
+    doc.font('Helvetica').fontSize(meta);
+    const lineHeight = doc.currentLineHeight(true);
+    const maxLineas = Math.max(1, Math.floor((usable - 2) / lineHeight));
+    const filas = lineas.flatMap((linea) => {
+        const alto = altoFila(linea);
+        const celdas = celdasDe(linea);
+        if (alto <= usable) return [{ celdas, alto }];
+        const envueltas = celdas.map((texto, col) => envolverCelda(texto, cols[col].w - 8));
+        const cantidad = Math.max(...envueltas.map((celda) => celda.length));
+        const fragmentos: { celdas: string[]; alto: number }[] = [];
+        for (let desde = 0; desde < cantidad; desde += maxLineas) {
+            const trozos = envueltas.map((celda) => celda.slice(desde, desde + maxLineas));
+            fragmentos.push({
+                celdas: trozos.map((celda) => celda.join('\n')),
+                alto: Math.max(f.rowMin, Math.max(...trozos.map((celda) => celda.length)) * lineHeight + 2)
+            });
+        }
+        return fragmentos;
+    });
+    const altos = filas.map((fila) => fila.alto);
 
     const pintarIdentificacion = (pagina: number, paginas: number, compacta: boolean) => {
-        const logoW = compacta ? 0 : dibujarLogoNota(doc, left, top, f.logoH);
+        const logoW = compacta ? 0 : dibujarLogoNota(doc, left, top, f.logoH, opciones.logotipo);
         const headerX = left + logoW;
         const empresaW = Math.max(100, width * 0.52 - logoW);
-        const tituloW = width * 0.4;
+        const tituloW = width * f.tituloAnchoFraccion;
         const tituloX = right - tituloW;
-        const line = 7.5;
+        const line = f.empresaInterlineado;
         let yEmp = top;
         doc.fillColor('#000000');
         if (!compacta) {
             doc.font('Helvetica-Bold').fontSize(8);
             if (empresa.titular) {
-                doc.text(empresa.titular, headerX, yEmp, { width: empresaW, lineBreak: false });
-                yEmp += line;
+                doc.text(empresa.titular, headerX, yEmp, { width: empresaW });
+                yEmp = Math.max(yEmp + line, doc.y);
                 doc.font('Helvetica').fontSize(meta);
-                doc.text(empresa.nombre, headerX, yEmp, { width: empresaW, lineBreak: false });
-                yEmp += line;
+                doc.text(empresa.nombre, headerX, yEmp, { width: empresaW });
+                yEmp = Math.max(yEmp + line, doc.y);
             } else {
-                doc.text(empresa.nombre, headerX, yEmp, { width: empresaW, lineBreak: false });
-                yEmp += line;
+                doc.text(empresa.nombre, headerX, yEmp, { width: empresaW });
+                yEmp = Math.max(yEmp + line, doc.y);
             }
             doc.font('Helvetica').fontSize(meta);
             if (empresa.direccion) {
-                doc.text(empresa.direccion, headerX, yEmp, { width: empresaW, lineBreak: false });
-                yEmp += line;
+                doc.text(empresa.direccion, headerX, yEmp, { width: empresaW });
+                yEmp = Math.max(yEmp + line, doc.y);
             }
             const pieEmp = [empresa.telefono ? `Tel.: ${empresa.telefono}` : '', empresa.ciudad]
                 .filter(Boolean)
                 .join('  ·  ');
             if (pieEmp) {
-                doc.text(pieEmp, headerX, yEmp, { width: empresaW, lineBreak: false });
-                yEmp += line;
+                doc.text(pieEmp, headerX, yEmp, { width: empresaW });
+                yEmp = Math.max(yEmp + line, doc.y);
             }
         } else {
             doc.font('Helvetica-Bold').fontSize(8);
@@ -501,13 +610,13 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
 
         doc.font('Helvetica-Bold').fontSize(f.titleSize);
         doc.text(datos.tipoDocumento, tituloX, top, { width: tituloW, align: 'right', lineBreak: false });
-        doc.fontSize(f.numeroSize).text(`Nº ${padNumero(datos.numero)}`, tituloX, top + 10, {
+        doc.fontSize(f.numeroSize).text(`Nº ${padNumero(datos.numero)}`, tituloX, top + f.numeroOffset, {
             width: tituloW,
             align: 'right',
             lineBreak: false
         });
-        const metaStep = 7.5;
-        let metaY = top + 20;
+        const metaStep = f.metaInterlineado;
+        let metaY = top + f.metaOffset;
         doc.font('Helvetica').fontSize(meta);
         const paginaTxt = paginas > 1 ? `Página: ${pagina} de ${paginas}` : `Página: ${pagina}`;
         doc.text(paginaTxt, tituloX, metaY, { width: tituloW, align: 'right', lineBreak: false });
@@ -526,23 +635,26 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
             doc.text(`VENCIMIENTO: ${datos.fechaVencimiento}`, tituloX, metaY, { width: tituloW, align: 'right', lineBreak: false });
         }
 
-        const bloqueY = Math.max(yEmp, metaY) + 3;
-        doc.font('Helvetica-Bold').fontSize(8);
-        doc.text(`${datos.contraparteLabel}: ${datos.contraparteNombre.toUpperCase()}`, left, bloqueY, {
-            width,
-            lineBreak: false
-        });
-        doc.font('Helvetica').fontSize(meta);
-        const lit = 7.5;
-        doc.text(`NIT/CI: ${datos.nitCi || '0'}     CODIGO: ${datos.codigoContraparte}`, left, bloqueY + lit, {
-            width,
-            lineBreak: false
-        });
-        const lineaDir = datos.procedencia
-            ? `DIRECCION: ${datos.direccion || '-'}    PROCEDENCIA: ${datos.procedencia}`
-            : `DIRECCION: ${datos.direccion || '-'}`;
-        doc.text(lineaDir, left, bloqueY + lit * 2, { width, lineBreak: false });
-        return bloqueY + lit * 2 + 2;
+        const clienteW = width * f.clienteAnchoFraccion;
+        const primeraW = clienteW * f.clienteColumnaFraccion;
+        const segundaX = left + primeraW;
+        const campo = (label: string, valor: string, x: number, y: number, ancho: number, bold = false) => {
+            doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 8 : meta);
+            doc.text(label, x, y, { width: f.clienteEtiquetaW, lineBreak: false });
+            doc.text(valor, x + f.clienteEtiquetaW, y, { width: ancho - f.clienteEtiquetaW });
+            return doc.y;
+        };
+        let clienteY = Math.max(yEmp, top + (logoW ? f.logoH : 0)) + f.clienteGap;
+        clienteY = campo(`${datos.contraparteLabel}:`, datos.contraparteNombre.toUpperCase(), left, clienteY, clienteW, true) + f.clienteInterlineado;
+        clienteY = Math.max(
+            campo('NIT/CI:', datos.nitCi || '0', left, clienteY, primeraW),
+            campo('CÓDIGO:', datos.codigoContraparte, segundaX, clienteY, clienteW - primeraW)
+        ) + f.clienteInterlineado;
+        clienteY = Math.max(
+            campo('DIRECCIÓN:', datos.direccion || '-', left, clienteY, primeraW),
+            datos.procedencia ? campo('PROCEDENCIA:', datos.procedencia, segundaX, clienteY, clienteW - primeraW) : clienteY
+        );
+        return Math.max(clienteY, metaY + metaStep);
     };
 
     const marcoTabla = (origenY: number, alto: number) => {
@@ -570,7 +682,7 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
         let rowY = origenY + headerH;
         for (let i = desde; i < hasta; i++) {
             const rowH = altos[i];
-            const celdas = celdasDe(lineas[i]);
+            const celdas = filas[i].celdas;
             let x = left;
             doc.fillColor('#000000').font('Helvetica').fontSize(meta);
             cols.forEach((col, c) => {
@@ -622,41 +734,40 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
         doc.text(montoALetrasBs(datos.total), left, totY + 3 + totStep, {
             width: width - colLbl - colVal - 6
         });
+        const detalleY = Math.max(doc.y + 1, totY + 3 + totStep * 2);
         doc.font('Helvetica-Bold');
-        doc.text(`DETALLE: ${datos.detalle || ''}`, left, totY + 3 + totStep * 2, {
-            width: width - colLbl - colVal - 6,
-            lineBreak: false
+        doc.text(`DETALLE: ${datos.detalle || ''}`, left, detalleY, {
+            width: width - colLbl - colVal - 6
         });
 
-        const totalesEnd = totY + altoTotales;
+        const totalesEnd = Math.max(totY + altoTotales, doc.y + 3);
         const firmaLineY = totalesEnd + firmaEspacio;
         const firmaW = width / 4;
-        const etiquetas = ['VENDEDOR(a)', 'Pagado por', 'Recibido Por', 'CLIENTE'];
+        const etiquetas = ['VENDEDOR(a)', 'Pagado por', 'Recibido por', 'CLIENTE'];
         doc.strokeColor('#000000').lineWidth(0.6).font('Helvetica').fontSize(meta).fillColor('#000000');
         etiquetas.forEach((label, i) => {
             const fx = left + i * firmaW;
             doc.moveTo(fx + 6, firmaLineY).lineTo(fx + firmaW - 6, firmaLineY).stroke();
-            doc.text(label, fx, firmaLineY + 3, { width: firmaW, align: 'center', lineBreak: false });
+            doc.text(label, fx, firmaLineY + f.firmaEtiquetaGap, { width: firmaW, align: 'center', lineBreak: false });
         });
         doc.font('Helvetica').fontSize(6.5);
         doc.text(
             `Hora de registro: ${fmtFechaHora(datos.fecha)} - Guardado por: ${datos.vendedor.toUpperCase()}`,
             left,
-            Math.min(firmaLineY + 12, limiteY - 7),
+            firmaLineY + f.registroGap,
             { width, lineBreak: false }
         );
     };
 
-    const usable = detalleH - headerH;
     const paginas: { desde: number; hasta: number }[] = [];
     let i = 0;
-    if (!lineas.length) {
+    if (!filas.length) {
         paginas.push({ desde: 0, hasta: 0 });
     }
-    while (i < lineas.length) {
+    while (i < filas.length) {
         let usado = 0;
         const desde = i;
-        while (i < lineas.length) {
+        while (i < filas.length) {
             const h = altos[i];
             if (usado > 0 && usado + h > usable) {
                 break;
@@ -678,7 +789,7 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher): void {
         }
         const esUltima = idx === totalPaginas - 1;
         doc.save();
-        doc.rect(0, 0, papel.width, limiteY).clip();
+        doc.rect(0, 0, papel.width, papel.height).clip();
         const afterId = pintarIdentificacion(idx + 1, totalPaginas, idx > 0);
         const tableTop = afterId + gapDirTabla;
         const tableH = detalleH;

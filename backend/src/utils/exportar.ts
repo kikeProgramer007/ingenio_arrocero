@@ -2,7 +2,11 @@ import path from 'path';
 import { Response } from 'express';
 import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
-import { datosEmpresa, rutaLogotipo } from './empresa';
+import { datosEmpresa, EmpresaDatos, rutaLogotipo } from './empresa';
+
+export interface OpcionesPdfReporte { empresa?: EmpresaDatos; logotipo?: string | null; }
+const contextosPdf = new WeakMap<PDFKit.PDFDocument, OpcionesPdfReporte>();
+function empresaPdf(doc: PDFKit.PDFDocument) { return contextosPdf.get(doc)?.empresa ?? datosEmpresa(); }
 
 export type Celda = string | number;
 
@@ -145,8 +149,7 @@ function fmtGenerado(fecha = new Date()): string {
     });
 }
 
-function camposCabecera(hoja: HojaExport): { label: string; valor: string }[] {
-    const empresa = datosEmpresa();
+function camposCabecera(hoja: HojaExport, empresa = datosEmpresa()): { label: string; valor: string }[] {
     const campos: { label: string; valor: string }[] = [
         { label: 'Empresa', valor: empresa.nombre },
         { label: 'Dirección', valor: [empresa.direccion, empresa.ciudad].filter(Boolean).join(' — ') || '-' },
@@ -579,6 +582,15 @@ export async function enviarExcel(res: Response, baseNombre: string, hojas: Hoja
 }
 
 export function enviarPdf(res: Response, baseNombre: string, hojas: HojaExport[]): void {
+    const doc = documentoReporte(hojas, baseNombre);
+    const filename = nombreArchivo(baseNombre, 'pdf');
+    cabecerasDescarga(res, filename, 'application/pdf');
+    doc.pipe(res);
+    pintarReporte(doc, hojas);
+    doc.end();
+}
+
+function documentoReporte(hojas: HojaExport[], baseNombre: string, opciones: OpcionesPdfReporte = {}) {
     const doc = new PDFDocument({
         size: 'LETTER',
         layout: 'portrait',
@@ -586,13 +598,27 @@ export function enviarPdf(res: Response, baseNombre: string, hojas: HojaExport[]
         bufferPages: true,
         info: {
             Title: hojas[0]?.titulo || baseNombre,
-            Author: datosEmpresa().nombre
+            Author: (opciones.empresa ?? datosEmpresa()).nombre
         }
     });
-    const filename = nombreArchivo(baseNombre, 'pdf');
-    cabecerasDescarga(res, filename, 'application/pdf');
-    doc.pipe(res);
+    contextosPdf.set(doc, opciones);
+    return doc;
+}
 
+export function bufferReportePdf(hojas: HojaExport[], opciones: OpcionesPdfReporte = {}): Promise<{ buffer: Buffer; paginas: number }> {
+    return new Promise((resolve, reject) => {
+        const doc = documentoReporte(hojas, hojas[0]?.nombre || 'reporte', opciones);
+        const chunks: Buffer[] = [];
+        doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+        doc.on('error', reject);
+        doc.on('end', () => resolve({ buffer: Buffer.concat(chunks), paginas }));
+        pintarReporte(doc, hojas);
+        const paginas = doc.bufferedPageRange().count;
+        doc.end();
+    });
+}
+
+function pintarReporte(doc: PDFKit.PDFDocument, hojas: HojaExport[]) {
     const formal = hojas.some((h) => h.plantilla === 'formal');
     hojas.forEach((hoja, index) => {
         if (index > 0) {
@@ -605,7 +631,6 @@ export function enviarPdf(res: Response, baseNombre: string, hojas: HojaExport[]
         }
     });
     numerarPaginas(doc, { linea: !formal });
-    doc.end();
 }
 
 function numerarPaginas(doc: PDFKit.PDFDocument, opts?: { linea?: boolean }): void {
@@ -632,7 +657,8 @@ function numerarPaginas(doc: PDFKit.PDFDocument, opts?: { linea?: boolean }): vo
 }
 
 function dibujarLogo(doc: PDFKit.PDFDocument, x: number, y: number, maxW: number, maxH: number): number {
-    const logo = rutaLogotipo();
+    const configurado = contextosPdf.get(doc)?.logotipo;
+    const logo = configurado === undefined ? rutaLogotipo() : configurado;
     if (!logo) {
         return 0;
     }
@@ -655,14 +681,14 @@ function dibujarCabeceraReporte(doc: PDFKit.PDFDocument, hoja: HojaExport): void
         width,
         align: 'center'
     });
-    const empresa = datosEmpresa();
+    const empresa = empresaPdf(doc);
     doc.font('Helvetica').fontSize(8).fillColor('#333333');
     doc.text(empresa.nombre, left, top + 24, {
         width,
         align: 'center'
     });
     let y = top + logoH + 10;
-    const campos = camposCabecera(hoja);
+    const campos = camposCabecera(hoja, empresa);
     const colW = width / 2;
     const lineH = 12;
     const mitad = Math.ceil(campos.length / 2);
@@ -897,7 +923,7 @@ function dibujarEncabezadoFormal(doc: PDFKit.PDFDocument, hoja: HojaExport, comp
     const left = doc.page.margins.left;
     const top = doc.page.margins.top;
     const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const empresa = datosEmpresa();
+    const empresa = empresaPdf(doc);
     if (!completo) {
         doc.font('Helvetica').fontSize(8).fillColor('#000000');
         doc.text(empresa.nombre, left, top, { width: width / 2, lineBreak: false });
@@ -1006,7 +1032,7 @@ function dibujarConsultaFormal(
 }
 
 function dibujarFirmaFormal(doc: PDFKit.PDFDocument, startX: number, pageWidth: number): void {
-    const empresa = datosEmpresa();
+    const empresa = empresaPdf(doc);
     const w = 160;
     const x = startX + pageWidth - w;
     doc.y += 22;

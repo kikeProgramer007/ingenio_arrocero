@@ -30,6 +30,7 @@ export const appRoutes: Routes = [
             { path: 'reportes', loadChildren: () => import('./app/pages/reportes/reportes.routes'), canActivate: [AuthGuard] },
             { path: 'ingresos-egresos', loadChildren: () => import('./app/pages/finanzas/ingresos-egresos.routes'), canActivate: [AuthGuard] },
             { path: 'empresa', loadChildren: () => import('./app/pages/configuracion/empresa.routes'), canActivate: [AuthGuard] },
+            { path: 'plantillas-documentos', loadComponent: () => import('./app/pages/configuracion/plantillas-documentos').then(m => m.PlantillasDocumentosComponent), canActivate: [AuthGuard] },
             { path: 'usuarios', loadChildren: () => import('./app/pages/configuracion/usuarios.routes'), canActivate: [AuthGuard] },
             { path: 'uikit', loadChildren: () => import('./app/pages/uikit/uikit.routes') ,canActivate:[AuthGuard] },
             { path: 'documentation', component: Documentation,canActivate:[AuthGuard]  },

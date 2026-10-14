@@ -45,11 +45,11 @@ const OPCIONES = [
             <div class="metodo-pago-montos">
                 <div>
                     <label>QR / banco</label>
-                    <app-input-numero [ngModel]="montoQr" (ngModelChange)="cambiarQr($event)" [disabled]="deshabilitado" />
+                    <app-input-numero [ngModel]="montoQr" [ngModelOptions]="{ updateOn: 'blur' }" (ngModelChange)="cambiarQr($event)" [min]="0" [disabled]="deshabilitado" />
                 </div>
                 <div>
                     <label>Efectivo</label>
-                    <app-input-numero [ngModel]="montoEfectivo" (ngModelChange)="cambiarEfectivo($event)" [disabled]="deshabilitado" />
+                    <app-input-numero [ngModel]="montoEfectivo" [ngModelOptions]="{ updateOn: 'blur' }" (ngModelChange)="cambiarEfectivo($event)" [min]="0" [disabled]="deshabilitado" />
                 </div>
             </div>
             <div class="metodo-pago-suma" [class.metodo-pago-suma-ok]="sumaCuadra" [class.metodo-pago-suma-error]="!sumaCuadra">
@@ -62,7 +62,7 @@ const OPCIONES = [
             <div class="metodo-pago-montos">
                 <div>
                     <label>Recibido en efectivo <i *ngIf="compacto" class="pi pi-info-circle text-muted-color cursor-help" pTooltip="Indica el efectivo que entrega el cliente para calcular el cambio." tooltipPosition="top"></i></label>
-                    <app-input-numero [ngModel]="recibido" (ngModelChange)="cambiarRecibido($event)" [disabled]="deshabilitado" />
+                    <app-input-numero [ngModel]="recibido" [ngModelOptions]="{ updateOn: 'blur' }" (ngModelChange)="cambiarRecibido($event)" [min]="efectivoACobrar" [disabled]="deshabilitado" />
                 </div>
                 <div>
                     <label>Cambio <i *ngIf="compacto" class="pi pi-info-circle text-muted-color cursor-help" pTooltip="Se calcula automáticamente según el efectivo recibido y el monto a cobrar." tooltipPosition="top"></i></label>
@@ -220,6 +220,8 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
     valor = '';
     deshabilitado = false;
     recibido = 0;
+    private recibidoEditado = false;
+    private ultimoMontoEditado: 'efectivo' | 'qr' = 'efectivo';
     formatBs = formatBs;
 
     private onChange: (value: string) => void = () => undefined;
@@ -268,8 +270,15 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
     }
 
     ngOnChanges(changes: SimpleChanges): void {
-        if (changes['montoTotal'] && this.valor === METODO_PAGO.MIXTO && !changes['montoTotal'].firstChange) {
-            this.cambiarEfectivo(this.montoEfectivo);
+        if (changes['montoTotal'] && !changes['montoTotal'].firstChange) {
+            if (this.valor === METODO_PAGO.MIXTO) {
+                if (this.ultimoMontoEditado === 'qr') this.cambiarQr(this.montoQr);
+                else this.cambiarEfectivo(this.montoEfectivo);
+            } else if (this.valor === METODO_PAGO.EFECTIVO) {
+                this.emitir(this.limitarMonto(this.montoTotal), 0);
+            } else if (this.valor === METODO_PAGO.QR) {
+                this.emitir(0, this.limitarMonto(this.montoTotal));
+            }
         }
         if ((changes['montoTotal'] || changes['montoEfectivo']) && this.muestraCambio) {
             this.ajustarRecibido();
@@ -277,10 +286,11 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
     }
 
     elegir(value: string): void {
-        if (this.deshabilitado) {
+        if (this.deshabilitado || this.valor === value) {
             return;
         }
         this.valor = value;
+        this.recibidoEditado = false;
         this.onChange(value);
         this.onTouched();
         if (value === METODO_PAGO.EFECTIVO) {
@@ -298,22 +308,26 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
     }
 
     cambiarRecibido(value: number | null): void {
-        this.recibido = toMoney(value);
+        this.recibidoEditado = true;
+        this.recibido = Math.max(this.efectivoACobrar, toMoney(value));
     }
 
     cambiarEfectivo(value: number | null): void {
-        const efectivo = toMoney(value);
+        this.ultimoMontoEditado = 'efectivo';
+        const efectivo = this.limitarMonto(value);
         const qr = toMoney(Math.max(0, toMoney(this.montoTotal) - efectivo));
         this.emitir(efectivo, qr);
     }
 
     cambiarQr(value: number | null): void {
-        const qr = toMoney(value);
+        this.ultimoMontoEditado = 'qr';
+        const qr = this.limitarMonto(value);
         const efectivo = toMoney(Math.max(0, toMoney(this.montoTotal) - qr));
         this.emitir(efectivo, qr);
     }
 
     writeValue(value: string | null): void {
+        if (this.valor !== (value || '')) this.recibidoEditado = false;
         this.valor = value || '';
         if (this.muestraCambio) {
             this.ajustarRecibido();
@@ -335,19 +349,22 @@ export class MetodoPagoComponent implements ControlValueAccessor, OnChanges {
     }
 
     private emitir(efectivo: number, qr: number): void {
+        const efectivoCambio = this.montoEfectivo !== efectivo;
+        const qrCambio = this.montoQr !== qr;
         this.montoEfectivo = efectivo;
         this.montoQr = qr;
-        this.montoEfectivoChange.emit(efectivo);
-        this.montoQrChange.emit(qr);
+        if (efectivoCambio) this.montoEfectivoChange.emit(efectivo);
+        if (qrCambio) this.montoQrChange.emit(qr);
         if (this.muestraCambio) {
             this.ajustarRecibido();
         }
     }
 
     private ajustarRecibido(): void {
-        const due = this.efectivoACobrar;
-        if (toMoney(this.recibido) < due) {
-            this.recibido = due;
-        }
+        if (!this.recibidoEditado) this.recibido = this.efectivoACobrar;
+    }
+
+    private limitarMonto(value: number | null): number {
+        return Math.min(Math.max(0, toMoney(this.montoTotal)), Math.max(0, toMoney(value)));
     }
 }

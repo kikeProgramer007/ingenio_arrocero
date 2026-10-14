@@ -21,10 +21,12 @@ export const APP_RUTAS = {
     PRODUCCION: '/produccion',
     REPORTES: '/reportes',
     EMPRESA: '/empresa',
+    PLANTILLAS_DOCUMENTOS: '/plantillas-documentos',
     USUARIOS: '/usuarios'
 } as const;
 
 export const PROGRAMAS_SEED = [
+    { nombre_programa: 'Plantillas de documentos', url: APP_RUTAS.PLANTILLAS_DOCUMENTOS, class_icon: 'pi pi-file-pdf', es_expandible: false, nro_posicion: 92 },
     { nombre_programa: 'Despachos', url: APP_RUTAS.DESPACHOS, class_icon: 'pi pi-truck', es_expandible: false, nro_posicion: 62 },
     {
         nombre_programa: 'Dashboard',

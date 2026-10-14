@@ -25,6 +25,7 @@ import { asegurarEsquemaClientes, asegurarEsquemaCompras, asegurarEsquemaEmpresa
 import { asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
 import { asegurarEmpresa } from '../utils/empresa';
 import routeDespachos from '../routes/despacho.routes';
+import routePlantillasDocumentos from '../routes/plantillas-documentos.routes';
 
 class Server {
     private app: Application;
@@ -64,6 +65,7 @@ class Server {
         this.app.use('/api/reportes', routeReportes);
         this.app.use('/api/uploads', routeUploads);
         this.app.use('/api/empresa', routeEmpresa);
+        this.app.use('/api/plantillas-documentos', routePlantillasDocumentos);
     }
 
     midlewares() {

@@ -5,6 +5,7 @@ import { Acopio, Caja, Campana, CategoriaProducto, Cliente, Compra, CompraDetall
 import { handleError } from '../utils/error.handler';
 import { clasificarDiferencia, formatBs, formatUsd, roundMoney, toMoney } from '../utils/money';
 import { enviarExcel, enviarPdf, HojaExport } from '../utils/exportar';
+import { COLUMNAS_DOCUMENTOS } from '../utils/columnas-documentos';
 import { DatosReciboMovimiento, DatosVoucher, enviarReciboMovimientoPdf, enviarVoucherPdf, LineaVoucher } from '../utils/pdf-voucher';
 import { ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
 import { cobradoVenta, diasAtraso, ESTADO_VENTA, esVentaVencida, saldoVenta, situacionCobranza } from '../constants/venta.constants';
@@ -308,7 +309,7 @@ export class ReporteController {
             nombre: 'Resumen',
             titulo: 'Resumen operativo',
             subtitulo: periodoTexto(desde, hasta),
-            columnas: ['Indicador', 'Valor'],
+            columnas: COLUMNAS_DOCUMENTOS.resumen,
             filas: [
                 ['Ventas vigentes (cantidad)', resumen.ventas.cantidad],
                 ['Ventas vigentes (total)', resumen.ventas.total],
@@ -547,7 +548,7 @@ export class ReporteController {
             plantilla: 'formal',
             mostrarFirma: true,
             consulta,
-            columnas: ['N°', 'Fecha', 'N° Venta', 'Cliente', 'Total (Bs)', 'Cobrado (Bs)', 'Saldo (Bs)', 'Vencimiento', 'Días atraso', 'Estado'],
+            columnas: COLUMNAS_DOCUMENTOS.cuentas_por_cobrar,
             filas,
             resumen: [
                 { label: 'Total crédito', valor: data.totales.vendido },
@@ -607,7 +608,7 @@ export class ReporteController {
                 { label: 'Egresos', valor: roundMoney(egresos) },
                 { label: 'Saldo neto', valor: roundMoney(ingresos - egresos) }
             ],
-            columnas: ['Fecha', 'Tipo', 'Origen', 'Categoría', 'Concepto', 'Método', 'Ingreso', 'Egreso', 'Usuario'],
+            columnas: COLUMNAS_DOCUMENTOS.movimientos,
             filas
         };
     }
@@ -656,7 +657,7 @@ export class ReporteController {
                 { label: 'Total', valor: total },
                 { label: 'Cobrado', valor: cobrado }
             ],
-            columnas: ['Nro', 'Fecha', 'Cliente', 'Total', 'Cobrado', 'Pendiente', 'Vencimiento', 'Estado'],
+            columnas: COLUMNAS_DOCUMENTOS.ventas,
             filas
         };
     }
@@ -694,7 +695,7 @@ export class ReporteController {
             titulo: 'Gastos y retiros',
             subtitulo: periodoTexto(desde, hasta),
             resumen: [{ label: 'Total', valor: total }],
-            columnas: ['Fecha', 'Tipo', 'Categoría', 'Concepto', 'Monto', 'Descontó caja', 'Método', 'Usuario'],
+            columnas: COLUMNAS_DOCUMENTOS.egresos,
             filas
         };
     }
@@ -777,7 +778,7 @@ export class ReporteController {
                 { label: 'Arqueo', valor: diferencia == null ? '-' : clasificarDiferencia(diferencia) },
                 { label: 'Usuario apertura', valor: nombreVisible((caja as any).usuarioApertura) }
             ],
-            columnas: ['Fecha', 'Tipo', 'Categoría', 'Concepto', 'Método', 'Monto', 'Usuario'],
+            columnas: COLUMNAS_DOCUMENTOS.caja,
             filas
         }];
     }
@@ -886,7 +887,7 @@ export class ReporteController {
                 { label: 'Total', valor: total },
                 { label: 'Por pagar', valor: porPagar }
             ],
-            columnas: ['Nro', 'Fecha', 'Proveedor', 'Clase', 'Total', 'Pagado', 'Pendiente', 'Estado'],
+            columnas: COLUMNAS_DOCUMENTOS.compras,
             filas
         };
     }
@@ -980,7 +981,7 @@ export class ReporteController {
                 { label: 'Cantidad', valor: String(cobranzas.length) },
                 { label: 'Total cobrado', valor: total }
             ],
-            columnas: ['Fecha', 'Venta', 'Cliente', 'Monto', 'Método', 'Referencia', 'Usuario'],
+            columnas: COLUMNAS_DOCUMENTOS.cobranzas,
             filas
         };
     }
@@ -1020,7 +1021,7 @@ export class ReporteController {
                 { label: 'Cantidad', valor: String(pagos.length) },
                 { label: 'Total pagado', valor: total }
             ],
-            columnas: ['Fecha', 'Compra', 'Proveedor', 'Monto', 'Método', 'Referencia', 'Usuario'],
+            columnas: COLUMNAS_DOCUMENTOS.pagos,
             filas
         };
     }
@@ -1028,7 +1029,7 @@ export class ReporteController {
     private static async hojasCuentaProveedor(req: Request): Promise<HojaExport[]> {
         const id = Number(req.query.id);
         const proveedor = id ? await Proveedor.findByPk(id) : null;
-        const columnasKardex = ['Fecha', 'Productor', 'Tipo de operación', 'Concepto/Producto', 'Boleta', 'Chofer', 'Placa', 'Fanegas', 'Precio', 'Compra', 'Pago/Amortización', 'Saldo'];
+        const columnasKardex = COLUMNAS_DOCUMENTOS.cuenta_proveedor;
         if (!proveedor) {
             return [{
                 nombre: 'Kardex',
@@ -1123,7 +1124,7 @@ export class ReporteController {
                 nombre: 'Entregas',
                 titulo: `Entregas — ${nombre}`,
                 subtitulo: 'Cantidad entregada (compra + acopio). El stock del almacén es único; no se reserva ni se descuenta el pilado por productor.',
-                columnas: ['Producto', 'Unidad', 'Compras', 'Acopio', 'Entregado'],
+                columnas: COLUMNAS_DOCUMENTOS.entregas_proveedor,
                 filas: cuenta.inventario.map((linea) => [
                     linea.producto,
                     linea.unidad,
@@ -1164,7 +1165,7 @@ export class ReporteController {
             titulo: 'Inventario de productos',
             subtitulo: `Generado ${fmtFecha(new Date())}`,
             resumen: [{ label: 'Productos', valor: String(productos.length) }],
-            columnas: ['Producto', 'Categoría', 'Unidad', 'Existencia física', 'Reservado', 'Disponible', 'Mínimo', 'P. venta', 'P. compra', 'Estado'],
+            columnas: COLUMNAS_DOCUMENTOS.inventario,
             filas
         };
     }
@@ -1193,7 +1194,7 @@ export class ReporteController {
             titulo: 'Clientes',
             subtitulo: `Generado ${fmtFecha(new Date())}`,
             resumen: [{ label: 'Registros', valor: String(clientes.length) }],
-            columnas: ['Nombre', 'NIT / CI', 'Teléfono', 'Procedencia', 'Dirección', 'Estado'],
+            columnas: COLUMNAS_DOCUMENTOS.clientes,
             filas
         };
     }
@@ -1230,7 +1231,7 @@ export class ReporteController {
             titulo: 'Proveedores',
             subtitulo: `Generado ${fmtFecha(new Date())}`,
             resumen: [{ label: 'Registros', valor: String(filtrados.length) }],
-            columnas: ['Nombre', 'NIT / CI', 'Teléfono', 'Dirección', 'Rol', 'Estado'],
+            columnas: COLUMNAS_DOCUMENTOS.proveedores,
             filas
         };
     }
@@ -1272,7 +1273,7 @@ export class ReporteController {
             titulo: 'Bolsas y empaques',
             subtitulo: `Generado ${fmtFecha(new Date())}`,
             resumen: [{ label: 'Tipos', valor: String(bolsas.length) }],
-            columnas: ['Tipo de bolsa', 'Unidad', 'Existencia', 'Mínimo', 'Estado'],
+            columnas: COLUMNAS_DOCUMENTOS.empaques,
             filas
         };
     }
@@ -1303,7 +1304,7 @@ export class ReporteController {
             titulo: 'Producción',
             subtitulo: hayPeriodoQuery(req.query) ? periodoTexto(desde, hasta) : `Generado ${fmtFecha(new Date())}`,
             resumen: [{ label: 'Registros', valor: String(items.length) }],
-            columnas: ['Fecha', 'Origen', 'Entrada', 'Destino', 'Salida', 'Merma', 'Usuario'],
+            columnas: COLUMNAS_DOCUMENTOS.produccion,
             filas
         };
     }
@@ -1335,7 +1336,7 @@ export class ReporteController {
             titulo: 'Campañas de acopio',
             subtitulo: hayPeriodoQuery(req.query) ? periodoTexto(desde, hasta) : `Generado ${fmtFecha(new Date())}`,
             resumen: [{ label: 'Campañas', valor: String(campanas.length) }],
-            columnas: ['Nombre', 'Inicio', 'Fin', 'Meta', 'Estado', 'Usuario'],
+            columnas: COLUMNAS_DOCUMENTOS.campanas,
             filas
         };
     }
@@ -1391,7 +1392,7 @@ export class ReporteController {
             titulo: 'Historial de cajas',
             subtitulo: hayPeriodoQuery(req.query) ? periodoTexto(desde, hasta) : `Generado ${fmtFecha(new Date())}`,
             resumen: [{ label: 'Cajas', valor: String(cajas.length) }],
-            columnas: ['Apertura', 'Usuario', 'Saldo inicial', 'Ingresos', 'Egresos', 'Esperado', 'Contado', 'Diferencia', 'Estado'],
+            columnas: COLUMNAS_DOCUMENTOS.cajas,
             filas
         };
     }

@@ -23,5 +23,6 @@ export const APP_ROUTES = {
     produccion: '/produccion',
     reportes: '/reportes',
     empresa: '/empresa',
+    plantillasDocumentos: '/plantillas-documentos',
     usuarios: '/usuarios'
 } as const;

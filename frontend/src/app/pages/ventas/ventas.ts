@@ -240,7 +240,7 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
                                     <label class="flex items-center gap-1 font-bold">Cliente <app-ayuda-campo texto="Quien compra. Si no está en la lista, pulsa Nuevo." posicion="right" /></label>
                                 <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirClienteRapido()" />
                             </div>
-                            <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="idCliente" placeholder="Seleccione cliente" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
+                            <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="idCliente" (ngModelChange)="seleccionarCliente($event)" placeholder="Seleccione cliente" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
                         </div>
                         <div>
                             <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
@@ -1139,6 +1139,11 @@ export class VentasPage implements OnInit {
         this.dialogCliente = true;
     }
 
+    seleccionarCliente(id: number | null): void {
+        this.idCliente = id;
+        this.personaRetira = this.clientes.find((cliente) => cliente.id === id)?.nombre || '';
+    }
+
     guardarClienteRapido(): void {
         if (!this.clienteRapido.nombre.trim()) {
             this.aviso.aviso('Validación', 'El nombre es obligatorio');
@@ -1156,7 +1161,7 @@ export class VentasPage implements OnInit {
                 this.guardandoCliente = false;
                 this.dialogCliente = false;
                 this.clientes = [...this.clientes, res.data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-                this.idCliente = res.data.id;
+                this.seleccionarCliente(res.data.id);
                 this.aviso.ok('Cliente', res.mensaje);
             },
             error: (err) => {
