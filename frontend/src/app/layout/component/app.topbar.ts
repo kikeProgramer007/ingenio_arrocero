@@ -11,11 +11,12 @@ import { APP_ROUTES } from '../../core/constants/app-routes';
 import { EmpresaService } from '../../core/services/empresa.service';
 import { ConfirmarService } from '../../shared/services/confirmar.service';
 import { nombreUsuario } from '../../shared/utils/usuario';
+import { AppNotificaciones } from './app.notificaciones';
 
 @Component({
     selector: 'app-topbar',
     standalone: true,
-    imports: [RouterModule, MenuModule, CommonModule, StyleClassModule, AppConfigurator],
+    imports: [RouterModule, MenuModule, CommonModule, StyleClassModule, AppConfigurator, AppNotificaciones],
     template: ` <div class="layout-topbar">
         <div class="layout-topbar-logo-container">
             <button class="layout-menu-button layout-topbar-action" (click)="layoutService.onMenuToggle()">
@@ -29,6 +30,7 @@ import { nombreUsuario } from '../../shared/utils/usuario';
 
         <div class="layout-topbar-actions">
             <div class="layout-config-menu">
+                <app-notificaciones />
                 <button type="button" class="layout-topbar-action" (click)="toggleDarkMode()">
                     <i [ngClass]="{ 'pi ': true, 'pi-moon': layoutService.isDarkTheme(), 'pi-sun': !layoutService.isDarkTheme() }"></i>
                 </button>
