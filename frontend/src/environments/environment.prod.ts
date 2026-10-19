@@ -1,5 +1,5 @@
 export const environment = {
     production: true,
-    endpoint: 'https://ingenio-arrocero.onrender.com/',
-    apiUrl: 'https://ingenio-arrocero.onrender.com/'
+    endpoint: 'https://apiroyal.bitsys.com.bo/',
+    apiUrl: 'https://apiroyal.bitsys.com.bo/'
 };

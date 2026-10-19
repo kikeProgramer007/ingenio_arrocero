@@ -1,0 +1,62 @@
+name: Deploy Royal
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: royal-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    environment: Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Validate backend and frontend
+        run: |
+          npm ci --prefix backend
+          npm run build --prefix backend
+          npm ci --prefix frontend
+          npm run build --prefix frontend -- --configuration production
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          test -n "$DEPLOY_SSH_KEY"
+          test -n "$DEPLOY_KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/royal
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/royal ~/.ssh/known_hosts
+
+      - name: Deploy commit to Debian
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          set -eu
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          ssh -i ~/.ssh/royal -p "${DEPLOY_PORT:-22}" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "bash -s -- $GITHUB_SHA" < scripts/deploy.sh
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/royal

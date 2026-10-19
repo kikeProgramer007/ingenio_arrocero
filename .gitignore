@@ -1,0 +1,11 @@
+# Secrets and server-only configuration
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+*.pem
+*.key
+*.sql.gz
+*-respaldo.sql

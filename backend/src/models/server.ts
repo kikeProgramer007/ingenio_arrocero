@@ -17,6 +17,7 @@ import routeReportes from '../routes/reporte.routes';
 import routeUploads from '../routes/upload.routes';
 import routeEmpresa from '../routes/empresa.routes';
 import { seedProgramasCaja } from '../seed/programas-caja.seed';
+import { seedAdmin } from '../seed/admin.seed';
 import { seedInventarioBase } from '../seed/inventario.seed';
 import { seedCatalogoFotos } from '../seed/catalogo-fotos.seed';
 import { sequelize } from '../models';
@@ -95,6 +96,7 @@ class Server {
             await asegurarEsquemaCompras();
             await asegurarEsquemaProductores();
             await asegurarEsquemaUsuarios();
+            await seedAdmin();
             await seedProgramasCaja();
             await seedInventarioBase();
             await seedCatalogoFotos();
