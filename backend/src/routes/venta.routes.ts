@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { CobranzaController, VentaController } from '../controllers/venta.controller';
+import { editarVenta } from '../controllers/venta-edicion';
 import validateToken from './validate-token';
 import { permisoDespacho } from '../controllers/despacho.controller';
 import { despachosHabilitados } from '../servicios/despachos.servicio';
@@ -13,6 +14,7 @@ router.post('/', validateToken, (req, res, next) => {
     next();
 }, VentaController.crear);
 router.put('/:id/anular', validateToken, VentaController.anular);
+router.put('/:id', validateToken, editarVenta);
 router.get('/:id', validateToken, VentaController.obtener);
 
 export default router;

@@ -34,7 +34,7 @@ import { TablaEsqueletoComponent } from '../../../shared/components/tabla-esquel
                     <tr *ngFor="let f of [0,1,2,3,4]" app-tabla-esqueleto [columnas]="3" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
-                    <tr><td colspan="3"><app-estado-vacio icono="pi pi-arrow-down-left" titulo="Sin ingresos hoy" mensaje="Registra una venta cobrada o una cobranza." /></td></tr>
+                    <tr><td colspan="3"><app-estado-vacio icono="pi pi-arrow-down-left" titulo="Sin ingresos en el período" mensaje="Registra una venta cobrada o una cobranza." /></td></tr>
                 </ng-template>
             </p-table>
         </div>
@@ -58,7 +58,7 @@ import { TablaEsqueletoComponent } from '../../../shared/components/tabla-esquel
                     <tr *ngFor="let f of [0,1,2,3,4]" app-tabla-esqueleto [columnas]="3" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
-                    <tr><td colspan="3"><app-estado-vacio icono="pi pi-arrow-up-right" titulo="Sin egresos hoy" mensaje="Los pagos, gastos y retiros aparecerán aquí." /></td></tr>
+                    <tr><td colspan="3"><app-estado-vacio icono="pi pi-arrow-up-right" titulo="Sin egresos en el período" mensaje="Los pagos, gastos y retiros aparecerán aquí." /></td></tr>
                 </ng-template>
             </p-table>
         </div>

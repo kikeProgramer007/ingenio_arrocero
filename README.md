@@ -467,3 +467,18 @@ ng build --configuration production
 ```
 
 El menú de la aplicación se arma con los **programas** asignados al usuario al iniciar sesión.
+
+
+
+CREATE USER 'royal_local'@'%'
+IDENTIFIED BY 'Econdori123.';
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON db_royalalimentos.*
+TO 'royal_local'@'%';
+
+-- SI AGREGAMOS OTRA BD
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON db_farmacia.*
+TO 'royal_local'@'%';

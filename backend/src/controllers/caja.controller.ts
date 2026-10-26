@@ -8,6 +8,7 @@ import { clasificarDiferencia, roundMoney, toMoney } from '../utils/money';
 import {
     ESTADO_CAJA,
     ORIGEN_MOVIMIENTO,
+    TIPO_CAJA,
     TIPO_MOVIMIENTO
 } from '../constants/caja.constants';
 import { ESTADO_VENTA } from '../constants/venta.constants';
@@ -27,7 +28,7 @@ export class CajaController {
     public static async obtenerAbierta(req: Request, res: Response): Promise<void> {
         try {
             const caja = await Caja.findOne({
-                where: { estado: ESTADO_CAJA.ABIERTA },
+                where: { estado: ESTADO_CAJA.ABIERTA, tipo: TIPO_CAJA.PRINCIPAL },
                 include: CajaController.includesUsuarios(),
                 order: [['id', 'DESC']]
             });
@@ -58,7 +59,7 @@ export class CajaController {
         const transaction = await sequelize.transaction();
         try {
             const abierta = await Caja.findOne({
-                where: { estado: ESTADO_CAJA.ABIERTA },
+                where: { estado: ESTADO_CAJA.ABIERTA, tipo: TIPO_CAJA.PRINCIPAL },
                 transaction,
                 lock: transaction.LOCK.UPDATE
             });
@@ -77,6 +78,7 @@ export class CajaController {
                 saldo_inicial: saldoInicial,
                 saldo_esperado: saldoInicial,
                 estado: ESTADO_CAJA.ABIERTA,
+                tipo: TIPO_CAJA.PRINCIPAL,
                 id_usuario_apertura: usuario.id,
                 observacion: datos.observacion || null
             }, { transaction });
@@ -99,7 +101,7 @@ export class CajaController {
 
     public static async historial(req: Request, res: Response): Promise<void> {
         try {
-            const where: WhereOptions = {};
+            const where: WhereOptions = { tipo: TIPO_CAJA.PRINCIPAL };
             const { fecha_desde, fecha_hasta, estado } = req.query;
 
             if (estado && typeof estado === 'string') {
@@ -174,6 +176,12 @@ export class CajaController {
             if (!caja) {
                 await transaction.rollback();
                 res.status(404).json({ mensaje: `No se encontró la caja con ID ${req.params.id}` });
+                return;
+            }
+
+            if (caja.get('tipo') === TIPO_CAJA.CHICA) {
+                await transaction.rollback();
+                res.status(409).json({ mensaje: 'La caja chica no se cierra. Use el arqueo para contar el efectivo.' });
                 return;
             }
 
@@ -262,6 +270,12 @@ export class CajaController {
             if (!caja) {
                 await transaction.rollback();
                 res.status(404).json({ mensaje: `No se encontró la caja con ID ${req.params.id}` });
+                return;
+            }
+
+            if (caja.get('tipo') === TIPO_CAJA.CHICA) {
+                await transaction.rollback();
+                res.status(409).json({ mensaje: 'Los movimientos de caja chica se registran en su propia pantalla' });
                 return;
             }
 

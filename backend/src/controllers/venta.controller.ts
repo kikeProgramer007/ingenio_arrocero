@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { createHash } from 'crypto';
-import { CategoriaProducto, Cliente, Cobranza, Productos, sequelize, User, Venta, VentaDetalle } from '../models';
+import { CategoriaProducto, Cliente, Cobranza, Productos, sequelize, User, Venta, VentaDetalle, BitacoraVenta } from '../models';
 import { Op, UniqueConstraintError } from 'sequelize';
 import { handleError } from '../utils/error.handler';
 import { aplicarFiltroFecha, parseFechaLocal, ymdLocal } from '../utils/fecha';
@@ -15,8 +15,9 @@ import { cobradoVenta, diasAtraso, diasParaVencer, ESTADO_VENTA, estadoVentaPorS
 import { CrearCobranzaDTO, CrearVentaDTO } from '../dtos/venta.dto';
 import { camposPagoDocumento, conceptoPorCanal, partesDesdeDocumento } from '../utils/metodo-pago';
 import { esProductoEmpaque } from '../utils/empaque';
-import { VentaEntrega, ReservaVenta } from '../models/despacho.model';
+import { VentaEntrega, ReservaVenta, Despacho } from '../models/despacho.model';
 import { cantidadEntrega, despachosHabilitados, ErrorDespacho, liberarReservas, registrarDespacho, reservarLinea } from '../servicios/despachos.servicio';
+import { registrarBitacoraVenta } from './venta-edicion';
 
 const usuarioAtributos = ['id', 'username', 'nombre'];
 
@@ -56,7 +57,17 @@ export function mapVenta(venta: any) {
             const r = (venta.reservas || []).find((r: any) => r.id_detalle === d.id);
             return { ...mapLinea(d), unidad: r?.unidad || null, entregado: r ? Number(r.entregado) : null, pendiente: r ? Number(r.pendiente) : null };
         }),
-        cobranzas: (venta.cobranzas || []).map(mapCobranza)
+        cobranzas: (venta.cobranzas || []).map(mapCobranza),
+        bitacora: (venta.bitacora || []).map((b: any) => ({
+            id: b.id,
+            accion: b.accion,
+            motivo: b.motivo,
+            fecha: b.fecha,
+            id_caja: b.id_caja,
+            anterior: b.anterior,
+            nuevo: b.nuevo,
+            usuario: mapUsuarioResumen(b.usuario)
+        }))
     };
 }
 
@@ -132,7 +143,12 @@ export class VentaController {
 
     public static async obtener(req: Request, res: Response): Promise<void> {
         try {
-            const venta = await Venta.findByPk(req.params.id, { include: includesVenta });
+            const venta = await Venta.findByPk(req.params.id, {
+                include: [
+                    ...includesVenta,
+                    { model: BitacoraVenta, as: 'bitacora', include: [{ model: User, as: 'usuario', attributes: usuarioAtributos }] }
+                ]
+            });
             if (!venta) {
                 res.status(404).json({ mensaje: `No se encontró la venta con ID ${req.params.id}` });
                 return;
@@ -202,18 +218,15 @@ export class VentaController {
                 return;
             }
 
-            let cajaAbierta = null;
-            if (pagoInicial > 0) {
-                cajaAbierta = await obtenerCajaAbierta(transaction);
-                if (!cajaAbierta) {
-                    await transaction.rollback();
-                    res.status(409).json({ mensaje: 'Debe haber una caja abierta para registrar un pago' });
-                    return;
-                }
+            let cajaAbierta = await obtenerCajaAbierta(transaction);
+            if (!cajaAbierta) {
+                await transaction.rollback();
+                res.status(409).json({ mensaje: 'Debe haber una caja abierta para registrar la venta' });
+                return;
             }
 
             const saldoPendiente = roundMoney(total - pagoInicial);
-            const plazo = resolverPlazoCredito(saldoPendiente, datos.plazo_dias, datos.fecha_vencimiento);
+            const plazo = resolverPlazoCredito(saldoPendiente, datos.plazo_dias, datos.fecha_vencimiento, true);
             if (!plazo.ok) {
                 await transaction.rollback();
                 res.status(400).json({ mensaje: plazo.mensaje });
@@ -228,7 +241,8 @@ export class VentaController {
                 observacion: datos.observacion?.trim() || null,
                 plazo_dias: plazo.plazo_dias,
                 fecha_vencimiento: plazo.fecha_vencimiento,
-                id_usuario: usuario.id
+                id_usuario: usuario.id,
+                id_caja: cajaAbierta.get('id')
             }, { transaction });
 
             const idVenta = venta.get('id') as number;
@@ -373,6 +387,12 @@ export class VentaController {
                 res.status(409).json({ mensaje: 'Esta venta ya está anulada' });
                 return;
             }
+            const motivo = String(req.body?.motivo || '').trim();
+            if (!motivo) {
+                await transaction.rollback();
+                res.status(400).json({ mensaje: 'Indique el motivo de la anulación' });
+                return;
+            }
 
             const idVenta = venta.get('id') as number;
             const [cliente, detalles, cobranzas] = await Promise.all([
@@ -384,7 +404,44 @@ export class VentaController {
             const saldo = toMoney(venta.get('saldo_pendiente'));
             const cobrado = roundMoney(total - saldo);
             const clienteNombre = cliente?.get('nombre') || 'Cliente';
+            const cajaAbierta = await obtenerCajaAbierta(transaction);
+            const idCajaVenta = Number(venta.get('id_caja') || cobranzas[0]?.get('id_caja') || 0);
+            if (idCajaVenta && (!cajaAbierta || Number(cajaAbierta.get('id')) !== idCajaVenta)) {
+                await transaction.rollback();
+                res.status(409).json({ mensaje: 'Solo se puede anular mientras la caja en que se registró la venta siga abierta' });
+                return;
+            }
             const entrega = await VentaEntrega.findByPk(idVenta, { transaction, lock: transaction.LOCK.UPDATE });
+            const despachos = await Despacho.findAll({ where: { id_venta: idVenta }, transaction });
+            const retiroReal = despachos.some((d) => !String(d.get('clave') || '').endsWith('_inicial'));
+            if (retiroReal) {
+                await transaction.rollback();
+                res.status(409).json({ mensaje: 'Esta venta tiene un retiro real. Anularla no devuelve la mercadería.' });
+                return;
+            }
+            const entregasReales = await ReservaVenta.findAll({ where: { id_venta: idVenta }, transaction });
+            for (const reserva of entregasReales) {
+                const entregado = Number(reserva.get('entregado'));
+                if (!(entregado > 0)) {
+                    continue;
+                }
+                const stock = await aplicarStock({
+                    transaction,
+                    idProducto: Number(reserva.get('id_producto')),
+                    delta: entregado,
+                    tipo: TIPO_INVENTARIO.ENTRADA,
+                    origen: 'VENTA',
+                    origenId: idVenta,
+                    idUsuario: usuario.id,
+                    observacion: `Anulación de entrega marcada en venta #${idVenta}`
+                });
+                if (!stock.ok) {
+                    await transaction.rollback();
+                    res.status(409).json({ mensaje: stock.mensaje });
+                    return;
+                }
+                await reserva.update({ entregado: 0 }, { transaction });
+            }
             if (entrega) await liberarReservas(idVenta, transaction);
             else if (despachosHabilitados() && detalles.some(l => l.get('id_producto'))) {
                 throw new ErrorDespacho('Venta anterior: resuelva su entrega y devolucion por separado antes de anular');
@@ -392,12 +449,18 @@ export class VentaController {
 
             if (cobrado > 0) {
                 const cajaAbierta = await obtenerCajaAbierta(transaction);
-                if (!cajaAbierta) {
+                const idCajaVenta = Number(venta.get('id_caja') || cobranzas[0]?.get('id_caja') || 0);
+                if (!cajaAbierta || !idCajaVenta || Number(cajaAbierta.get('id')) !== idCajaVenta) {
                     await transaction.rollback();
-                    res.status(409).json({ mensaje: 'Debe haber una caja abierta para devolver lo cobrado' });
+                    res.status(409).json({ mensaje: 'Solo se puede anular mientras la caja en que se registró la venta siga abierta' });
                     return;
                 }
-                const idCaja = cajaAbierta.get('id') as number;
+                if (cobranzas.some((cob) => Number(cob.get('id_caja')) !== idCajaVenta)) {
+                    await transaction.rollback();
+                    res.status(409).json({ mensaje: 'No se pueden alterar cobros de una caja ya cerrada' });
+                    return;
+                }
+                const idCaja = idCajaVenta;
                 if (cobranzas.length) {
                     for (const cob of cobranzas) {
                         const partes = partesDesdeDocumento({
@@ -461,8 +524,21 @@ export class VentaController {
             await venta.update({
                 estado: ESTADO_VENTA.ANULADA,
                 saldo_pendiente: 0,
-                observacion: [venta.get('observacion'), 'Anulada'].filter(Boolean).join(' · ')
+                motivo_anulacion: motivo,
+                fecha_anulacion: new Date(),
+                id_usuario_anulacion: usuario.id,
+                observacion: [venta.get('observacion'), `Anulada: ${motivo}`].filter(Boolean).join(' · ')
             }, { transaction });
+            await registrarBitacoraVenta({
+                idVenta,
+                idUsuario: usuario.id,
+                idCaja: idCajaVenta || null,
+                accion: 'ANULACION',
+                motivo,
+                anterior: { total, saldo, estado: venta.get('estado') },
+                nuevo: { total, saldo: 0, estado: ESTADO_VENTA.ANULADA },
+                transaction
+            });
 
             await transaction.commit();
             const anulada = await Venta.findByPk(idVenta, { include: includesVenta });

@@ -14,6 +14,7 @@ export interface ProductoLista {
     unidad_medida: string;
     path_imagen?: string | null;
     id_categoria?: number | null;
+    disponible_en?: 'AMBOS' | 'COMPRAS' | 'VENTAS' | string | null;
     categoria?: { id: number; nombre: string } | null;
 }
 
@@ -48,6 +49,7 @@ export class ProductosService {
         unidad_medida?: string;
         path_imagen?: string;
         id_categoria?: number;
+        disponible_en?: string;
     }): Observable<{ mensaje: string; data: ProductoLista }> {
         return this.http.post<{ mensaje: string; data: ProductoLista }>(apiUrl('/api/productos'), payload);
     }

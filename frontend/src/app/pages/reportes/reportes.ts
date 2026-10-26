@@ -11,11 +11,12 @@ import { apiUrl } from '../../core/utils/api-url';
 import { formatBs } from '../caja/caja.utils';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { CuentasPorCobrarPage } from './cuentas-por-cobrar';
+import { CuentasPorPagarPage } from './cuentas-por-pagar';
 
 @Component({
     selector: 'app-reportes',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, MenubarModule, BotonesExportarComponent, CuentasPorCobrarPage],
+    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, MenubarModule, BotonesExportarComponent, CuentasPorCobrarPage, CuentasPorPagarPage],
     template: `
      
         <p-menubar [model]="menuReportes"/>
@@ -25,6 +26,7 @@ import { CuentasPorCobrarPage } from './cuentas-por-cobrar';
         </div>
      
         <app-cuentas-por-cobrar *ngIf="tipo === 'cuentas_por_cobrar'" />
+        <app-cuentas-por-pagar *ngIf="tipo === 'cuentas_por_pagar'" />
         <ng-container *ngIf="tipo === 'resumen'">
         <div class="card mb-4">
             <div class="flex flex-wrap items-end gap-3">
@@ -65,7 +67,13 @@ export class ReportesPage implements OnInit {
     }
 
     get tituloReporte(): string {
-        return this.tipo === 'cuentas_por_cobrar' ? 'Cuentas por cobrar' : 'Resumen operativo';
+        if (this.tipo === 'cuentas_por_cobrar') {
+            return 'Cuentas por cobrar';
+        }
+        if (this.tipo === 'cuentas_por_pagar') {
+            return 'Cuentas por pagar';
+        }
+        return 'Resumen operativo';
     }
 
     elegir(tipo: string): void {
@@ -94,6 +102,11 @@ export class ReportesPage implements OnInit {
                         label: 'Cuentas por cobrar',
                         icon: this.tipo === 'cuentas_por_cobrar' ? 'pi pi-check' : 'pi pi-money-bill',
                         command: () => this.elegir('cuentas_por_cobrar')
+                    },
+                    {
+                        label: 'Cuentas por pagar',
+                        icon: this.tipo === 'cuentas_por_pagar' ? 'pi pi-check' : 'pi pi-wallet',
+                        command: () => this.elegir('cuentas_por_pagar')
                     }
                 ]
             }
@@ -126,7 +139,6 @@ export class ReportesPage implements OnInit {
                     { label: 'Por pagar compras', value: formatBs(d.compras.por_pagar) },
                     { label: 'Gastos', value: formatBs(d.gastos) },
                     { label: 'Retiros', value: formatBs(d.retiros) },
-                    { label: 'Acopios', value: `${d.acopios.cantidad} · ${formatBs(d.acopios.total)}` },
                     { label: 'Caja ingresos', value: formatBs(d.caja.ingresos) },
                     { label: 'Caja egresos', value: formatBs(d.caja.egresos) }
                 ];

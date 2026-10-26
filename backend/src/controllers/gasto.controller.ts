@@ -1,12 +1,13 @@
 import { Request, Response } from 'express';
-import { Gasto, PagoGasto, sequelize, User } from '../models';
+import { Op } from 'sequelize';
+import { Beneficiario, CategoriaEgreso, Gasto, PagoGasto, sequelize, User } from '../models';
 import { aplicarFiltroFecha } from '../utils/fecha';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
-import { obtenerCajaAbierta, registrarEgresosPartidos } from '../utils/caja-ingreso';
-import { ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
+import { obtenerCajaAbierta, obtenerCajaChica, registrarEgresosPartidos, saldoEfectivoCaja } from '../utils/caja-ingreso';
+import { METODO_PAGO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { CrearGastoDTO, PagarGastoDTO } from '../dtos/gasto.dto';
 import { camposPagoDocumento } from '../utils/metodo-pago';
 import { resolverPlazoCredito } from '../utils/credito';
@@ -45,6 +46,7 @@ function mapGasto(item: any) {
         concepto: item.concepto,
         categoria: item.categoria || 'Otros',
         persona: item.persona || null,
+        id_beneficiario: item.id_beneficiario || null,
         monto,
         condicion,
         saldo_pendiente: saldo,
@@ -83,6 +85,9 @@ export class GastoController {
             if (typeof req.query.categoria === 'string' && req.query.categoria) {
                 where.categoria = req.query.categoria;
             }
+            if (typeof req.query.persona === 'string' && req.query.persona.trim()) {
+                where.persona = req.query.persona.trim();
+            }
             aplicarFiltroFecha(where, req.query);
             const gastos = await Gasto.findAll({
                 where,
@@ -110,11 +115,42 @@ export class GastoController {
         }
         const transaction = await sequelize.transaction();
         try {
-            const aCredito = datos.condicion === CONDICION_GASTO.CREDITO;
-            const descontarCaja = aCredito ? false : datos.tipo === 'GASTO_EMPRESA' ? true : datos.descontar_caja !== false;
+            const aCredito = datos.tipo === 'RETIRO_PERSONAL' ? false : datos.condicion === CONDICION_GASTO.CREDITO;
+            const esRetiro = datos.tipo === 'RETIRO_PERSONAL';
+            const descontarCaja = esRetiro || !aCredito;
             let idCaja: number | null = null;
+            const monto = toMoney(datos.monto);
+            let persona = datos.persona?.trim() || null;
+            let idBeneficiario: number | null = datos.id_beneficiario || null;
 
-            if (descontarCaja) {
+            if (esRetiro) {
+                if (!persona && !idBeneficiario) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: 'Indique la persona que recibe el dinero' });
+                    return;
+                }
+                const benef = idBeneficiario
+                    ? await Beneficiario.findByPk(idBeneficiario, { transaction })
+                    : await Beneficiario.findOne({ where: { nombre: persona }, transaction });
+                const registro = benef || await Beneficiario.create({ nombre: persona }, { transaction });
+                persona = String(registro.get('nombre'));
+                idBeneficiario = registro.get('id') as number;
+                const chica = await obtenerCajaChica(transaction);
+                if (!chica) {
+                    await transaction.rollback();
+                    res.status(404).json({ mensaje: 'La caja chica todavía no está disponible' });
+                    return;
+                }
+                idCaja = chica.get('id') as number;
+                const disponible = await saldoEfectivoCaja(idCaja, transaction);
+                if (monto > disponible) {
+                    await transaction.rollback();
+                    res.status(409).json({
+                        mensaje: `El saldo de caja chica no alcanza. Disponible: ${disponible}`
+                    });
+                    return;
+                }
+            } else if (descontarCaja) {
                 const caja = await obtenerCajaAbierta(transaction);
                 if (!caja) {
                     await transaction.rollback();
@@ -124,11 +160,17 @@ export class GastoController {
                 idCaja = caja.get('id') as number;
             }
 
-            const monto = toMoney(datos.monto);
-            let metodoPago = datos.metodo_pago || 'EFECTIVO';
-            let montoEfectivo: number | null = null;
-            let montoQr: number | null = null;
-            if (descontarCaja) {
+            const categoria = (datos.categoria || 'Otros').trim();
+            await CategoriaEgreso.findOrCreate({
+                where: { tipo: datos.tipo, nombre: categoria },
+                defaults: { tipo: datos.tipo, nombre: categoria },
+                transaction
+            });
+
+            let metodoPago = esRetiro ? METODO_PAGO.EFECTIVO : (datos.metodo_pago || METODO_PAGO.EFECTIVO);
+            let montoEfectivo: number | null = esRetiro ? monto : null;
+            let montoQr: number | null = esRetiro ? 0 : null;
+            if (!esRetiro && descontarCaja) {
                 const pagoDoc = camposPagoDocumento(datos, monto);
                 if (!pagoDoc.ok) {
                     await transaction.rollback();
@@ -150,8 +192,9 @@ export class GastoController {
             const gasto = await Gasto.create({
                 tipo: datos.tipo,
                 concepto: datos.concepto.trim(),
-                categoria: datos.categoria || (datos.tipo === 'GASTO_EMPRESA' ? 'Otros' : null),
-                persona: datos.persona?.trim() || null,
+                categoria,
+                persona,
+                id_beneficiario: idBeneficiario,
                 monto,
                 condicion: aCredito ? CONDICION_GASTO.CREDITO : CONDICION_GASTO.CONTADO,
                 saldo_pendiente: saldoPendiente,
@@ -178,8 +221,8 @@ export class GastoController {
                     concepto: datos.concepto.trim(),
                     monto,
                     metodoPago,
-                    montoEfectivo: datos.monto_efectivo,
-                    montoQr: datos.monto_qr,
+                    montoEfectivo: esRetiro ? monto : datos.monto_efectivo,
+                    montoQr: esRetiro ? 0 : datos.monto_qr,
                     referencia: datos.referencia || null,
                     observacion: datos.observacion || null,
                     origen: ORIGEN_MOVIMIENTO.GASTO,
@@ -310,6 +353,71 @@ export class GastoController {
         } catch (error) {
             await transaction.rollback();
             handleError(res, error, 'Error al registrar el pago del gasto');
+        }
+    }
+
+    public static async listarCategorias(req: Request, res: Response): Promise<void> {
+        try {
+            const where: Record<string, string> = {};
+            if (typeof req.query.tipo === 'string' && req.query.tipo) {
+                where.tipo = req.query.tipo;
+            }
+            const filas = await CategoriaEgreso.findAll({ where, order: [['nombre', 'ASC']] });
+            res.status(200).json(filas);
+        } catch (error) {
+            handleError(res, error, 'Error al listar categorías');
+        }
+    }
+
+    public static async crearCategoria(req: Request, res: Response): Promise<void> {
+        const tipo = String(req.body?.tipo || '').trim();
+        const nombre = String(req.body?.nombre || '').trim();
+        if (tipo !== 'GASTO_EMPRESA' && tipo !== 'RETIRO_PERSONAL') {
+            res.status(400).json({ mensaje: 'El tipo de categoría no es válido' });
+            return;
+        }
+        if (!nombre || nombre.length > 80) {
+            res.status(400).json({ mensaje: 'Indique un nombre de categoría' });
+            return;
+        }
+        try {
+            const [registro] = await CategoriaEgreso.findOrCreate({
+                where: { tipo, nombre },
+                defaults: { tipo, nombre }
+            });
+            res.status(201).json({ mensaje: 'Categoría lista', data: registro });
+        } catch (error) {
+            handleError(res, error, 'Error al crear la categoría');
+        }
+    }
+
+    public static async listarBeneficiarios(req: Request, res: Response): Promise<void> {
+        try {
+            const where: Record<string, unknown> = {};
+            if (typeof req.query.q === 'string' && req.query.q.trim()) {
+                where.nombre = { [Op.like]: `%${req.query.q.trim()}%` };
+            }
+            const filas = await Beneficiario.findAll({ where, order: [['nombre', 'ASC']] });
+            res.status(200).json(filas);
+        } catch (error) {
+            handleError(res, error, 'Error al listar personas');
+        }
+    }
+
+    public static async crearBeneficiario(req: Request, res: Response): Promise<void> {
+        const nombre = String(req.body?.nombre || '').trim();
+        if (!nombre || nombre.length > 120) {
+            res.status(400).json({ mensaje: 'Indique el nombre de la persona' });
+            return;
+        }
+        try {
+            const [registro] = await Beneficiario.findOrCreate({
+                where: { nombre },
+                defaults: { nombre }
+            });
+            res.status(201).json({ mensaje: 'Persona registrada', data: registro });
+        } catch (error) {
+            handleError(res, error, 'Error al registrar la persona');
         }
     }
 }

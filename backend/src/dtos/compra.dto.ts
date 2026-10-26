@@ -57,8 +57,17 @@ export class CrearCompraDTO {
 
     @IsOptional()
     @Type(() => Number)
-    @IsInt({ message: 'El productor no es válido' })
+    @IsInt()
     id_productor?: number;
+
+    @IsOptional()
+    @IsString()
+    @MaxLength(150)
+    ordenante?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    anticipada?: boolean;
 
     @IsOptional()
     @IsString()

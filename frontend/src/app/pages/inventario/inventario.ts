@@ -59,15 +59,23 @@ import { DrawerModule } from 'primeng/drawer';
         </div>
         <div class="card">
             <div class="flex flex-wrap items-end gap-3 mb-4">
+                <div class="w-full sm:w-60">
+                    <label class="block font-bold mb-1 text-sm">Categoría</label>
+                    <p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCategoria" placeholder="Todas" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="w-full sm:w-60">
+                    <label class="block font-bold mb-1 text-sm">Disponible en</label>
+                    <p-select [options]="disponibilidades" optionLabel="label" optionValue="value" [(ngModel)]="filtroDisponible" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                </div>
                 <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
                     <app-tabla-busqueda placeholder="Buscar..." (buscar)="filtrarTabla(dt, $event)" />
                 </div>
-                <app-botones-exportar tipo="inventario" />
+                <app-botones-exportar tipo="inventario" [categoria]="categoriaExport" [disponibleEn]="filtroDisponible" />
             </div>
             <p-table
                 #dt
-                [value]="cargando ? [] : productos"
+                [value]="cargando ? [] : productosFiltrados"
                 [loading]="cargando"
                 [showLoader]="false"
                 [paginator]="true"
@@ -146,6 +154,10 @@ import { DrawerModule } from 'primeng/drawer';
                     <div class="campo-feedback-error" *ngIf="errorUnidad">{{ errorUnidad }}</div>
                     <div class="campo-feedback-ok" *ngIf="okUnidad">Correcto</div>
                 </div>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Disponible en <app-ayuda-campo texto="Compras y ventas es la opción habitual. Solo compras oculta el producto en Nueva venta. Solo ventas lo oculta al comprar." posicion="right" /></label>
+                    <p-select [options]="disponibilidades" optionLabel="label" optionValue="value" [(ngModel)]="form.disponible_en" fluid appendTo="body" [baseZIndex]="2100" />
+                </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Precio venta <app-ayuda-campo texto="Precio sugerido al vender. Se puede cambiar en cada venta." posicion="right" /></label><app-input-numero [(ngModel)]="form.precio_venta" /></div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Precio compra <app-ayuda-campo texto="Costo de referencia. Se puede cambiar en cada compra." posicion="right" /></label><app-input-numero [(ngModel)]="form.precio_compra" /></div>
                 <div *ngIf="!form.id"><label class="flex items-center gap-1 font-bold mb-2">Stock inicial <app-ayuda-campo texto="Cantidad con la que arranca el inventario. Solo al crear." posicion="right" /></label><app-input-numero tipo="cantidad" [(ngModel)]="form.stock" [min]="0" /></div>
@@ -209,12 +221,34 @@ export class InventarioPage implements OnInit {
     unidadesInvalidas: { origen: string; id: number; nombre: string; unidad: string; detalle: string }[] = [];
     mensajeUnidad = MENSAJE_UNIDAD_MEDIDA;
     unidades = UNIDADES_MEDIDA;
+    filtroCategoria: number | null = null;
+    filtroDisponible = '';
+    disponibilidades = [
+        { label: 'Compras y ventas', value: 'AMBOS' },
+        { label: 'Solo compras', value: 'COMPRAS' },
+        { label: 'Solo ventas', value: 'VENTAS' }
+    ];
     enviado = false;
     tocadoNombre = false;
     tocadoCategoria = false;
     tocadoUnidad = false;
 
     dialogReservas = false; cargandoReservas = false; reservas: any[] = []; productoReservas: any = null;
+    get categoriaExport(): string {
+        return this.filtroCategoria ? String(this.filtroCategoria) : '';
+    }
+
+    get productosFiltrados(): any[] {
+        return this.productos.filter((p) => {
+            if (this.filtroCategoria && Number(p.id_categoria || p.categoria?.id) !== Number(this.filtroCategoria)) {
+                return false;
+            }
+            if (this.filtroDisponible && (p.disponible_en || 'AMBOS') !== this.filtroDisponible) {
+                return false;
+            }
+            return true;
+        });
+    }
     imagenProductoFallida(event: Event): void {
         const imagen = event.target as HTMLImageElement;
         imagen.onerror = null;
@@ -326,7 +360,7 @@ export class InventarioPage implements OnInit {
     }
 
     editar(p: any): void {
-        this.form = { ...p, unidad_medida: normalizarUnidadMedida(p.unidad_medida) || 'Kilo' };
+        this.form = { ...p, unidad_medida: normalizarUnidadMedida(p.unidad_medida) || 'Kilo', disponible_en: p.disponible_en || 'AMBOS' };
         this.enviado = false;
         this.tocadoNombre = false;
         this.tocadoCategoria = false;
@@ -349,7 +383,8 @@ export class InventarioPage implements OnInit {
             stock_minimo: this.form.stock_minimo || 0,
             unidad_medida: this.form.unidad_medida || 'Kilo',
             path_imagen: this.form.path_imagen || imagenDefault('producto'),
-            id_categoria: this.form.id_categoria || undefined
+            id_categoria: this.form.id_categoria || undefined,
+            disponible_en: this.form.disponible_en || 'AMBOS'
         };
         const req = this.form.id
             ? this.http.put<{ mensaje: string }>(apiUrl(`/api/productos/${this.form.id}`), payload)
@@ -387,7 +422,7 @@ export class InventarioPage implements OnInit {
     }
 
     private vacio() {
-        return { id: 0, nombre: '', descripcion: '', precio_venta: 0, precio_compra: 0, stock: 0, stock_minimo: 0, unidad_medida: 'Kilo', id_categoria: null, path_imagen: imagenDefault('producto') };
+        return { id: 0, nombre: '', descripcion: '', precio_venta: 0, precio_compra: 0, stock: 0, stock_minimo: 0, unidad_medida: 'Kilo', id_categoria: null, disponible_en: 'AMBOS', path_imagen: imagenDefault('producto') };
     }
 
     unidadInvalida(valor: string): boolean {

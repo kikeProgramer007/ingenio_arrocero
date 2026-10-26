@@ -105,6 +105,20 @@ export const Compra = sequelize.define('compra', {
         },
         onUpdate: 'CASCADE',
         onDelete: 'RESTRICT'
+    },
+    ordenante: {
+        type: DataTypes.STRING(150),
+        allowNull: true
+    },
+    anticipada: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+    },
+    estado_recepcion: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: 'RECIBIDA'
     }
 }, {
     tableName: 'compras',

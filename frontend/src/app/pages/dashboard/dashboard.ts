@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Component, OnInit, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
@@ -20,17 +21,28 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 
 @Component({
     selector: 'app-dashboard',
-    imports: [CommonModule, ButtonModule, RouterModule, TableModule, TagModule, StatsWidget, RecentSalesWidget, RevenueStreamWidget, EstadoVacioComponent, TablaEsqueletoComponent, TablaBusquedaComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, RouterModule, TableModule, TagModule, StatsWidget, RecentSalesWidget, RevenueStreamWidget, EstadoVacioComponent, TablaEsqueletoComponent, TablaBusquedaComponent],
     template: `
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6 min-w-0">
             <div class="flex items-start sm:items-center gap-3 min-w-0">
                 <img [src]="empresa.logo()" [alt]="empresa.nombreUi()" class="h-12 w-12 rounded-md object-cover shrink-0" />
                 <div class="min-w-0">
-                    <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Dashboard</div>
-                    <div class="text-muted-color">Control de ingresos y egresos del día. La venta no es cobro; el cobrado es neto de anulaciones.</div>
+                    <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Resumen de la caja actual</div>
+                    <div class="text-muted-color">Movimientos de la caja principal abierta. La caja chica no entra en este resumen.</div>
+                    <div class="text-sm text-muted-color" *ngIf="resumen?.caja?.fecha_apertura">
+                        Apertura {{ formatFechaCorta(resumen?.caja?.fecha_apertura) }} · consulta hasta {{ hasta || 'ahora' }}
+                    </div>
                 </div>
             </div>
-            <div class="flex flex-wrap gap-2 shrink-0">
+            <div class="flex flex-wrap gap-2 shrink-0 items-end">
+                <div>
+                    <label class="block text-xs mb-1">Desde</label>
+                    <input class="p-inputtext" type="date" [(ngModel)]="desde" (change)="cargar()" />
+                </div>
+                <div>
+                    <label class="block text-xs mb-1">Hasta</label>
+                    <input class="p-inputtext" type="date" [(ngModel)]="hasta" (change)="cargar()" />
+                </div>
                 <p-button label="Ingresos y egresos" icon="pi pi-arrows-h" [outlined]="true" [routerLink]="controlRoute" />
                 <p-button *ngIf="error" label="Reintentar" icon="pi pi-refresh" (onClick)="cargar()" />
             </div>
@@ -40,11 +52,16 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <div class="flex items-center gap-3">
                 <i class="pi pi-lock text-2xl text-orange-500"></i>
                 <div>
-                    <div class="font-medium">Caja cerrada</div>
-                    <div class="text-muted-color text-sm">Puedes consultar ventas y pendientes. Para cobrar, pagar o gastar, abre caja.</div>
+                    <div class="font-medium">No hay una caja principal abierta</div>
+                    <div class="text-muted-color text-sm">Abra la caja para ver el resumen de la caja actual.</div>
                 </div>
             </div>
             <p-button label="Abrir caja" icon="pi pi-unlock" [routerLink]="cajaRoute" />
+        </div>
+
+        <div class="card mb-6 p-4" *ngIf="!loading && resumen?.ventas_anuladas">
+            <div class="text-muted-color text-sm">Ventas anuladas en el período, por fecha de anulación</div>
+            <div class="font-semibold text-xl">{{ resumen?.ventas_anuladas?.cantidad || 0 }} · {{ formatBs(resumen?.ventas_anuladas?.importe || 0) }}</div>
         </div>
 
         <div class="card mb-6" *ngIf="error">
@@ -59,7 +76,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <div class="col-span-12 xl:col-span-6 min-w-0">
                 <app-revenue-stream-widget [resumen]="resumen" [loading]="loading" />
                 <div class="card">
-                    <div class="font-semibold text-xl mb-4">Egresos por tipo (hoy)</div>
+                    <div class="font-semibold text-xl mb-4">Egresos por tipo en el período</div>
                     <div class="flex flex-col gap-3" *ngIf="!loading">
                         <div class="flex justify-between" *ngFor="let fila of egresosTipo">
                             <span class="text-muted-color">{{ fila.label }}</span>
@@ -140,6 +157,8 @@ export class Dashboard implements OnInit {
     cobranzasRoute = APP_ROUTES.cobranzas;
     cajaRoute = APP_ROUTES.caja;
     empresa = inject(EmpresaService);
+    desde = '';
+    hasta = '';
 
     etiquetaSituacion(situacion?: string): string {
         if (situacion === 'VENCIDA') return 'Vencido';
@@ -186,7 +205,7 @@ export class Dashboard implements OnInit {
     cargar(): void {
         this.loading = true;
         this.error = null;
-        this.cajaService.resumenDashboard().subscribe({
+        this.cajaService.resumenDashboard({ fecha_desde: this.desde, fecha_hasta: this.hasta }).subscribe({
             next: (data) => {
                 this.resumen = data;
                 this.loading = false;

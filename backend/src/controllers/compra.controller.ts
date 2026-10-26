@@ -5,7 +5,7 @@ import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
 import { obtenerCajaAbierta, registrarEgresosPartidos } from '../utils/caja-ingreso';
-import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
+import { aplicarStock, TIPO_INVENTARIO, toQty } from '../utils/inventario';
 import { CATEGORIA_EGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { ESTADO_COMPRA, estadoCompraPorSaldo, inferirTipoCompra, TIPO_CAMBIO_DEFAULT, TIPO_COMPRA } from '../constants/compra.constants';
 import { CrearCompraDTO, CrearPagoProveedorDTO } from '../dtos/compra.dto';
@@ -41,6 +41,8 @@ function mapLinea(detalle: any) {
         id_producto: detalle.id_producto,
         unidad: detalle.unidad || null,
         cantidad: Number(detalle.cantidad),
+        cantidad_recibida: Number(detalle.cantidad_recibida ?? detalle.cantidad),
+        pendiente_recepcion: Math.max(0, Number(detalle.cantidad) - Number(detalle.cantidad_recibida ?? detalle.cantidad)),
         precio_unitario: toMoney(detalle.precio_unitario),
         subtotal: toMoney(detalle.subtotal)
     };
@@ -109,10 +111,13 @@ function mapCompra(compra: any) {
         total_usd: compra.total_usd != null ? toMoney(compra.total_usd) : null,
         precio_usd: compra.precio_usd != null ? Number(compra.precio_usd) : null,
         es_servicio: esCompraServicio(compra),
-        id_productor: compra.id_productor || null,
+        id_productor: null,
+        ordenante: compra.ordenante || null,
+        anticipada: Boolean(compra.anticipada),
+        estado_recepcion: compra.estado_recepcion || 'RECIBIDA',
         plazo_dias: compra.plazo_dias != null ? Number(compra.plazo_dias) : null,
         fecha_vencimiento: compra.fecha_vencimiento || null,
-        productor: compra.productor ? { id: compra.productor.id, nombre: compra.productor.nombre } : null,
+        productor: null,
         proveedor: compra.proveedor ? { id: compra.proveedor.id, nombre: compra.proveedor.nombre } : null,
         usuario: mapUsuarioResumen(compra.usuario),
         detalles: (compra.detalles || []).map(mapLinea),
@@ -238,27 +243,7 @@ export class CompraController {
             }
 
             let idProductor: number | null = null;
-            if (esChala) {
-                const id = Number(datos.id_productor);
-                if (id) {
-                    const productor = await Productor.findByPk(id, { transaction });
-                    if (!productor || !productor.get('activo')) {
-                        await transaction.rollback();
-                        res.status(400).json({ mensaje: 'El productor no existe o está inactivo' });
-                        return;
-                    }
-                    const dueño = Number(productor.get('id_proveedor'));
-                    if (dueño && dueño !== Number(datos.id_proveedor)) {
-                        await transaction.rollback();
-                        res.status(400).json({ mensaje: 'El productor no pertenece a este proveedor' });
-                        return;
-                    }
-                    if (!dueño) {
-                        await productor.update({ id_proveedor: datos.id_proveedor }, { transaction });
-                    }
-                    idProductor = id;
-                }
-            }
+            const anticipada = Boolean(datos.anticipada);
 
             let cajaAbierta = null;
             if (pagoInicial > 0) {
@@ -296,6 +281,9 @@ export class CompraController {
                 tipo_cambio: tipoCambio,
                 total_usd: totalUsd,
                 precio_usd: precioUsd,
+                ordenante: datos.ordenante?.trim() || null,
+                anticipada,
+                estado_recepcion: anticipada ? 'PENDIENTE' : 'RECIBIDA',
                 id_usuario: usuario.id
             }, { transaction });
 
@@ -344,8 +332,12 @@ export class CompraController {
                     res.status(400).json({ mensaje: MENSAJE_UNIDAD_MEDIDA });
                     return;
                 }
-                await CompraDetalle.create({ ...linea, id_compra: idCompra }, { transaction });
-                if (linea.id_producto) {
+                await CompraDetalle.create({
+                    ...linea,
+                    id_compra: idCompra,
+                    cantidad_recibida: anticipada ? 0 : linea.cantidad
+                }, { transaction });
+                if (linea.id_producto && !anticipada) {
                     const stock = await aplicarStock({
                         transaction,
                         idProducto: linea.id_producto,
@@ -416,6 +408,115 @@ export class CompraController {
         } catch (error) {
             await transaction.rollback();
             handleError(res, error, 'Error al registrar la compra');
+        }
+    }
+
+    public static async recibir(req: Request, res: Response): Promise<void> {
+        const usuario = getAuthUser(req);
+        if (!usuario) {
+            res.status(401).json({ mensaje: 'Usuario no autenticado' });
+            return;
+        }
+        const lineas = Array.isArray(req.body?.lineas) ? req.body.lineas : [];
+        if (!lineas.length) {
+            res.status(400).json({ mensaje: 'Indique las cantidades recibidas' });
+            return;
+        }
+        const fecha = typeof req.body?.fecha === 'string' && req.body.fecha
+            ? parseFechaLocal(req.body.fecha)
+            : new Date();
+        if (Number.isNaN(fecha.getTime())) {
+            res.status(400).json({ mensaje: 'La fecha de recepción no es válida' });
+            return;
+        }
+        const transaction = await sequelize.transaction();
+        try {
+            const compra = await Compra.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+            if (!compra) {
+                await transaction.rollback();
+                res.status(404).json({ mensaje: 'Compra no encontrada' });
+                return;
+            }
+            if (!compra.get('anticipada')) {
+                await transaction.rollback();
+                res.status(409).json({ mensaje: 'Esta compra ya ingresó el stock al registrarse' });
+                return;
+            }
+            if (compra.get('estado_recepcion') === 'RECIBIDA') {
+                await transaction.rollback();
+                res.status(409).json({ mensaje: 'La compra ya fue recibida por completo' });
+                return;
+            }
+            const idCompra = compra.get('id') as number;
+            for (const linea of lineas) {
+                const cantidad = toQty(linea?.cantidad);
+                if (cantidad <= 0) {
+                    continue;
+                }
+                const detalle = await CompraDetalle.findByPk(Number(linea.id_detalle), {
+                    transaction,
+                    lock: transaction.LOCK.UPDATE
+                });
+                if (!detalle || Number(detalle.get('id_compra')) !== idCompra) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: 'Una línea no pertenece a esta compra' });
+                    return;
+                }
+                const pedida = toQty(detalle.get('cantidad'));
+                const recibida = toQty(detalle.get('cantidad_recibida'));
+                const pendiente = toQty(pedida - recibida);
+                if (cantidad > pendiente) {
+                    await transaction.rollback();
+                    res.status(400).json({ mensaje: `No puede recibir más de lo pendiente (${pendiente})` });
+                    return;
+                }
+                await detalle.update({ cantidad_recibida: toQty(recibida + cantidad) }, { transaction });
+                if (detalle.get('id_producto')) {
+                    const stock = await aplicarStock({
+                        transaction,
+                        idProducto: Number(detalle.get('id_producto')),
+                        delta: cantidad,
+                        tipo: TIPO_INVENTARIO.ENTRADA,
+                        origen: 'COMPRA',
+                        origenId: idCompra,
+                        idUsuario: usuario.id,
+                        observacion: `Recepción ${detalle.get('descripcion')}`
+                    });
+                    if (!stock.ok) {
+                        await transaction.rollback();
+                        res.status(409).json({ mensaje: stock.mensaje });
+                        return;
+                    }
+                }
+                await sequelize.query(
+                    `INSERT INTO recepciones_compra (id_compra, id_detalle, cantidad, fecha, id_usuario, created_at, updated_at)
+                     VALUES (:idCompra, :idDetalle, :cantidad, :fecha, :idUsuario, NOW(), NOW())`,
+                    {
+                        replacements: {
+                            idCompra,
+                            idDetalle: detalle.get('id'),
+                            cantidad,
+                            fecha,
+                            idUsuario: usuario.id
+                        },
+                        transaction
+                    }
+                );
+            }
+            const detalles = await CompraDetalle.findAll({ where: { id_compra: idCompra }, transaction });
+            const pendienteTotal = detalles.reduce((acc, item) => acc + Math.max(0, toQty(item.get('cantidad')) - toQty(item.get('cantidad_recibida'))), 0);
+            const recibidoAlguno = detalles.some((item) => toQty(item.get('cantidad_recibida')) > 0);
+            const estado = pendienteTotal <= 0 ? 'RECIBIDA' : (recibidoAlguno ? 'PARCIAL' : 'PENDIENTE');
+            await compra.update({ estado_recepcion: estado }, { transaction });
+            await transaction.commit();
+            const actualizada = await Compra.findByPk(idCompra, { include: includesCompra });
+            res.status(201).json({
+                mensaje: estado === 'RECIBIDA' ? 'Recepción completa. No se generó otro pago.' : 'Recepción parcial registrada. No se generó otro pago.',
+                data: mapCompra(actualizada)
+            });
+        } catch (error) {
+            await transaction.rollback();
+            handleError(res, error, 'Error al registrar la recepción');
         }
     }
 }

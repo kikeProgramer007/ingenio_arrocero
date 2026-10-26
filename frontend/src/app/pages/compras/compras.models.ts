@@ -29,6 +29,9 @@ export interface LineaCompra {
     id_producto?: number | null;
     unidad?: string | null;
     cantidad: number;
+    cantidad_recibida?: number;
+    pendiente_recepcion?: number;
+    recibir_ahora?: number;
     precio_unitario: number;
     subtotal: number;
 }
@@ -52,6 +55,9 @@ export interface Compra {
     total_usd?: number | null;
     precio_usd?: number | null;
     es_servicio?: boolean;
+    ordenante?: string | null;
+    anticipada?: boolean;
+    estado_recepcion?: string | null;
     id_productor?: number | null;
     plazo_dias?: number | null;
     fecha_vencimiento?: string | null;
@@ -91,6 +97,8 @@ export interface PagoProveedor {
 
 export interface CrearCompraPayload {
     id_proveedor: number;
+    ordenante?: string;
+    anticipada?: boolean;
     id_productor?: number;
     fecha?: string;
     observacion?: string;

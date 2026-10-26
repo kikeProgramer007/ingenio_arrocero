@@ -101,6 +101,10 @@ export interface SolicitudDespacho {
   fecha?: string;
   chofer?: string;
   placa?: string;
+  ci?: string;
+  marca?: string;
+  color?: string;
+  destino?: string;
   observacion?: string;
   lineas: { id_detalle: number; cantidad: number }[];
 }
@@ -116,9 +120,8 @@ export async function registrarDespacho(
     !datos ||
     typeof datos.clave !== "string" ||
     !/^[a-zA-Z0-9_-]{8,80}$/.test(datos.clave) ||
-    typeof datos.persona_retira !== "string" ||
-    !datos.persona_retira.trim() ||
-    datos.persona_retira.length > 150 ||
+    (datos.persona_retira != null &&
+      (typeof datos.persona_retira !== "string" || datos.persona_retira.length > 150)) ||
     !Array.isArray(datos.lineas) ||
     datos.lineas.some((l) => !l || typeof l !== "object") ||
     (datos.fecha !== undefined && typeof datos.fecha !== "string") ||
@@ -143,7 +146,7 @@ export async function registrarDespacho(
   const solicitud = JSON.stringify({
     idVenta,
     idUsuario,
-    persona_retira: datos.persona_retira.trim(),
+    persona_retira: (datos.persona_retira || "").trim() || "Cliente",
     fecha: datos.fecha || null,
     chofer: datos.chofer || null,
     placa: datos.placa || null,
@@ -211,10 +214,14 @@ export async function registrarDespacho(
       id_venta: idVenta,
       clave: datos.clave,
       fecha,
-      persona_retira: datos.persona_retira.trim(),
+      persona_retira: (datos.persona_retira || '').trim() || 'Cliente',
       id_usuario: idUsuario,
       chofer: datos.chofer?.trim() || null,
       placa: datos.placa?.trim() || null,
+      ci: datos.ci?.trim() || null,
+      marca: datos.marca?.trim() || null,
+      color: datos.color?.trim() || null,
+      destino: datos.destino?.trim() || null,
       observacion: datos.observacion?.trim() || null,
       solicitud,
       lineas: [],

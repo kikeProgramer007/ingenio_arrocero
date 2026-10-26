@@ -31,6 +31,8 @@ export interface DatosVoucher {
     total: number;
     cobrado?: number;
     pendiente?: number;
+    efectivo?: number;
+    qr?: number;
 }
 
 export interface OpcionesVoucher {
@@ -59,6 +61,8 @@ export interface DatosReciboMovimiento {
     nitCi?: string;
     lineas: LineaReciboMovimiento[];
     total: number;
+    efectivo?: number;
+    qr?: number;
     saldoPendiente?: number | null;
     referencia?: string;
     observacion?: string;
@@ -429,6 +433,17 @@ function dibujarReciboMovimiento(doc: PDFKit.PDFDocument, datos: DatosReciboMovi
     doc.font('Helvetica').fontSize(g.metaSize);
     doc.text(`Son: ${montoALetrasBs(datos.total)}`, left, totY, { width: width * 0.68 });
     doc.font('Helvetica-Bold').fontSize(g.compacto ? 9 : 11);
+    if (datos.efectivo != null) {
+        doc.font('Helvetica').fontSize(g.metaSize);
+        doc.text(`EFECTIVO  ${numeroTabla(datos.efectivo)}`, left + width * 0.68, totY, { width: width * 0.32, align: 'right' });
+        totY = doc.y + 2;
+    }
+    if (datos.qr != null) {
+        doc.font('Helvetica').fontSize(g.metaSize);
+        doc.text(`QR  ${numeroTabla(datos.qr)}`, left + width * 0.68, totY, { width: width * 0.32, align: 'right' });
+        totY = doc.y + 2;
+    }
+    doc.font('Helvetica-Bold').fontSize(g.compacto ? 9 : 11);
     doc.text(`TOTAL  ${numeroTabla(datos.total)}`, left + width * 0.68, totY, { width: width * 0.32, align: 'right' });
     totY = doc.y + 4;
     if (datos.saldoPendiente != null) {
@@ -718,6 +733,18 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher, opciones: 
         doc.text('TOTAL Bs', right - colLbl - colVal, totY + 3 + totStep, { width: colLbl, align: 'right', lineBreak: false });
         doc.text(numeroTabla(datos.total), right - colVal, totY + 3 + totStep, { width: colVal, align: 'right', lineBreak: false });
         let extra = 0;
+        if (datos.efectivo != null) {
+            extra += totStep;
+            doc.font('Helvetica').fontSize(meta);
+            doc.text('EFECTIVO', right - colLbl - colVal, totY + 3 + totStep + extra, { width: colLbl, align: 'right', lineBreak: false });
+            doc.text(numeroTabla(datos.efectivo), right - colVal, totY + 3 + totStep + extra, { width: colVal, align: 'right', lineBreak: false });
+        }
+        if (datos.qr != null) {
+            extra += totStep;
+            doc.font('Helvetica').fontSize(meta);
+            doc.text('QR', right - colLbl - colVal, totY + 3 + totStep + extra, { width: colLbl, align: 'right', lineBreak: false });
+            doc.text(numeroTabla(datos.qr), right - colVal, totY + 3 + totStep + extra, { width: colVal, align: 'right', lineBreak: false });
+        }
         if (datos.cobrado != null) {
             extra += totStep;
             doc.font('Helvetica').fontSize(meta);

@@ -23,6 +23,7 @@ export async function seedInventarioBase(): Promise<void> {
                 stock_minimo: 0,
                 unidad_medida: 'Fanega',
                 path_imagen: '/uploads/defaults/producto.svg',
+                disponible_en: 'COMPRAS',
                 id_categoria: chala.get('id'),
                 eliminado: false
             }

@@ -60,8 +60,12 @@ export class VentasService {
         return this.http.post<ApiMensaje<Venta>>(apiUrl('/api/ventas'), payload);
     }
 
-    anular(id: number): Observable<ApiMensaje<Venta>> {
-        return this.http.put<ApiMensaje<Venta>>(apiUrl(`/api/ventas/${id}/anular`), {});
+    anular(id: number, motivo: string): Observable<ApiMensaje<Venta>> {
+        return this.http.put<ApiMensaje<Venta>>(apiUrl(`/api/ventas/${id}/anular`), { motivo });
+    }
+
+    editar(id: number, payload: { motivo: string; lineas: any[]; a_credito?: boolean; plazo_dias?: number }): Observable<ApiMensaje<Venta>> {
+        return this.http.put<ApiMensaje<Venta>>(apiUrl(`/api/ventas/${id}`), payload);
     }
 
     listarCobranzas(filtros?: { id_venta?: number; id_cliente?: number; metodo?: string; fecha_desde?: string; fecha_hasta?: string }): Observable<Cobranza[]> {

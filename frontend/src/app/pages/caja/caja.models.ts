@@ -101,6 +101,7 @@ export interface DashboardResumen {
     cobrado_hoy: number;
     cobros_brutos_hoy?: number;
     anulaciones_hoy?: number;
+    ventas_anuladas?: { cantidad: number; importe: number };
     por_cobrar: number;
     por_pagar: number;
     ingresos_hoy: number;

@@ -5,6 +5,7 @@ import { DespachosService, etiquetaDespacho, colorDespacho } from '../despachos/
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
+import { CheckboxModule } from 'primeng/checkbox';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { DrawerModule } from 'primeng/drawer';
@@ -49,6 +50,7 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
         DespachoFormComponent,
         FormsModule,
         ButtonModule,
+        CheckboxModule,
         DatePickerModule,
         DialogModule,
         DrawerModule,
@@ -74,6 +76,38 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
     template: `
         <app-despacho-form #formDespacho (confirmado)="actualizarDespachos()" />
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
+        <p-dialog header="Motivo de anulación" [(visible)]="dialogMotivo" [modal]="true" [style]="{ width: '28rem' }">
+            <label class="block font-bold mb-2">Motivo</label>
+            <textarea pTextarea class="w-full" rows="3" [(ngModel)]="motivoAnular" maxlength="250"></textarea>
+            <ng-template #footer>
+                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogMotivo = false" />
+                <p-button label="Anular" severity="danger" [loading]="guardando" (onClick)="confirmarAnular()" />
+            </ng-template>
+        </p-dialog>
+        <p-dialog header="Editar venta" [(visible)]="dialogEditar" [modal]="true" [style]="{ width: '40rem' }" [breakpoints]="{ '960px': '95vw' }">
+            <div class="flex flex-col gap-3" *ngIf="lineasEditar.length">
+                <div class="grid grid-cols-12 gap-2 font-bold text-sm"><span class="col-span-6">Producto</span><span class="col-span-3">Cantidad</span><span class="col-span-3">Precio</span></div>
+                <div class="grid grid-cols-12 gap-2 items-center" *ngFor="let linea of lineasEditar; let i = index">
+                    <span class="col-span-5">{{ linea.descripcion }}</span>
+                    <input class="col-span-3 p-inputtext" type="number" min="0" step="0.001" [(ngModel)]="linea.cantidad" />
+                    <input class="col-span-3 p-inputtext" type="number" min="0" step="0.01" [(ngModel)]="linea.precio_unitario" />
+                    <p-button class="col-span-1" icon="pi pi-trash" [text]="true" severity="danger" [disabled]="(linea.entregado || 0) > 0" (onClick)="lineasEditar.splice(i, 1)" />
+                </div>
+                <div>
+                    <label class="block font-bold mb-2">Motivo</label>
+                    <textarea pTextarea class="w-full" rows="2" [(ngModel)]="motivoEditar" maxlength="250"></textarea>
+                </div>
+                <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="aCreditoEditar" /> Pasar el exceso a crédito</label>
+                <div *ngIf="aCreditoEditar">
+                    <label class="block font-bold mb-2">Plazo en días</label>
+                    <input class="p-inputtext w-full" type="number" min="1" [(ngModel)]="plazoEditar" />
+                </div>
+            </div>
+            <ng-template #footer>
+                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogEditar = false" />
+                <p-button label="Guardar" [loading]="guardando" (onClick)="guardarEdicion()" />
+            </ng-template>
+        </p-dialog>
         <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div class="min-w-0">
@@ -303,14 +337,16 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
                         </div>
                         <div>
                             <div *ngIf="despachosHabilitados" class="venta-entrega-seccion mb-4">
-                                <div class="venta-bloque-cabecera"><strong>Entrega de productos</strong><app-ayuda-campo texto="Indica cuándo se entregarán los productos de esta venta." /></div>
-                                <div class="venta-opciones-entrega">
-                                    <button type="button" class="venta-opcion-entrega" *ngFor="let opcion of opcionesEntrega" [pTooltip]="opcion.description" tooltipPosition="top" [class.seleccionada]="entrega === opcion.value" (click)="entrega = opcion.value">
-                                        <i [class]="opcion.icon"></i><span class="venta-opcion-texto"><b>{{ opcion.label }}</b></span><i class="pi" [class.pi-circle-fill]="entrega === opcion.value" [class.pi-circle]="entrega !== opcion.value"></i>
-                                    </button>
+                                <div class="venta-bloque-cabecera"><strong>Entrega de productos</strong><app-ayuda-campo texto="Si no marca el check, el cliente se lleva todo ahora y la venta no queda en Despachos." /></div>
+                                <div class="flex items-center gap-2">
+                                    <p-checkbox [(ngModel)]="dejarPendiente" [binary]="true" inputId="pendienteEntrega" (ngModelChange)="sincronizarEntrega()" />
+                                    <label for="pendienteEntrega">Dejar productos pendientes de entrega</label>
                                 </div>
-                                <div class="venta-pendiente" *ngIf="entrega !== 'COMPLETA' && tieneProductos"><i class="pi pi-info-circle"></i><span>Queda pendiente de retiro: <b>{{ pendienteEntregaTexto }}</b></span></div>
-                                <div class="venta-persona-retira" *ngIf="entrega !== 'POSTERIOR' && tieneProductos"><label class="block font-bold mb-2">Persona que retira *</label><input pInputText class="w-full" [(ngModel)]="personaRetira" maxlength="150" /></div>
+                                <div class="flex gap-2 mt-3" *ngIf="dejarPendiente">
+                                    <p-button [outlined]="modoPendiente !== 'PARCIAL'" label="Entrega parcial ahora" (onClick)="modoPendiente = 'PARCIAL'; sincronizarEntrega()" />
+                                    <p-button [outlined]="modoPendiente !== 'POSTERIOR'" label="Retiro posterior" (onClick)="modoPendiente = 'POSTERIOR'; sincronizarEntrega()" />
+                                </div>
+                                <div class="venta-pendiente" *ngIf="dejarPendiente && tieneProductos"><i class="pi pi-info-circle"></i><span>Queda pendiente de retiro: <b>{{ pendienteEntregaTexto }}</b></span></div>
                             </div>
                         <div class="venta-bloque-cabecera"><strong>Forma de cobro</strong><app-ayuda-campo texto="Contado: se cobra ahora. Crédito: queda un saldo pendiente y puedes registrar un abono." /></div>
                             <p-selectbutton [options]="modosCobro" optionLabel="label" optionValue="value" [(ngModel)]="modoCobro" [allowEmpty]="false" styleClass="venta-modos-cobro" />
@@ -322,7 +358,7 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
                                 <app-input-numero [(ngModel)]="pagoInicial" />
                             </div>
                             <div class="col-span-12 md:col-span-4">
-                                <label class="flex items-center gap-1 font-bold mb-2">Plazo de cobro <app-ayuda-campo texto="Cuándo debe pagar el saldo. No cambia el precio ni los abonos. Opcional." posicion="top" /></label>
+                                <label class="flex items-center gap-1 font-bold mb-2">Plazo de cobro <app-ayuda-campo texto="Obligatorio. Indique días o una fecha de vencimiento antes de guardar." posicion="top" /></label>
                                 <p-select [options]="plazosCredito" optionLabel="label" optionValue="value" [(ngModel)]="plazoDias" fluid appendTo="body" [baseZIndex]="2100" />
                                 <small class="block text-muted-color mt-1" *ngIf="diasPlazoEfectivo() > 0">Vence el {{ vencimientoEstimado }} · PLAZO: {{ diasPlazoEfectivo() }} {{ diasPlazoEfectivo() === 1 ? 'día' : 'días' }}</small>
                             </div>
@@ -408,12 +444,19 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
                     </ng-template>
                 </p-table>
                 <div class="text-muted-color" *ngIf="!detalle.cobranzas?.length">Aún no hay cobros registrados en esta venta.</div>
+                <div class="mt-4" *ngIf="detalle.bitacora?.length">
+                    <div class="font-semibold mb-2">Bitácora</div>
+                    <div *ngFor="let b of detalle.bitacora" class="text-sm mb-2">
+                        {{ b.fecha | date:'dd/MM/yyyy HH:mm' }} · {{ b.usuario?.nombre || b.usuario?.username }} · {{ b.accion }} · {{ b.motivo }}
+                    </div>
+                </div>
             </ng-container>
             <ng-template #footer>
                 <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogDetalle = false" />
                 <p-button *ngIf="detalle && despachosHabilitados && (detalle.estado_despacho === 'PENDIENTE' || detalle.estado_despacho === 'PARCIAL')" label="Registrar despacho" icon="pi pi-truck" (onClick)="formDespacho.abrir(detalle)" />
                 <p-button *ngIf="detalle && detalle.estado_despacho !== 'ANTERIOR'" icon="pi pi-history" label="Historial de despachos" [outlined]="true" (onClick)="formDespacho.abrir(detalle,true)" />
                 <p-button *ngIf="detalle && (detalle.estado === 'PENDIENTE' || detalle.estado === 'PARCIAL')" label="Cobrar" icon="pi pi-wallet" pTooltip="Registrar un cobro de esta venta" tooltipPosition="top" (onClick)="abrirCobroDetalle()" />
+                <p-button *ngIf="detalle && detalle.estado !== 'ANULADA'" label="Editar" icon="pi pi-pencil" [outlined]="true" (onClick)="abrirEdicion(detalle)" />
                 <p-button *ngIf="detalle && detalle.estado !== 'ANULADA'" label="Anular" icon="pi pi-times" severity="danger" [outlined]="true" pTooltip="Anular o eliminar" tooltipPosition="top" (onClick)="pedirAnular(detalle)" />
                 <p-button *ngIf="detalle && detalle.estado !== 'ANULADA'" label="PDF" icon="pi pi-file-pdf" severity="danger" [outlined]="true" pTooltip="Ver PDF" tooltipPosition="top" (onClick)="exportarVenta(detalle, 'pdf')" />
             </ng-template>
@@ -663,7 +706,12 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
 export class VentasPage implements OnInit {
     @ViewChild('formDespacho') formDespacho!: DespachoFormComponent;
     despachosHabilitados = false;
+    dejarPendiente = false;
+    modoPendiente: 'PARCIAL' | 'POSTERIOR' = 'PARCIAL';
     entrega = 'COMPLETA'; personaRetira = ''; claveVenta = '';
+    sincronizarEntrega(): void {
+        this.entrega = this.dejarPendiente ? this.modoPendiente : 'COMPLETA';
+    }
     etiquetaDespacho = etiquetaDespacho; colorDespacho = colorDespacho;
     opcionesEntrega = [
         { label: 'Entrega completa ahora', description: 'Se entregan todos los productos en este momento.', icon: 'pi pi-truck', value: 'COMPLETA' },
@@ -687,6 +735,13 @@ export class VentasPage implements OnInit {
     cargando = false;
     guardando = false;
     dialogNueva = false;
+    dialogMotivo = false;
+    motivoAnular = '';
+    dialogEditar = false;
+    motivoEditar = '';
+    aCreditoEditar = false;
+    plazoEditar = 7;
+    lineasEditar: { id?: number; descripcion: string; cantidad: number; precio_unitario: number; id_producto?: number | null; entregado?: number }[] = [];
     dialogDetalle = false;
     dialogCajaCerrada = false;
     dialogCliente = false;
@@ -712,14 +767,13 @@ export class VentasPage implements OnInit {
         { label: 'Anulada', value: 'ANULADA' }
     ];
     plazosCredito = [
-        { label: 'Sin plazo', value: 0 },
         { label: '7 días', value: 7 },
         { label: '15 días', value: 15 },
         { label: '30 días', value: 30 },
         { label: 'Otros días', value: -2 },
         { label: 'Fecha exacta', value: -1 }
     ];
-    plazoDias = 0;
+    plazoDias = 7;
     plazoDiasPersonal = 7;
     fechaVencimiento: Date | null = null;
     hoy = new Date();
@@ -819,6 +873,9 @@ export class VentasPage implements OnInit {
             if (this.esProductoEmpaque(p)) {
                 return false;
             }
+            if (p.disponible_en === 'COMPRAS') {
+                return false;
+            }
             const categoriaId = p.categoria?.id ?? p.id_categoria ?? null;
             if (this.filtroCategoriaId != null && categoriaId !== this.filtroCategoriaId) {
                 return false;
@@ -867,7 +924,7 @@ export class VentasPage implements OnInit {
         this.montoQr = 0;
         this.referencia = '';
         this.observacion = '';
-        this.plazoDias = 0;
+        this.plazoDias = 7;
         this.plazoDiasPersonal = 7;
         this.fechaVencimiento = null;
         this.hoy = new Date();
@@ -1029,12 +1086,16 @@ export class VentasPage implements OnInit {
             return;
         }
         if (lineas.some(l => !!this.avisoStock(l))) { this.aviso.aviso('Validación', 'La cantidad supera lo disponible'); return; }
-        if (this.despachosHabilitados && this.tieneProductos && this.entrega !== 'POSTERIOR') {
-            if (!this.personaRetira.trim() || (this.entrega === 'PARCIAL' && (!lineas.some(l => l.id_producto && Number(l.entregar_ahora) > 0) || lineas.some(l => l.id_producto && (Number(l.entregar_ahora || 0) < 0 || Number(l.entregar_ahora || 0) > Number(l.cantidad)))))) {
-                this.aviso.aviso('Validación', 'Indique persona y cantidades válidas para la entrega'); return;
+        if (this.despachosHabilitados && this.tieneProductos && this.entrega === 'PARCIAL') {
+            if (!lineas.some(l => l.id_producto && Number(l.entregar_ahora) > 0) || lineas.some(l => l.id_producto && (Number(l.entregar_ahora || 0) < 0 || Number(l.entregar_ahora || 0) > Number(l.cantidad)))) {
+                this.aviso.aviso('Validación', 'Indique las cantidades que se lleva el cliente ahora'); return;
             }
         }
         const cobro = this.pagoAlRegistrar();
+        if (this.modoCobro === 'CREDITO' && this.diasPlazoEfectivo() < 1 && this.plazoDias !== -1) {
+            this.aviso.aviso('Validación', 'Seleccione un plazo en días o una fecha de vencimiento');
+            return;
+        }
         if (this.modoCobro === 'CREDITO' && this.plazoDias === -2 && this.diasPlazoEfectivo() < 1) {
             this.aviso.aviso('Validación', 'Indique los días de plazo');
             return;
@@ -1113,6 +1174,11 @@ export class VentasPage implements OnInit {
                 if (this.despachosHabilitados && ['PENDIENTE', 'PARCIAL'].includes(venta.estado_despacho)) items.push({ label: 'Registrar despacho', icon: 'pi pi-truck', command: () => this.formDespacho.abrir(venta) });
             }
             items.push({ separator: true });
+            items.push({
+                label: 'Editar',
+                icon: 'pi pi-pencil',
+                command: () => this.abrirEdicion(venta)
+            });
             items.push({
                 label: 'Anular o eliminar',
                 icon: 'pi pi-times menu-icon-anular',
@@ -1237,26 +1303,81 @@ export class VentasPage implements OnInit {
         this.confirmar
             .pedir({
                 titulo: 'Anular venta',
-                mensaje: `¿Anular la venta #${venta.id} de ${venta.cliente?.nombre || 'cliente'}? Se liberan las reservas sin entrega. Las ventas entregadas requieren devolución física.${extra}`,
+                mensaje: `¿Anular la venta #${venta.id} de ${venta.cliente?.nombre || 'cliente'}? Si la mercadería sigue en el negocio, vuelve a disponible. Un retiro real no se puede anular por aquí.${extra}`,
                 aceptar: 'Anular',
                 peligro: true
             })
             .then((ok) => {
                 if (ok) {
-                    this.ventaAnular = venta;
-                    this.confirmarAnular();
+        this.ventaAnular = venta;
+        this.motivoAnular = '';
+        this.dialogMotivo = true;
                 }
             });
     }
 
-    confirmarAnular(): void {
-        if (!this.ventaAnular) {
+    abrirEdicion(venta: Venta): void {
+        const cargar = (data: Venta) => {
+            this.detalle = data;
+            this.lineasEditar = (data.detalles || []).map((l) => ({
+                id: l.id,
+                id_producto: l.id_producto,
+                descripcion: l.descripcion,
+                cantidad: l.cantidad,
+                precio_unitario: l.precio_unitario,
+                entregado: l.entregado || 0
+            }));
+            this.motivoEditar = '';
+            this.aCreditoEditar = false;
+            this.plazoEditar = data.plazo_dias || 7;
+            this.dialogEditar = true;
+        };
+        if (venta.detalles?.length) {
+            cargar(venta);
+            return;
+        }
+        this.ventasService.obtener(venta.id).subscribe({
+            next: (data) => cargar(data),
+            error: (err) => this.aviso.error(err, 'No se pudo cargar la venta')
+        });
+    }
+
+    guardarEdicion(): void {
+        if (!this.detalle || !this.motivoEditar.trim()) {
+            this.aviso.aviso('Validación', 'Indique el motivo de la corrección');
             return;
         }
         this.guardando = true;
-        this.ventasService.anular(this.ventaAnular.id).subscribe({
+        this.ventasService.editar(this.detalle.id, {
+            motivo: this.motivoEditar.trim(),
+            lineas: this.lineasEditar,
+            a_credito: this.aCreditoEditar,
+            plazo_dias: this.aCreditoEditar ? this.plazoEditar : undefined
+        }).subscribe({
             next: (res) => {
                 this.guardando = false;
+                this.dialogEditar = false;
+                this.detalle = res.data;
+                this.aviso.ok('Venta', res.mensaje);
+                this.cargar();
+            },
+            error: (err) => {
+                this.guardando = false;
+                this.aviso.error(err, 'No se pudo editar la venta');
+            }
+        });
+    }
+
+    confirmarAnular(): void {
+        if (!this.ventaAnular || !this.motivoAnular.trim()) {
+            this.aviso.aviso('Validación', 'Indique el motivo de la anulación');
+            return;
+        }
+        this.guardando = true;
+        this.ventasService.anular(this.ventaAnular.id, this.motivoAnular.trim()).subscribe({
+            next: (res) => {
+                this.guardando = false;
+                this.dialogMotivo = false;
                 this.dialogDetalle = false;
                 this.aviso.ok('Venta', res.mensaje);
                 this.cargar();

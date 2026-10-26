@@ -1,15 +1,18 @@
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, ValidateIf } from 'class-validator';
 import { METODOS_PAGO } from '../constants/caja.constants';
-import { CATEGORIAS_GASTO_EMPRESA, CONDICION_GASTO, CONDICIONES_GASTO } from '../constants/gasto.constants';
+import { CONDICION_GASTO, CONDICIONES_GASTO } from '../constants/gasto.constants';
 import { TIPOS_GASTO } from '../models/gasto.model';
 
 /** Un gasto a crédito no sale de caja: no se pide método de pago. */
 function descuentaCaja(o: CrearGastoDTO): boolean {
+    if (o.tipo === 'RETIRO_PERSONAL') {
+        return false;
+    }
     if (o.condicion === CONDICION_GASTO.CREDITO) {
         return false;
     }
-    return o.tipo === 'GASTO_EMPRESA' || o.descontar_caja !== false;
+    return true;
 }
 
 function toBoolean(value: unknown): boolean | undefined {
@@ -34,8 +37,14 @@ export class CrearGastoDTO {
 
     @IsOptional()
     @IsString()
-    @IsIn([...CATEGORIAS_GASTO_EMPRESA], { message: 'La categoría de gasto no es válida' })
+    @MaxLength(80)
     categoria?: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt()
+    @Min(1)
+    id_beneficiario?: number;
 
     @IsOptional()
     @IsString()

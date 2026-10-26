@@ -109,6 +109,44 @@ export async function asegurarEsquemaVentas(): Promise<void> {
     if (!nombres.has('fecha_vencimiento')) {
         await sequelize.query('ALTER TABLE ventas ADD COLUMN fecha_vencimiento DATE NULL');
     }
+    if (!nombres.has('id_caja')) {
+        await sequelize.query('ALTER TABLE ventas ADD COLUMN id_caja INT NULL');
+    }
+    if (!nombres.has('motivo_anulacion')) {
+        await sequelize.query('ALTER TABLE ventas ADD COLUMN motivo_anulacion VARCHAR(250) NULL');
+    }
+    if (!nombres.has('fecha_anulacion')) {
+        await sequelize.query('ALTER TABLE ventas ADD COLUMN fecha_anulacion DATETIME NULL');
+    }
+    if (!nombres.has('id_usuario_anulacion')) {
+        await sequelize.query('ALTER TABLE ventas ADD COLUMN id_usuario_anulacion INT NULL');
+    }
+    const despachos = await sequelize.query<ColumnRow>('SHOW COLUMNS FROM despachos', { type: QueryTypes.SELECT });
+    const colsDespacho = new Set(despachos.map((col) => col.Field));
+    const extras = [
+        { nombre: 'ci', ddl: 'ADD COLUMN ci VARCHAR(30) NULL' },
+        { nombre: 'marca', ddl: 'ADD COLUMN marca VARCHAR(80) NULL' },
+        { nombre: 'color', ddl: 'ADD COLUMN color VARCHAR(40) NULL' },
+        { nombre: 'destino', ddl: 'ADD COLUMN destino VARCHAR(150) NULL' }
+    ];
+    for (const col of extras) {
+        if (!colsDespacho.has(col.nombre)) {
+            await sequelize.query(`ALTER TABLE despachos ${col.ddl}`);
+        }
+    }
+    await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS bitacora_ventas (
+            id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            id_venta INT NOT NULL,
+            id_usuario INT NOT NULL,
+            id_caja INT NULL,
+            accion VARCHAR(40) NOT NULL,
+            motivo VARCHAR(250) NOT NULL,
+            anterior TEXT NULL,
+            nuevo TEXT NULL,
+            fecha DATETIME NOT NULL
+        )
+    `);
 }
 
 export async function asegurarEsquemaClientes(): Promise<void> {
@@ -182,7 +220,10 @@ export async function asegurarEsquemaCompras(): Promise<void> {
         { nombre: 'precio_usd', ddl: 'ADD COLUMN precio_usd DECIMAL(12,4) NULL' },
         { nombre: 'id_productor', ddl: 'ADD COLUMN id_productor INT NULL' },
         { nombre: 'plazo_dias', ddl: 'ADD COLUMN plazo_dias INT NULL' },
-        { nombre: 'fecha_vencimiento', ddl: 'ADD COLUMN fecha_vencimiento DATE NULL' }
+        { nombre: 'fecha_vencimiento', ddl: 'ADD COLUMN fecha_vencimiento DATE NULL' },
+        { nombre: 'ordenante', ddl: 'ADD COLUMN ordenante VARCHAR(150) NULL' },
+        { nombre: 'anticipada', ddl: 'ADD COLUMN anticipada TINYINT(1) NOT NULL DEFAULT 0' },
+        { nombre: 'estado_recepcion', ddl: "ADD COLUMN estado_recepcion VARCHAR(20) NOT NULL DEFAULT 'RECIBIDA'" }
     ];
     for (const col of faltantes) {
         if (!nombres.has(col.nombre)) {
@@ -202,7 +243,25 @@ export async function asegurarEsquemaCompras(): Promise<void> {
         if (!nombresDet.has('unidad')) {
             await sequelize.query('ALTER TABLE compra_detalles ADD COLUMN unidad VARCHAR(20) NULL');
         }
+        if (!nombresDet.has('cantidad_recibida')) {
+            await sequelize.query('ALTER TABLE compra_detalles ADD COLUMN cantidad_recibida DECIMAL(12,3) NOT NULL DEFAULT 0');
+            await sequelize.query('UPDATE compra_detalles SET cantidad_recibida = cantidad');
+        }
     }
+    await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS recepciones_compra (
+            id INT NOT NULL AUTO_INCREMENT,
+            id_compra INT NOT NULL,
+            id_detalle INT NOT NULL,
+            cantidad DECIMAL(12,3) NOT NULL,
+            fecha DATETIME NOT NULL,
+            id_usuario INT NOT NULL,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL,
+            PRIMARY KEY (id),
+            KEY recepciones_compra_id_compra (id_compra)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 }
 
 /** Separa productores de proveedores: tabla propia y FK de compras.id_productor. */
@@ -348,4 +407,107 @@ export async function asegurarEsquemaUsuarios(): Promise<void> {
         SET nombre = username
         WHERE nombre IS NULL OR TRIM(nombre) = ''
     `);
+}
+
+async function columnaExiste(tabla: string, columna: string): Promise<boolean> {
+    const columnas = await sequelize.query<ColumnRow>(`SHOW COLUMNS FROM \`${tabla}\``, {
+        type: QueryTypes.SELECT
+    });
+    return columnas.some((col) => col.Field === columna);
+}
+
+/** Caja chica, categorías de egreso, beneficiarios y disponibilidad de productos. */
+export async function asegurarEsquemaOperacion(): Promise<void> {
+    if (!(await columnaExiste('cajas', 'tipo'))) {
+        await sequelize.query("ALTER TABLE cajas ADD COLUMN tipo VARCHAR(20) NOT NULL DEFAULT 'PRINCIPAL'");
+    }
+    const disponibleNuevo = !(await columnaExiste('productos', 'disponible_en'));
+    if (disponibleNuevo) {
+        await sequelize.query("ALTER TABLE productos ADD COLUMN disponible_en VARCHAR(20) NOT NULL DEFAULT 'AMBOS'");
+    }
+    const personalizados = await sequelize.query<{ c: number }>(
+        "SELECT COUNT(*) AS c FROM productos WHERE disponible_en <> 'AMBOS'",
+        { type: QueryTypes.SELECT }
+    );
+    if (disponibleNuevo || !Number(personalizados[0]?.c)) {
+        await sequelize.query("UPDATE productos SET disponible_en = 'COMPRAS' WHERE LOWER(nombre) LIKE '%chala%'");
+    }
+    if (!(await columnaExiste('gastos', 'id_beneficiario'))) {
+        await sequelize.query('ALTER TABLE gastos ADD COLUMN id_beneficiario INT NULL');
+    }
+
+    await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS categorias_egreso (
+            id INT NOT NULL AUTO_INCREMENT,
+            tipo VARCHAR(40) NOT NULL,
+            nombre VARCHAR(80) NOT NULL,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY categorias_egreso_tipo_nombre (tipo, nombre)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS beneficiarios (
+            id INT NOT NULL AUTO_INCREMENT,
+            nombre VARCHAR(120) NOT NULL,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY beneficiarios_nombre (nombre)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS arqueos_caja (
+            id INT NOT NULL AUTO_INCREMENT,
+            id_caja INT NOT NULL,
+            saldo_esperado DECIMAL(12,2) NOT NULL,
+            saldo_contado DECIMAL(12,2) NOT NULL,
+            diferencia DECIMAL(12,2) NOT NULL,
+            observacion TEXT NULL,
+            fecha DATETIME NOT NULL,
+            id_usuario INT NOT NULL,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL,
+            PRIMARY KEY (id),
+            KEY arqueos_caja_id_caja_fecha (id_caja, fecha)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    const categorias = [
+        ['GASTO_EMPRESA', 'Combustible'],
+        ['GASTO_EMPRESA', 'Transporte'],
+        ['GASTO_EMPRESA', 'Energía'],
+        ['GASTO_EMPRESA', 'Mantenimiento'],
+        ['GASTO_EMPRESA', 'Repuestos'],
+        ['GASTO_EMPRESA', 'Servicios'],
+        ['GASTO_EMPRESA', 'Alimentación'],
+        ['GASTO_EMPRESA', 'Materiales'],
+        ['GASTO_EMPRESA', 'Otros'],
+        ['RETIRO_PERSONAL', 'Alimentación'],
+        ['RETIRO_PERSONAL', 'Salud'],
+        ['RETIRO_PERSONAL', 'Educación'],
+        ['RETIRO_PERSONAL', 'Transporte'],
+        ['RETIRO_PERSONAL', 'Otros']
+    ];
+    for (const [tipo, nombre] of categorias) {
+        await sequelize.query(
+            'INSERT IGNORE INTO categorias_egreso (tipo, nombre, created_at, updated_at) VALUES (:tipo, :nombre, NOW(), NOW())',
+            { replacements: { tipo, nombre } }
+        );
+    }
+
+    const chicas = await sequelize.query<{ c: number }>(
+        "SELECT COUNT(*) AS c FROM cajas WHERE tipo = 'CHICA'",
+        { type: QueryTypes.SELECT }
+    );
+    if (!Number(chicas[0]?.c)) {
+        await sequelize.query(`
+            INSERT INTO cajas (fecha_apertura, saldo_inicial, estado, tipo, id_usuario_apertura, observacion, created_at, updated_at)
+            SELECT NOW(), 0, 'ABIERTA', 'CHICA', id, 'Caja chica permanente. Solo efectivo.', NOW(), NOW()
+            FROM \`user\`
+            ORDER BY id ASC
+            LIMIT 1
+        `);
+    }
 }

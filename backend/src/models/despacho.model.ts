@@ -84,6 +84,10 @@ export const Despacho = sequelize.define(
     clave: { type: DataTypes.STRING(80), allowNull: false, unique: true },
     fecha: { type: DataTypes.DATE, allowNull: false },
     persona_retira: { type: DataTypes.STRING(150), allowNull: false },
+    ci: { type: DataTypes.STRING(30), allowNull: true },
+    marca: { type: DataTypes.STRING(80), allowNull: true },
+    color: { type: DataTypes.STRING(40), allowNull: true },
+    destino: { type: DataTypes.STRING(150), allowNull: true },
     id_usuario: {
       type: DataTypes.INTEGER,
       allowNull: false,

@@ -25,6 +25,7 @@ function mapProducto(item: any) {
         path_imagen: resolverImagen(item.path_imagen, 'producto'),
         eliminado: item.eliminado,
         id_categoria: item.id_categoria,
+        disponible_en: item.disponible_en || 'AMBOS',
         categoria: item.categoria ? { id: item.categoria.id, nombre: item.categoria.nombre } : null,
         bajo_minimo: toQty(item.stock) <= toQty(item.stock_minimo)
     };
@@ -77,6 +78,13 @@ export class ProductoController {
             }
             if (typeof req.query.id_categoria === 'string' && req.query.id_categoria) {
                 where.id_categoria = Number(req.query.id_categoria);
+            }
+            if (req.query.uso === 'compras') {
+                where.disponible_en = { [Op.in]: ['AMBOS', 'COMPRAS'] };
+            } else if (req.query.uso === 'ventas') {
+                where.disponible_en = { [Op.in]: ['AMBOS', 'VENTAS'] };
+            } else if (typeof req.query.disponible_en === 'string' && req.query.disponible_en) {
+                where.disponible_en = req.query.disponible_en;
             }
             const productos = await Productos.findAll({
                 where,
@@ -167,6 +175,7 @@ export class ProductoController {
                 unidad_medida: unidad,
                 path_imagen: imagenParaGuardar(datos.path_imagen, 'producto'),
                 id_categoria: datos.id_categoria || null,
+                disponible_en: datos.disponible_en || 'AMBOS',
                 eliminado: false
             });
             const creado = await Productos.findByPk(producto.get('id') as number, {
@@ -209,7 +218,8 @@ export class ProductoController {
                 stock_minimo: toQty(datos.stock_minimo ?? producto.get('stock_minimo')),
                 unidad_medida: unidad,
                 path_imagen: imagenParaGuardar(datos.path_imagen ?? (producto.get('path_imagen') as string), 'producto'),
-                id_categoria: datos.id_categoria ?? producto.get('id_categoria')
+                id_categoria: datos.id_categoria ?? producto.get('id_categoria'),
+                disponible_en: datos.disponible_en || producto.get('disponible_en') || 'AMBOS'
             }, { transaction });
             await transaction.commit();
             const actualizado = await Productos.findByPk(producto.get('id') as number, {

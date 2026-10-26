@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, ValidateIf } from 'class-validator';
 import { MENSAJE_UNIDAD_MEDIDA } from '../utils/unidad-medida';
 
 export class CrearProductoDTO {
@@ -50,6 +50,10 @@ export class CrearProductoDTO {
     @Type(() => Number)
     @IsInt()
     id_categoria?: number;
+
+    @IsOptional()
+    @IsIn(['AMBOS', 'COMPRAS', 'VENTAS'], { message: 'La disponibilidad debe ser compras, ventas o ambas' })
+    disponible_en?: string;
 }
 
 export class AjusteStockDTO {

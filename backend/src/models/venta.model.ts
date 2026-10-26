@@ -59,6 +59,22 @@ export const Venta = sequelize.define('venta', {
         },
         onUpdate: 'CASCADE',
         onDelete: 'RESTRICT'
+    },
+    id_caja: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
+    motivo_anulacion: {
+        type: DataTypes.STRING(250),
+        allowNull: true
+    },
+    fecha_anulacion: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    id_usuario_anulacion: {
+        type: DataTypes.INTEGER,
+        allowNull: true
     }
 }, {
     tableName: 'ventas',

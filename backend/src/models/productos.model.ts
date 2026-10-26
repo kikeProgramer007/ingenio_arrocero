@@ -54,6 +54,11 @@ export const Productos = sequelize.define('productos', {
         type: DataTypes.INTEGER,
         allowNull: true
     },
+    disponible_en: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: 'AMBOS'
+    },
 }, 
 {
     tableName: 'productos',     

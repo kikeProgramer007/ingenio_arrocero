@@ -33,6 +33,10 @@ export const Gasto = sequelize.define('gasto', {
         type: DataTypes.STRING(120),
         allowNull: true
     },
+    id_beneficiario: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
     monto: {
         type: DataTypes.DECIMAL(12, 2),
         allowNull: false

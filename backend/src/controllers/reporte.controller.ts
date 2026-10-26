@@ -95,6 +95,18 @@ function etiquetaMetodoDocumento(item: { metodo_pago?: string; monto_efectivo?: 
     return etiquetaMetodo(String(item.metodo_pago || ''));
 }
 
+function partesMontos(item: { metodo_pago?: string; monto?: unknown; monto_efectivo?: unknown; monto_qr?: unknown }): { efectivo: number; qr: number } {
+    const metodo = String(item.metodo_pago || '').toUpperCase();
+    const monto = toMoney(item.monto);
+    if (metodo === 'QR') {
+        return { efectivo: 0, qr: monto };
+    }
+    if (metodo === 'MIXTO') {
+        return { efectivo: toMoney(item.monto_efectivo), qr: toMoney(item.monto_qr) };
+    }
+    return { efectivo: monto, qr: 0 };
+}
+
 function etiquetaOrigen(origen: string): string {
     const map: Record<string, string> = {
         MANUAL: 'Manual',
@@ -159,7 +171,6 @@ export class ReporteController {
                 compras: data.compras,
                 gastos: data.gastos,
                 retiros: data.retiros,
-                acopios: data.acopios,
                 caja: data.caja
             });
         } catch (error) {
@@ -173,6 +184,18 @@ export class ReporteController {
             res.status(200).json(await ReporteController.datosCuentasPorCobrar(req));
         } catch (error) {
             handleError(res, error, 'Error al generar cuentas por cobrar');
+        }
+    }
+
+    /** Saldo por proveedor a la fecha de corte, y el detalle de uno si se indica. */
+    public static async cuentasPorPagar(req: Request, res: Response): Promise<void> {
+        try {
+            const consolidado = await ReporteController.consolidadoPorPagar(req);
+            const id = Number(req.query.id_proveedor || 0);
+            const detalle = id ? await ReporteController.detalleCuentaProveedor(id, req) : null;
+            res.status(200).json({ ...consolidado, detalle });
+        } catch (error) {
+            handleError(res, error, 'Error al generar cuentas por pagar');
         }
     }
 
@@ -221,8 +244,11 @@ export class ReporteController {
                 res.status(404).json({ mensaje: 'No hay datos para exportar' });
                 return;
             }
-            const usuario = getAuthUser(req)?.username;
-            if (usuario) {
+            const auth = getAuthUser(req);
+            const registro = auth ? await User.findByPk(auth.id, { attributes: ['id', 'username', 'nombre'] }) : null;
+            const plano = registro ? (registro.get({ plain: true }) as { nombre?: string | null; username?: string | null }) : null;
+            const usuario = nombreVisible(plano, auth ? { username: auth.username } : null);
+            if (usuario && usuario !== '-') {
                 for (const hoja of hojas) {
                     if (!hoja.usuario) {
                         hoja.usuario = usuario;
@@ -278,7 +304,7 @@ export class ReporteController {
             return [await ReporteController.hojaPagos(req, desde, hasta)];
         }
         if (tipo === 'inventario') {
-            return [await ReporteController.hojaInventario()];
+            return [await ReporteController.hojaInventario(req)];
         }
         if (tipo === 'clientes') {
             return [await ReporteController.hojaClientes(req)];
@@ -300,6 +326,9 @@ export class ReporteController {
         }
         if (tipo === 'cuenta_proveedor') {
             return ReporteController.hojasCuentaProveedor(req);
+        }
+        if (tipo === 'cuentas_por_pagar') {
+            return [await ReporteController.hojaCuentasPorPagar(req)];
         }
         if (tipo === 'cuentas_por_cobrar') {
             return [ReporteController.hojaCuentasPorCobrar(await ReporteController.datosCuentasPorCobrar(req))];
@@ -337,11 +366,10 @@ export class ReporteController {
     private static async datosResumen(req: Request) {
         const { desde, hasta } = rango(req);
         const filtro = { fecha: { [Op.between]: [desde, hasta] } };
-        const [ventas, compras, gastos, acopios, movimientos] = await Promise.all([
+        const [ventas, compras, gastos, movimientos] = await Promise.all([
             Venta.findAll({ where: filtro }),
             Compra.findAll({ where: filtro }),
             Gasto.findAll({ where: filtro }),
-            Acopio.findAll({ where: filtro }),
             MovimientoCaja.findAll({ where: filtro })
         ]);
         const vigentes = ventas.filter((v) => v.get('estado') !== ESTADO_VENTA.ANULADA);
@@ -354,7 +382,6 @@ export class ReporteController {
         const porPagar = roundMoney(compras.reduce((acc, c) => acc + toMoney(c.get('saldo_pendiente')), 0));
         const totalGastos = roundMoney(gastos.filter((g) => g.get('tipo') === 'GASTO_EMPRESA').reduce((acc, g) => acc + toMoney(g.get('monto')), 0));
         const totalRetiros = roundMoney(gastos.filter((g) => g.get('tipo') === 'RETIRO_PERSONAL').reduce((acc, g) => acc + toMoney(g.get('monto')), 0));
-        const totalAcopio = roundMoney(acopios.reduce((acc, a) => acc + toMoney(a.get('total')), 0));
         const flujo = resumirMovimientos(movimientos);
         return {
             desde,
@@ -369,7 +396,6 @@ export class ReporteController {
             compras: { cantidad: compras.length, total: totalCompras, por_pagar: porPagar },
             gastos: totalGastos,
             retiros: totalRetiros,
-            acopios: { cantidad: acopios.length, total: totalAcopio },
             caja: {
                 ingresos: flujo.ingresos,
                 egresos: flujo.egresos,
@@ -627,34 +653,55 @@ export class ReporteController {
         }
         const ventas = await Venta.findAll({
             where,
-            include: [{ model: Cliente, as: 'cliente', attributes: ['id', 'nombre'] }],
+            include: [
+                { model: Cliente, as: 'cliente', attributes: ['id', 'nombre'] },
+                { model: Cobranza, as: 'cobranzas', attributes: ['id', 'monto', 'metodo_pago', 'monto_efectivo', 'monto_qr', 'fecha'] }
+            ],
             order: [['fecha', 'ASC']],
             limit: 2000
         });
         const filas = ventas.map((v: any) => {
             const total = toMoney(v.total);
             const estado = String(v.estado);
+            const anulada = estado === ESTADO_VENTA.ANULADA;
+            const medios = (anulada ? [] : (v.cobranzas || [])).reduce((acc: { efectivo: number; qr: number }, cob: any) => {
+                if (new Date(cob.fecha).getTime() > hasta.getTime()) {
+                    return acc;
+                }
+                const parte = partesMontos(cob);
+                acc.efectivo = roundMoney(acc.efectivo + parte.efectivo);
+                acc.qr = roundMoney(acc.qr + parte.qr);
+                return acc;
+            }, { efectivo: 0, qr: 0 });
+            const cobrado = anulada ? 0 : roundMoney(medios.efectivo + medios.qr);
+            const saldo = anulada ? 0 : roundMoney(total - cobrado);
             return [
                 v.id,
                 fmtFecha(v.fecha),
                 v.cliente?.nombre || '-',
                 total,
-                cobradoVenta(total, v.saldo_pendiente, estado),
-                saldoVenta(v.saldo_pendiente, estado),
+                medios.efectivo,
+                medios.qr,
+                cobrado,
+                saldo,
                 fmtFechaDia(v.fecha_vencimiento),
-                esVentaVencida(v.fecha_vencimiento, v.saldo_pendiente, estado) ? 'VENCIDA' : estado
+                esVentaVencida(v.fecha_vencimiento, saldo, estado) ? 'VENCIDA' : estado
             ];
         });
-        const vigentes = filas.filter((f) => f[7] !== ESTADO_VENTA.ANULADA);
+        const vigentes = filas.filter((f) => f[9] !== ESTADO_VENTA.ANULADA);
         const total = roundMoney(vigentes.reduce((acc, f) => acc + Number(f[3]), 0));
-        const cobrado = roundMoney(vigentes.reduce((acc, f) => acc + Number(f[4]), 0));
+        const cobrado = roundMoney(vigentes.reduce((acc, f) => acc + Number(f[6]), 0));
+        const efectivo = roundMoney(vigentes.reduce((acc, f) => acc + Number(f[4]), 0));
+        const qr = roundMoney(vigentes.reduce((acc, f) => acc + Number(f[5]), 0));
         return {
             nombre: 'Ventas',
             titulo: 'Ventas',
             subtitulo: periodoTexto(desde, hasta),
             resumen: [
                 { label: 'Cantidad', valor: String(ventas.length) },
-                { label: 'Total', valor: total },
+                { label: 'Vendido', valor: total },
+                { label: 'Cobrado efectivo', valor: efectivo },
+                { label: 'Cobrado QR', valor: qr },
                 { label: 'Cobrado', valor: cobrado }
             ],
             columnas: COLUMNAS_DOCUMENTOS.ventas,
@@ -711,7 +758,7 @@ export class ReporteController {
             });
         } else {
             caja = await Caja.findOne({
-                where: { estado: ESTADO_CAJA.ABIERTA },
+                where: { estado: ESTADO_CAJA.ABIERTA, tipo: 'PRINCIPAL' },
                 include: [
                     { model: User, as: 'usuarioApertura', attributes: ['id', 'username', 'nombre'] },
                     { model: User, as: 'usuarioCierre', attributes: ['id', 'username', 'nombre'] }
@@ -1026,6 +1073,118 @@ export class ReporteController {
         };
     }
 
+    private static async consolidadoPorPagar(req: Request): Promise<{
+        corte: string | null;
+        filas: { id: number; proveedor: string; saldo_bs: number; saldo_usd: number; fanegas: number }[];
+        totales: { saldo_bs: number; saldo_usd: number; fanegas: number };
+    }> {
+        const filtro = filtroCuentaDesdeQuery(req.query);
+        const idProveedor = Number(req.query.id_proveedor || 0);
+        const donde = idProveedor ? { id_proveedor: idProveedor } : {};
+        const [proveedores, compras, pagos, acopios] = await Promise.all([
+            Proveedor.findAll({ where: idProveedor ? { id: idProveedor } : {}, order: [['nombre', 'ASC']] }),
+            Compra.findAll({
+                where: donde,
+                include: [{ model: CompraDetalle, as: 'detalles', include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }] }]
+            }),
+            PagoProveedor.findAll({
+                where: donde,
+                include: [{ model: Compra, as: 'compra', attributes: ['id', 'tipo_compra', 'tipo_cambio', 'total_usd', 'ordenante'] }]
+            }),
+            Acopio.findAll({
+                where: donde,
+                include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }]
+            })
+        ]);
+        const corte = filtro.hasta || null;
+        const filas: { id: number; proveedor: string; saldo_bs: number; saldo_usd: number; fanegas: number }[] = [];
+        let totalBs = 0;
+        let totalUsd = 0;
+        let totalFanegas = 0;
+        for (const proveedor of proveedores) {
+            const id = Number(proveedor.get('id'));
+            const cuenta = armarCuentaProveedor(
+                compras.filter((c) => Number(c.get('id_proveedor')) === id),
+                pagos.filter((p) => Number(p.get('id_proveedor')) === id),
+                acopios.filter((a) => Number(a.get('id_proveedor')) === id),
+                { hasta: corte, ordenante: filtro.ordenante, tipo_compra: filtro.tipo_compra }
+            );
+            if (!cuenta.kardex.length && !cuenta.resumen.saldo) {
+                continue;
+            }
+            const fanegas = cuenta.kardex.reduce((acc, linea) => acc + Number(linea.fanegas || 0), 0);
+            filas.push({
+                id,
+                proveedor: String(proveedor.get('nombre')),
+                saldo_bs: cuenta.resumen.saldo,
+                saldo_usd: cuenta.resumen.saldo_usd,
+                fanegas
+            });
+            totalBs = roundMoney(totalBs + cuenta.resumen.saldo);
+            totalUsd = roundMoney(totalUsd + cuenta.resumen.saldo_usd);
+            totalFanegas += fanegas;
+        }
+        return {
+            corte: corte ? fmtFecha(corte) : null,
+            filas,
+            totales: { saldo_bs: totalBs, saldo_usd: totalUsd, fanegas: totalFanegas }
+        };
+    }
+
+    private static async detalleCuentaProveedor(id: number, req: Request) {
+        const proveedor = await Proveedor.findByPk(id);
+        if (!proveedor) {
+            return null;
+        }
+        const filtro = filtroCuentaDesdeQuery(req.query);
+        const [compras, pagos, acopios] = await Promise.all([
+            Compra.findAll({
+                where: { id_proveedor: id },
+                include: [{ model: CompraDetalle, as: 'detalles', include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }] }],
+                order: [['fecha', 'ASC'], ['id', 'ASC']]
+            }),
+            PagoProveedor.findAll({
+                where: { id_proveedor: id },
+                include: [{ model: Compra, as: 'compra', attributes: ['id', 'tipo_compra', 'tipo_cambio', 'total_usd', 'ordenante'] }],
+                order: [['fecha', 'ASC'], ['id', 'ASC']]
+            }),
+            Acopio.findAll({
+                where: { id_proveedor: id },
+                include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }],
+                order: [['fecha', 'ASC'], ['id', 'ASC']]
+            })
+        ]);
+        const cuenta = armarCuentaProveedor(compras, pagos, acopios, filtro);
+        return {
+            proveedor: { id: Number(proveedor.get('id')), nombre: String(proveedor.get('nombre')) },
+            resumen: cuenta.resumen,
+            kardex: cuenta.kardex
+        };
+    }
+
+    private static async hojaCuentasPorPagar(req: Request): Promise<HojaExport> {
+        const data = await ReporteController.consolidadoPorPagar(req);
+        const filas: (string | number)[][] = data.filas.map((fila) => [
+            fila.proveedor,
+            formatBs(fila.saldo_bs),
+            fila.saldo_usd ? formatUsd(fila.saldo_usd) : '',
+            fila.fanegas || ''
+        ]);
+        filas.push(['TOTAL', formatBs(data.totales.saldo_bs), data.totales.saldo_usd ? formatUsd(data.totales.saldo_usd) : '', data.totales.fanegas || '']);
+        const partes = [
+            data.corte ? `Saldo al ${data.corte}` : 'Saldo a la fecha',
+            req.query.tipo_compra ? `Tipo ${String(req.query.tipo_compra)}` : '',
+            req.query.ordenante ? `Ordenante ${String(req.query.ordenante)}` : ''
+        ].filter(Boolean);
+        return {
+            nombre: 'Cuentas por pagar',
+            titulo: 'Cuentas por pagar',
+            subtitulo: partes.join(' · '),
+            columnas: COLUMNAS_DOCUMENTOS.cuentas_por_pagar,
+            filas
+        };
+    }
+
     private static async hojasCuentaProveedor(req: Request): Promise<HojaExport[]> {
         const id = Number(req.query.id);
         const proveedor = id ? await Proveedor.findByPk(id) : null;
@@ -1057,7 +1216,7 @@ export class ReporteController {
                 include: [{
                     model: Compra,
                     as: 'compra',
-                    attributes: ['id', 'tipo_compra', 'tipo_cambio', 'total_usd', 'id_productor'],
+                    attributes: ['id', 'tipo_compra', 'tipo_cambio', 'total_usd', 'ordenante'],
                     include: [{ model: Productor, as: 'productor', attributes: ['id', 'nombre'] }]
                 }],
                 order: [['fecha', 'ASC'], ['id', 'ASC']]
@@ -1077,8 +1236,8 @@ export class ReporteController {
             filtro.desde || filtro.hasta
                 ? `Período ${filtro.desde ? fmtFecha(filtro.desde) : 'inicio'} a ${filtro.hasta ? fmtFecha(filtro.hasta) : 'hoy'}`
                 : '',
-            filtroProductor ? `Productor ${filtroProductor}` : '',
-            filtro.tipo_compra ? `Tipo ${etiquetaTipoCompra(filtro.tipo_compra)}` : ''
+            filtro.tipo_compra ? `Tipo ${etiquetaTipoCompra(filtro.tipo_compra)}` : '',
+            filtro.ordenante ? `Ordenante ${filtro.ordenante}` : ''
         ].filter(Boolean);
         const montoCuenta = (bs: number, usd?: number) => {
             if (!bs && !usd) {
@@ -1099,46 +1258,81 @@ export class ReporteController {
                     { label: 'Compras', valor: r.compras },
                     { label: 'Servicios', valor: r.servicios },
                     { label: 'Pagado', valor: r.pagado_compras },
-                    { label: 'Acopios', valor: r.acopios },
                     { label: 'Cargo', valor: r.cargo },
                     { label: 'Abono', valor: r.abono },
                     { label: 'Saldo', valor: r.saldo }
                 ],
                 columnas: columnasKardex,
-                filas: cuenta.kardex.map((linea) => [
-                    fmtFecha(linea.fecha),
-                    linea.productor || (linea.tipo === 'SALDO ANTERIOR' ? '' : '-'),
-                    linea.tipo,
-                    linea.detalle,
-                    linea.boleta || '',
-                    linea.chofer || '',
-                    linea.placa || '',
-                    linea.fanegas || '',
-                    linea.precio_usd ? `${formatUsd(linea.precio_usd)} / ${formatBs(linea.precio)}` : (linea.precio ? formatBs(linea.precio) : ''),
-                    montoCuenta(linea.cargo, linea.cargo_usd),
-                    montoCuenta(linea.abono, linea.abono_usd),
-                    montoCuenta(linea.saldo, linea.saldo_usd)
-                ])
+                filas: [
+                    ...cuenta.kardex.map((linea) => [
+                        fmtFecha(linea.fecha),
+                        linea.ordenante || '',
+                        linea.tipo,
+                        linea.detalle,
+                        linea.boleta || '',
+                        linea.chofer || '',
+                        linea.placa || '',
+                        linea.fanegas || '',
+                        linea.precio ? formatBs(linea.precio) : '',
+                        linea.precio_usd ? formatUsd(linea.precio_usd) : '',
+                        linea.cargo ? formatBs(linea.cargo) : '',
+                        linea.cargo_usd ? formatUsd(linea.cargo_usd) : '',
+                        linea.abono ? formatBs(linea.abono) : '',
+                        linea.abono_usd ? formatUsd(linea.abono_usd) : '',
+                        formatBs(linea.saldo),
+                        linea.saldo_usd ? formatUsd(linea.saldo_usd) : ''
+                    ]),
+                    [
+                        '',
+                        '',
+                        'TOTAL',
+                        'Saldo final',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        formatBs(r.cargo),
+                        '',
+                        formatBs(r.abono),
+                        '',
+                        formatBs(r.saldo),
+                        ''
+                    ]
+                ]
             },
             {
                 nombre: 'Entregas',
                 titulo: `Entregas — ${nombre}`,
-                subtitulo: 'Cantidad entregada (compra + acopio). El stock del almacén es único; no se reserva ni se descuenta el pilado por productor.',
+                subtitulo: 'Cantidad entregada en compras. El stock del almacén es único.',
                 columnas: COLUMNAS_DOCUMENTOS.entregas_proveedor,
                 filas: cuenta.inventario.map((linea) => [
                     linea.producto,
                     linea.unidad,
                     linea.compras,
-                    linea.acopio,
                     linea.entregado
                 ])
             }
         ];
     }
 
-    private static async hojaInventario(): Promise<HojaExport> {
+    private static async hojaInventario(req: Request): Promise<HojaExport> {
+        const where: any = { eliminado: false };
+        const idCategoria = Number(req.query.id_categoria || 0);
+        if (idCategoria) {
+            where.id_categoria = idCategoria;
+        }
+        const disponible = String(req.query.disponible_en || '').toUpperCase();
+        if (disponible === 'COMPRAS' || disponible === 'VENTAS' || disponible === 'AMBOS') {
+            where.disponible_en = disponible;
+        }
+        const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+        if (q) {
+            where.nombre = { [Op.like]: `%${q}%` };
+        }
         const productos = await Productos.findAll({
-            where: { eliminado: false },
+            where,
             include: [{ model: CategoriaProducto, as: 'categoria', attributes: ['id', 'nombre'] }],
             order: [['nombre', 'ASC']],
             limit: 2000
@@ -1163,7 +1357,12 @@ export class ReporteController {
         return {
             nombre: 'Inventario',
             titulo: 'Inventario de productos',
-            subtitulo: `Generado ${fmtFecha(new Date())}`,
+            subtitulo: [
+                `Generado ${fmtFecha(new Date())}`,
+                idCategoria ? `Categoría ${idCategoria}` : '',
+                disponible ? `Disponible en ${disponible}` : '',
+                q ? `Búsqueda ${q}` : ''
+            ].filter(Boolean).join(' · '),
             resumen: [{ label: 'Productos', valor: String(productos.length) }],
             columnas: COLUMNAS_DOCUMENTOS.inventario,
             filas
@@ -1207,30 +1406,18 @@ export class ReporteController {
             where.activo = true;
         }
         const proveedores = await Proveedor.findAll({ where, order: [['nombre', 'ASC']], limit: 4000 });
-        const rol = typeof req.query.rol === 'string' ? req.query.rol : '';
-        const filtrados = proveedores.filter((p: any) => {
-            const esProductor = String(p.observacion || '').toLowerCase().includes('productor');
-            if (rol === 'PRODUCTOR') {
-                return esProductor;
-            }
-            if (rol === 'PROVEEDOR') {
-                return !esProductor;
-            }
-            return true;
-        });
-        const filas = filtrados.map((p: any) => [
+        const filas = proveedores.map((p: any) => [
             p.nombre,
             p.nit_ci || '-',
             p.telefono || '-',
             p.direccion || '-',
-            String(p.observacion || '').toLowerCase().includes('productor') ? 'Productor' : 'Proveedor',
             p.activo ? 'Activo' : 'Inactivo'
         ]);
         return {
             nombre: 'Proveedores',
             titulo: 'Proveedores',
             subtitulo: `Generado ${fmtFecha(new Date())}`,
-            resumen: [{ label: 'Registros', valor: String(filtrados.length) }],
+            resumen: [{ label: 'Registros', valor: String(proveedores.length) }],
             columnas: COLUMNAS_DOCUMENTOS.proveedores,
             filas
         };
@@ -1427,6 +1614,7 @@ export class ReporteController {
             include: [
                 { model: Cliente, as: 'cliente', attributes: ['id', 'nombre', 'nit_ci', 'direccion', 'procedencia'] },
                 { model: VentaDetalle, as: 'detalles' },
+                { model: Cobranza, as: 'cobranzas' },
                 { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
             ]
         });
@@ -1436,6 +1624,12 @@ export class ReporteController {
         const total = toMoney(venta.total);
         const pendiente = saldoVenta(venta.saldo_pendiente, venta.estado);
         const cobrado = cobradoVenta(total, venta.saldo_pendiente, venta.estado);
+        const medios = (venta.cobranzas || []).reduce((acc: { efectivo: number; qr: number }, cob: any) => {
+            const parte = partesMontos(cob);
+            acc.efectivo = roundMoney(acc.efectivo + parte.efectivo);
+            acc.qr = roundMoney(acc.qr + parte.qr);
+            return acc;
+        }, { efectivo: 0, qr: 0 });
         const fecha = venta.fecha instanceof Date ? venta.fecha : new Date(venta.fecha);
         return {
             tipoDocumento: 'NOTA DE VENTA',
@@ -1455,7 +1649,9 @@ export class ReporteController {
             lineas: ReporteController.lineasVoucher(venta.detalles),
             total,
             cobrado,
-            pendiente
+            pendiente,
+            efectivo: medios.efectivo,
+            qr: medios.qr
         };
     }
 
@@ -1585,6 +1781,7 @@ export class ReporteController {
             return null;
         }
         const monto = toMoney(item.monto);
+        const medios = partesMontos(item);
         const ventaFecha = item.venta?.fecha ? fmtFechaDia(item.venta.fecha) : '';
         return {
             tipoDocumento: 'COBRANZA',
@@ -1603,6 +1800,8 @@ export class ReporteController {
                 importe: monto
             }],
             total: monto,
+            efectivo: medios.efectivo,
+            qr: medios.qr,
             saldoPendiente: item.venta ? toMoney(item.venta.saldo_pendiente) : null,
             referencia: item.referencia || '',
             observacion: item.observacion || '',
@@ -1622,6 +1821,7 @@ export class ReporteController {
             return null;
         }
         const monto = toMoney(pago.monto);
+        const medios = partesMontos(pago);
         const tc = pago.compra?.tipo_cambio != null ? Number(pago.compra.tipo_cambio) : null;
         const detalle = pago.observacion?.trim() || `Pago a cuenta de compra #${pago.id_compra}`;
         return {
@@ -1641,6 +1841,8 @@ export class ReporteController {
                 importe: monto
             }],
             total: monto,
+            efectivo: medios.efectivo,
+            qr: medios.qr,
             saldoPendiente: pago.compra ? toMoney(pago.compra.saldo_pendiente) : null,
             referencia: pago.referencia || '',
             observacion: pago.observacion || '',
@@ -1686,6 +1888,8 @@ export class ReporteController {
                 importe: monto
             }],
             total: monto,
+            efectivo: partesMontos({ ...metodoSrc, monto }).efectivo,
+            qr: partesMontos({ ...metodoSrc, monto }).qr,
             saldoPendiente: toMoney(gasto.saldo_pendiente) || null,
             referencia: mov?.referencia || ultimo?.referencia || gasto.referencia || '',
             observacion: gasto.observacion || '',
@@ -1722,6 +1926,8 @@ export class ReporteController {
                 importe: monto
             }],
             total: monto,
+            efectivo: partesMontos({ ...mov, monto }).efectivo,
+            qr: partesMontos({ ...mov, monto }).qr,
             saldoPendiente: venta ? toMoney(venta.saldo_pendiente) : null,
             referencia: mov.referencia || '',
             observacion: mov.observacion || '',
@@ -1750,6 +1956,8 @@ export class ReporteController {
                 importe: monto
             }],
             total: monto,
+            efectivo: partesMontos({ ...mov, monto }).efectivo,
+            qr: partesMontos({ ...mov, monto }).qr,
             referencia: mov.referencia || '',
             observacion: mov.observacion || '',
             usuario: nombreVisible(mov.usuario)

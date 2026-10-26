@@ -1,6 +1,6 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../db/connection';
-import { ESTADO_CAJA } from '../constants/caja.constants';
+import { ESTADO_CAJA, TIPO_CAJA } from '../constants/caja.constants';
 
 export const Caja = sequelize.define('caja', {
     id: {
@@ -38,6 +38,11 @@ export const Caja = sequelize.define('caja', {
         type: DataTypes.STRING(20),
         allowNull: false,
         defaultValue: ESTADO_CAJA.ABIERTA
+    },
+    tipo: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: TIPO_CAJA.PRINCIPAL
     },
     id_usuario_apertura: {
         type: DataTypes.INTEGER,

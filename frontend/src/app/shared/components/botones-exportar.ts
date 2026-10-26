@@ -46,11 +46,12 @@ export class BotonesExportarComponent {
     @Input() idCaja?: number | null;
     @Input() id?: number | null;
     @Input() q?: string;
-    @Input() idProductor?: number | null;
     @Input() tipoCompra?: string;
     @Input() metodo?: string;
     @Input() categoria?: string;
+    @Input() disponibleEn?: string;
     @Input() idProveedor?: number | null;
+    @Input() ordenante?: string;
     @Input() procedencia?: string;
     @Input() activos?: string;
     @Input() tipoMovimiento?: string;
@@ -78,11 +79,13 @@ export class BotonesExportarComponent {
             id_caja: this.idCaja || undefined,
             id: this.id || undefined,
             q: this.q?.trim() || undefined,
-            id_productor: this.idProductor || undefined,
             tipo_compra: this.tipoCompra || undefined,
             metodo: this.metodo || undefined,
             categoria: this.categoria || undefined,
+            id_categoria: this.categoria || undefined,
+            disponible_en: this.disponibleEn || undefined,
             id_proveedor: this.idProveedor || undefined,
+            ordenante: this.ordenante?.trim() || undefined,
             procedencia: this.procedencia || undefined,
             activos: this.activos || undefined,
             tipo_movimiento: this.tipoMovimiento || undefined,

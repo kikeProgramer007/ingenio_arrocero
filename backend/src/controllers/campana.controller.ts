@@ -87,30 +87,8 @@ export class CampanaController {
         }
     }
 
-    public static async crear(req: Request, res: Response): Promise<void> {
-        const usuario = getAuthUser(req);
-        if (!usuario) {
-            res.status(401).json({ mensaje: 'Usuario no autenticado' });
-            return;
-        }
-        const datos = await DtoValidator.validateAndRespond(CrearCampanaDTO, req.body, res);
-        if (!datos) {
-            return;
-        }
-        try {
-            const campana = await Campana.create({
-                nombre: datos.nombre.trim(),
-                fecha_inicio: datos.fecha_inicio,
-                fecha_fin: datos.fecha_fin || null,
-                meta_cantidad: datos.meta_cantidad ?? null,
-                estado: ESTADO_CAMPANA.ABIERTA,
-                observacion: datos.observacion || null,
-                id_usuario: usuario.id
-            });
-            res.status(201).json({ mensaje: 'Campaña creada', data: mapCampana(campana) });
-        } catch (error) {
-            handleError(res, error, 'Error al crear la campaña');
-        }
+    public static async crear(_req: Request, res: Response): Promise<void> {
+        res.status(410).json({ mensaje: 'Campaña de acopio ya no admite operaciones nuevas. El historial se conserva.' });
     }
 
     public static async cerrar(req: Request, res: Response): Promise<void> {
@@ -127,125 +105,7 @@ export class CampanaController {
         }
     }
 
-    public static async crearAcopio(req: Request, res: Response): Promise<void> {
-        const usuario = getAuthUser(req);
-        if (!usuario) {
-            res.status(401).json({ mensaje: 'Usuario no autenticado' });
-            return;
-        }
-        const datos = await DtoValidator.validateAndRespond(CrearAcopioDTO, req.body, res);
-        if (!datos) {
-            return;
-        }
-        const pago = toMoney(datos.pago || 0);
-        const cantidad = toQty(datos.cantidad);
-        const total = roundMoney(cantidad * toMoney(datos.precio_unitario));
-        if (pago > total) {
-            res.status(400).json({ mensaje: 'El pago no puede ser mayor al total' });
-            return;
-        }
-
-        const transaction = await sequelize.transaction();
-        try {
-            const campana = await Campana.findByPk(datos.id_campana, { transaction });
-            if (!campana || campana.get('estado') !== ESTADO_CAMPANA.ABIERTA) {
-                await transaction.rollback();
-                res.status(409).json({ mensaje: 'La campaña no existe o está cerrada' });
-                return;
-            }
-            const proveedor = await Proveedor.findByPk(datos.id_proveedor, { transaction });
-            if (!proveedor || !proveedor.get('activo')) {
-                await transaction.rollback();
-                res.status(400).json({ mensaje: 'El proveedor no existe o está inactivo' });
-                return;
-            }
-
-            let caja = null;
-            let pagoDoc: ReturnType<typeof camposPagoDocumento> | null = null;
-            if (pago > 0) {
-                caja = await obtenerCajaAbierta(transaction);
-                if (!caja) {
-                    await transaction.rollback();
-                    res.status(409).json({ mensaje: 'Debe haber una caja abierta para registrar un pago' });
-                    return;
-                }
-                pagoDoc = camposPagoDocumento(datos, pago);
-                if (!pagoDoc.ok) {
-                    await transaction.rollback();
-                    res.status(400).json({ mensaje: pagoDoc.mensaje });
-                    return;
-                }
-            }
-
-            const acopio = await Acopio.create({
-                id_campana: datos.id_campana,
-                id_proveedor: datos.id_proveedor,
-                id_producto: datos.id_producto || null,
-                descripcion: datos.descripcion.trim(),
-                cantidad,
-                precio_unitario: toMoney(datos.precio_unitario),
-                total,
-                pago,
-                metodo_pago: pagoDoc && pagoDoc.ok ? pagoDoc.metodo_pago : (datos.metodo_pago || null),
-                monto_efectivo: pagoDoc && pagoDoc.ok ? pagoDoc.monto_efectivo : null,
-                monto_qr: pagoDoc && pagoDoc.ok ? pagoDoc.monto_qr : null,
-                id_caja: caja ? caja.get('id') : null,
-                observacion: datos.observacion || null,
-                fecha: new Date(),
-                id_usuario: usuario.id
-            }, { transaction });
-
-            if (pago > 0 && caja) {
-                const egreso = await registrarEgresosPartidos({
-                    transaction,
-                    idCaja: caja.get('id') as number,
-                    idUsuario: usuario.id,
-                    categoria: CATEGORIA_EGRESO.PAGO_PROVEEDOR,
-                    concepto: `Acopio campaña ${campana.get('nombre')} - ${proveedor.get('nombre')}`,
-                    monto: pago,
-                    metodoPago: datos.metodo_pago!,
-                    montoEfectivo: datos.monto_efectivo,
-                    montoQr: datos.monto_qr,
-                    origen: ORIGEN_MOVIMIENTO.COMPRA,
-                    origenId: acopio.get('id') as number
-                });
-                if (!egreso.ok) {
-                    await transaction.rollback();
-                    res.status(400).json({ mensaje: egreso.mensaje });
-                    return;
-                }
-            }
-
-            if (datos.id_producto) {
-                const stock = await aplicarStock({
-                    transaction,
-                    idProducto: datos.id_producto,
-                    delta: cantidad,
-                    tipo: TIPO_INVENTARIO.ENTRADA,
-                    origen: 'ACOPIO',
-                    origenId: acopio.get('id') as number,
-                    idUsuario: usuario.id,
-                    observacion: datos.descripcion
-                });
-                if (!stock.ok) {
-                    await transaction.rollback();
-                    res.status(409).json({ mensaje: stock.mensaje });
-                    return;
-                }
-            }
-
-            await transaction.commit();
-            const creado = await Acopio.findByPk(acopio.get('id') as number, {
-                include: [
-                    { model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre'] },
-                    { model: Productos, as: 'producto', attributes: ['id', 'nombre'] },
-                    { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
-                ]
-            });
-            res.status(201).json({ mensaje: 'Acopio registrado', data: mapAcopio(creado) });
-        } catch (error) {
-            await transaction.rollback();
-            handleError(res, error, 'Error al registrar el acopio');
-        }
+    public static async crearAcopio(_req: Request, res: Response): Promise<void> {
+        res.status(410).json({ mensaje: 'Campaña de acopio ya no admite operaciones nuevas. El historial se conserva.' });
     }
 }

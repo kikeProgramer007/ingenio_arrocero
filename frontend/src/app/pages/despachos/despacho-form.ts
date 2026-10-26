@@ -25,7 +25,7 @@ import { colorDespacho, Despacho, DespachosService, etiquetaDespacho } from './d
         <ng-container *ngIf="venta && !cargando">
             <div class="flex flex-wrap gap-4 mb-4">
                 <strong>Venta #{{ venta.id }} · {{ venta.cliente?.nombre }}</strong
-                ><p-tag [value]="venta.estado === 'PARCIAL' ? 'Pago parcial' : venta.estado" /><p-tag [value]="etiqueta(venta.estado_despacho)" [severity]="color(venta.estado_despacho)" />
+                ><p-tag [value]="venta.estado === 'PARCIAL' ? 'Pago parcial' : venta.estado" /><p-tag [value]="etiqueta(venta.estado_despacho)" [severity]="colorEstado(venta.estado_despacho)" />
             </div>
             <ng-container *ngIf="!historia">
                 <div class="mb-4"><label class="block font-bold mb-2">Fecha y hora</label><p-datepicker [(ngModel)]="fecha" [showTime]="true" hourFormat="24" [showIcon]="true" appendTo="body" [minDate]="fechaVenta" [maxDate]="hoy" /></div>
@@ -52,9 +52,12 @@ import { colorDespacho, Despacho, DespachosService, etiquetaDespacho } from './d
                 </p-table>
                 <div class="my-4 text-sm text-muted-color">Pendiente después de esta entrega: {{ pendienteTexto }}</div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div><label class="block font-bold mb-2">Persona que retira *</label><input pInputText class="w-full" [(ngModel)]="persona" maxlength="150" /></div>
                     <div><label class="block font-bold mb-2">Chofer</label><input pInputText class="w-full" [(ngModel)]="chofer" maxlength="150" /></div>
+                    <div><label class="block font-bold mb-2">CI</label><input pInputText class="w-full" [(ngModel)]="ci" maxlength="30" /></div>
                     <div><label class="block font-bold mb-2">Placa</label><input pInputText class="w-full" [(ngModel)]="placa" maxlength="30" /></div>
+                    <div><label class="block font-bold mb-2">Marca</label><input pInputText class="w-full" [(ngModel)]="marca" maxlength="80" /></div>
+                    <div><label class="block font-bold mb-2">Color</label><input pInputText class="w-full" [(ngModel)]="color" maxlength="40" /></div>
+                    <div><label class="block font-bold mb-2">Destino</label><input pInputText class="w-full" [(ngModel)]="destino" maxlength="150" /></div>
                 </div>
                 <label class="block font-bold mt-4 mb-2">Observación</label><textarea pTextarea class="w-full" [(ngModel)]="observacion" rows="2" maxlength="4000"></textarea>
                 <div class="flex items-center gap-2 mt-4"><p-checkbox [(ngModel)]="imprimir" [binary]="true" inputId="imprimirEntrega" /><label for="imprimirEntrega">Imprimir nota de entrega</label></div>
@@ -66,10 +69,7 @@ import { colorDespacho, Despacho, DespachosService, etiquetaDespacho } from './d
                         <strong>NE-{{ d.id }} · {{ d.fecha | date: 'short' }}</strong
                         ><p-button icon="pi pi-print" label="Nota de entrega" [outlined]="true" (onClick)="nota(d.id)" />
                     </div>
-                    <div class="text-sm mb-3">
-                        Retira: {{ d.persona_retira }} · Entrega: {{ d.usuario?.nombre || d.usuario?.username }}<span *ngIf="d.chofer"> · Chofer: {{ d.chofer }}</span
-                        ><span *ngIf="d.placa"> · Placa: {{ d.placa }}</span>
-                    </div>
+                    <div class="text-sm mb-3">{{ textoEntrega(d) }}</div>
                     <p-table [value]="d.lineas"
                         ><ng-template #header
                             ><tr>
@@ -105,6 +105,10 @@ export class DespachoFormComponent {
     venta: Venta | null = null;
     lineas: LineaVenta[] = [];
     despachos: Despacho[] = [];
+    ci = '';
+    marca = '';
+    color = '';
+    destino = '';
     persona = '';
     chofer = '';
     placa = '';
@@ -114,8 +118,19 @@ export class DespachoFormComponent {
     hoy = new Date();
     fechaVenta = new Date();
     clave = '';
+    textoEntrega(d: Despacho): string {
+        const partes = [`Entrega: ${d.usuario?.nombre || d.usuario?.username || ''}`];
+        if (d.chofer) partes.push(`Chofer: ${d.chofer}`);
+        if (d.ci) partes.push(`CI: ${d.ci}`);
+        if (d.placa) partes.push(`Placa: ${d.placa}`);
+        if (d.marca) partes.push(`Marca: ${d.marca}`);
+        if (d.color) partes.push(`Color: ${d.color}`);
+        if (d.destino) partes.push(`Destino: ${d.destino}`);
+        return partes.join(' · ');
+    }
+
     etiqueta = etiquetaDespacho;
-    color = colorDespacho;
+    colorEstado = colorDespacho;
     constructor(
         private servicio: DespachosService,
         private ventas: VentasService,
@@ -129,6 +144,10 @@ export class DespachoFormComponent {
         this.cargando = true;
         this.clave = crypto.randomUUID();
         this.persona = '';
+        this.ci = '';
+        this.marca = '';
+        this.color = '';
+        this.destino = '';
         this.chofer = '';
         this.placa = '';
         this.observacion = '';
@@ -166,8 +185,8 @@ export class DespachoFormComponent {
     }
     guardar() {
         if (this.guardando || !this.venta) return;
-        if (!this.persona.trim() || !this.lineas.some((l) => Number(l.entregar_ahora) > 0) || this.lineas.some((l) => !Number.isFinite(Number(l.entregar_ahora)) || Number(l.entregar_ahora) < 0 || Number(l.entregar_ahora) > Number(l.pendiente))) {
-            this.aviso.aviso('Validación', 'Indique persona y cantidades entre cero y lo pendiente, con al menos una entrega.');
+        if (!this.lineas.some((l) => Number(l.entregar_ahora) > 0) || this.lineas.some((l) => !Number.isFinite(Number(l.entregar_ahora)) || Number(l.entregar_ahora) < 0 || Number(l.entregar_ahora) > Number(l.pendiente))) {
+            this.aviso.aviso('Validación', 'Indique cantidades entre cero y lo pendiente, con al menos una entrega.');
             return;
         }
         const visor = this.imprimir ? this.exportar.abrirVentanaEspera('Generando nota de entrega...') : null;
@@ -176,8 +195,12 @@ export class DespachoFormComponent {
             .crear(this.venta.id, {
                 clave: this.clave,
                 fecha: this.fecha.toISOString(),
-                persona_retira: this.persona,
+                persona_retira: this.chofer || 'Cliente',
                 chofer: this.chofer || undefined,
+                ci: this.ci || undefined,
+                marca: this.marca || undefined,
+                color: this.color || undefined,
+                destino: this.destino || undefined,
                 placa: this.placa || undefined,
                 observacion: this.observacion || undefined,
                 lineas: this.lineas.map((l) => ({ id_detalle: l.id!, cantidad: Number(l.entregar_ahora || 0) }))

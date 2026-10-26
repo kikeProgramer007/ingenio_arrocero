@@ -1,0 +1,350 @@
+[
+  {
+    "id": "nota-venta",
+    "nombre": "Nota de venta",
+    "paginas": 1,
+    "archivo": "nota-venta-1.pdf"
+  },
+  {
+    "id": "nota-venta",
+    "nombre": "Nota de venta",
+    "paginas": 10,
+    "archivo": "nota-venta-10.pdf"
+  },
+  {
+    "id": "nota-compra",
+    "nombre": "Nota de compra",
+    "paginas": 1,
+    "archivo": "nota-compra-1.pdf"
+  },
+  {
+    "id": "nota-compra",
+    "nombre": "Nota de compra",
+    "paginas": 10,
+    "archivo": "nota-compra-10.pdf"
+  },
+  {
+    "id": "nota-entrega",
+    "nombre": "Nota de entrega",
+    "paginas": 1,
+    "archivo": "nota-entrega-1.pdf"
+  },
+  {
+    "id": "nota-entrega",
+    "nombre": "Nota de entrega",
+    "paginas": 10,
+    "archivo": "nota-entrega-10.pdf"
+  },
+  {
+    "id": "recibo-cobranza",
+    "nombre": "Recibo de cobranza",
+    "paginas": 1,
+    "archivo": "recibo-cobranza-1.pdf"
+  },
+  {
+    "id": "recibo-cobranza",
+    "nombre": "Recibo de cobranza",
+    "paginas": 10,
+    "archivo": "recibo-cobranza-10.pdf"
+  },
+  {
+    "id": "recibo-pago-proveedor",
+    "nombre": "Recibo de pago a proveedor",
+    "paginas": 1,
+    "archivo": "recibo-pago-proveedor-1.pdf"
+  },
+  {
+    "id": "recibo-pago-proveedor",
+    "nombre": "Recibo de pago a proveedor",
+    "paginas": 10,
+    "archivo": "recibo-pago-proveedor-10.pdf"
+  },
+  {
+    "id": "comprobante-ingreso",
+    "nombre": "Comprobante de ingreso",
+    "paginas": 1,
+    "archivo": "comprobante-ingreso-1.pdf"
+  },
+  {
+    "id": "comprobante-ingreso",
+    "nombre": "Comprobante de ingreso",
+    "paginas": 10,
+    "archivo": "comprobante-ingreso-10.pdf"
+  },
+  {
+    "id": "comprobante-egreso",
+    "nombre": "Comprobante de egreso",
+    "paginas": 1,
+    "archivo": "comprobante-egreso-1.pdf"
+  },
+  {
+    "id": "comprobante-egreso",
+    "nombre": "Comprobante de egreso",
+    "paginas": 10,
+    "archivo": "comprobante-egreso-10.pdf"
+  },
+  {
+    "id": "comprobante-gasto",
+    "nombre": "Comprobante de gasto de empresa",
+    "paginas": 1,
+    "archivo": "comprobante-gasto-1.pdf"
+  },
+  {
+    "id": "comprobante-gasto",
+    "nombre": "Comprobante de gasto de empresa",
+    "paginas": 10,
+    "archivo": "comprobante-gasto-10.pdf"
+  },
+  {
+    "id": "comprobante-retiro",
+    "nombre": "Comprobante de retiro personal",
+    "paginas": 1,
+    "archivo": "comprobante-retiro-1.pdf"
+  },
+  {
+    "id": "comprobante-retiro",
+    "nombre": "Comprobante de retiro personal",
+    "paginas": 10,
+    "archivo": "comprobante-retiro-10.pdf"
+  },
+  {
+    "id": "comprobante-devolucion",
+    "nombre": "Comprobante de devolución de venta",
+    "paginas": 1,
+    "archivo": "comprobante-devolucion-1.pdf"
+  },
+  {
+    "id": "comprobante-devolucion",
+    "nombre": "Comprobante de devolución de venta",
+    "paginas": 10,
+    "archivo": "comprobante-devolucion-10.pdf"
+  },
+  {
+    "id": "reporte-resumen",
+    "nombre": "Resumen operativo",
+    "paginas": 1,
+    "archivo": "reporte-resumen-1.pdf"
+  },
+  {
+    "id": "reporte-resumen",
+    "nombre": "Resumen operativo",
+    "paginas": 10,
+    "archivo": "reporte-resumen-10.pdf"
+  },
+  {
+    "id": "reporte-movimientos",
+    "nombre": "Ingresos y egresos",
+    "paginas": 1,
+    "archivo": "reporte-movimientos-1.pdf"
+  },
+  {
+    "id": "reporte-movimientos",
+    "nombre": "Ingresos y egresos",
+    "paginas": 10,
+    "archivo": "reporte-movimientos-10.pdf"
+  },
+  {
+    "id": "reporte-ventas",
+    "nombre": "Ventas",
+    "paginas": 1,
+    "archivo": "reporte-ventas-1.pdf"
+  },
+  {
+    "id": "reporte-ventas",
+    "nombre": "Ventas",
+    "paginas": 10,
+    "archivo": "reporte-ventas-10.pdf"
+  },
+  {
+    "id": "reporte-compras",
+    "nombre": "Compras",
+    "paginas": 1,
+    "archivo": "reporte-compras-1.pdf"
+  },
+  {
+    "id": "reporte-compras",
+    "nombre": "Compras",
+    "paginas": 10,
+    "archivo": "reporte-compras-10.pdf"
+  },
+  {
+    "id": "reporte-egresos",
+    "nombre": "Gastos y retiros",
+    "paginas": 1,
+    "archivo": "reporte-egresos-1.pdf"
+  },
+  {
+    "id": "reporte-egresos",
+    "nombre": "Gastos y retiros",
+    "paginas": 10,
+    "archivo": "reporte-egresos-10.pdf"
+  },
+  {
+    "id": "reporte-cobranzas",
+    "nombre": "Cobranzas",
+    "paginas": 1,
+    "archivo": "reporte-cobranzas-1.pdf"
+  },
+  {
+    "id": "reporte-cobranzas",
+    "nombre": "Cobranzas",
+    "paginas": 10,
+    "archivo": "reporte-cobranzas-10.pdf"
+  },
+  {
+    "id": "reporte-pagos",
+    "nombre": "Pagos a proveedores",
+    "paginas": 1,
+    "archivo": "reporte-pagos-1.pdf"
+  },
+  {
+    "id": "reporte-pagos",
+    "nombre": "Pagos a proveedores",
+    "paginas": 10,
+    "archivo": "reporte-pagos-10.pdf"
+  },
+  {
+    "id": "reporte-caja",
+    "nombre": "Detalle de caja",
+    "paginas": 1,
+    "archivo": "reporte-caja-1.pdf"
+  },
+  {
+    "id": "reporte-caja",
+    "nombre": "Detalle de caja",
+    "paginas": 10,
+    "archivo": "reporte-caja-10.pdf"
+  },
+  {
+    "id": "reporte-cajas",
+    "nombre": "Historial de cajas",
+    "paginas": 1,
+    "archivo": "reporte-cajas-1.pdf"
+  },
+  {
+    "id": "reporte-cajas",
+    "nombre": "Historial de cajas",
+    "paginas": 10,
+    "archivo": "reporte-cajas-10.pdf"
+  },
+  {
+    "id": "reporte-inventario",
+    "nombre": "Inventario de productos",
+    "paginas": 1,
+    "archivo": "reporte-inventario-1.pdf"
+  },
+  {
+    "id": "reporte-inventario",
+    "nombre": "Inventario de productos",
+    "paginas": 10,
+    "archivo": "reporte-inventario-10.pdf"
+  },
+  {
+    "id": "reporte-clientes",
+    "nombre": "Clientes",
+    "paginas": 1,
+    "archivo": "reporte-clientes-1.pdf"
+  },
+  {
+    "id": "reporte-clientes",
+    "nombre": "Clientes",
+    "paginas": 10,
+    "archivo": "reporte-clientes-10.pdf"
+  },
+  {
+    "id": "reporte-proveedores",
+    "nombre": "Proveedores",
+    "paginas": 1,
+    "archivo": "reporte-proveedores-1.pdf"
+  },
+  {
+    "id": "reporte-proveedores",
+    "nombre": "Proveedores",
+    "paginas": 10,
+    "archivo": "reporte-proveedores-10.pdf"
+  },
+  {
+    "id": "reporte-empaques",
+    "nombre": "Bolsas y empaques",
+    "paginas": 1,
+    "archivo": "reporte-empaques-1.pdf"
+  },
+  {
+    "id": "reporte-empaques",
+    "nombre": "Bolsas y empaques",
+    "paginas": 10,
+    "archivo": "reporte-empaques-10.pdf"
+  },
+  {
+    "id": "reporte-produccion",
+    "nombre": "Producción",
+    "paginas": 1,
+    "archivo": "reporte-produccion-1.pdf"
+  },
+  {
+    "id": "reporte-produccion",
+    "nombre": "Producción",
+    "paginas": 10,
+    "archivo": "reporte-produccion-10.pdf"
+  },
+  {
+    "id": "reporte-campanas",
+    "nombre": "Campañas de acopio",
+    "paginas": 1,
+    "archivo": "reporte-campanas-1.pdf"
+  },
+  {
+    "id": "reporte-campanas",
+    "nombre": "Campañas de acopio",
+    "paginas": 10,
+    "archivo": "reporte-campanas-10.pdf"
+  },
+  {
+    "id": "reporte-cuentas-por-cobrar",
+    "nombre": "Cuentas por cobrar",
+    "paginas": 1,
+    "archivo": "reporte-cuentas-por-cobrar-1.pdf"
+  },
+  {
+    "id": "reporte-cuentas-por-cobrar",
+    "nombre": "Cuentas por cobrar",
+    "paginas": 10,
+    "archivo": "reporte-cuentas-por-cobrar-10.pdf"
+  },
+  {
+    "id": "reporte-cuenta-proveedor",
+    "nombre": "Estado de cuenta del proveedor",
+    "paginas": 1,
+    "archivo": "reporte-cuenta-proveedor-1.pdf"
+  },
+  {
+    "id": "reporte-cuenta-proveedor",
+    "nombre": "Estado de cuenta del proveedor",
+    "paginas": 10,
+    "archivo": "reporte-cuenta-proveedor-10.pdf"
+  },
+  {
+    "id": "reporte-entregas-proveedor",
+    "nombre": "Entregas del proveedor",
+    "paginas": 1,
+    "archivo": "reporte-entregas-proveedor-1.pdf"
+  },
+  {
+    "id": "reporte-entregas-proveedor",
+    "nombre": "Entregas del proveedor",
+    "paginas": 10,
+    "archivo": "reporte-entregas-proveedor-10.pdf"
+  },
+  {
+    "id": "reporte-despachos",
+    "nombre": "Despachos de ventas",
+    "paginas": 1,
+    "archivo": "reporte-despachos-1.pdf"
+  },
+  {
+    "id": "reporte-despachos",
+    "nombre": "Despachos de ventas",
+    "paginas": 10,
+    "archivo": "reporte-despachos-10.pdf"
+  }
+]

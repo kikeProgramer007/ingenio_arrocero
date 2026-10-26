@@ -5,6 +5,7 @@ export const APP_RUTAS = {
     DASHBOARD: '/dashboard',
     CAJA: '/caja',
     CAJA_HISTORIAL: '/caja/historial',
+    CAJA_CHICA: '/caja/chica',
     CLIENTES: '/clientes',
     VENTAS: '/ventas',
     COBRANZAS: '/cobranzas',
@@ -48,6 +49,13 @@ export const PROGRAMAS_SEED = [
         class_icon: 'pi pi-wallet',
         es_expandible: false,
         nro_posicion: 20
+    },
+    {
+        nombre_programa: 'Caja chica',
+        url: APP_RUTAS.CAJA_CHICA,
+        class_icon: 'pi pi-wallet',
+        es_expandible: false,
+        nro_posicion: 22
     },
     {
         nombre_programa: 'Historial de cajas',
@@ -125,20 +133,6 @@ export const PROGRAMAS_SEED = [
         class_icon: 'pi pi-inbox',
         es_expandible: false,
         nro_posicion: 61
-    },
-    {
-        nombre_programa: 'Campañas de acopio',
-        url: APP_RUTAS.CAMPANAS,
-        class_icon: 'pi pi-sun',
-        es_expandible: false,
-        nro_posicion: 70
-    },
-    {
-        nombre_programa: 'Producción',
-        url: APP_RUTAS.PRODUCCION,
-        class_icon: 'pi pi-cog',
-        es_expandible: false,
-        nro_posicion: 71
     },
     {
         nombre_programa: 'Reportes',

@@ -57,8 +57,11 @@ export class CajaService {
         return this.http.post<ApiMensaje<MovimientoCaja>>(apiUrl(`/api/cajas/${id}/movimientos`), payload);
     }
 
-    resumenDashboard(): Observable<DashboardResumen> {
-        return this.http.get<DashboardResumen>(apiUrl('/api/dashboard/resumen'));
+    resumenDashboard(filtros?: { fecha_desde?: string; fecha_hasta?: string }): Observable<DashboardResumen> {
+        let params = new HttpParams();
+        if (filtros?.fecha_desde) params = params.set('fecha_desde', filtros.fecha_desde);
+        if (filtros?.fecha_hasta) params = params.set('fecha_hasta', filtros.fecha_hasta);
+        return this.http.get<DashboardResumen>(apiUrl('/api/dashboard/resumen'), { params });
     }
 
     controlIngresosEgresos(filtros?: { fecha_desde?: string; fecha_hasta?: string }): Observable<ControlIngresosEgresos> {

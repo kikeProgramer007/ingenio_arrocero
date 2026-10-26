@@ -66,16 +66,34 @@ import { TooltipModule } from 'primeng/tooltip';
 
         <app-kpi-grid [items]="kpis" [loading]="cargando" [columns]="3" [compact]="true" />
 
-        <div class="card">
+        <div class="flex gap-2 mb-4">
+            <p-button label="Por cobrar" [outlined]="vista !== 'por-cobrar'" (onClick)="vista = 'por-cobrar'" />
+            <p-button label="Cobros realizados" [outlined]="vista !== 'realizados'" (onClick)="vista = 'realizados'" />
+        </div>
+
+        <div class="card" *ngIf="vista === 'por-cobrar'">
             <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
                 <div class="min-w-0">
                     <div class="font-semibold text-lg">Por cobrar</div>
                     <div class="text-muted-color text-sm">Quién debe, cuánto y cuándo vence. "Por vencer" = faltan {{ diasAviso }} días o menos.</div>
                 </div>
                 <div class="w-full sm:w-[14rem] min-w-0">
+                    <label class="block font-bold mb-1 text-sm">Cliente</label>
+                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroClientePorCobrar" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="w-full sm:w-[10rem]">
+                    <label class="block font-bold mb-1 text-sm">Desde</label>
+                    <input class="p-inputtext w-full" type="date" [(ngModel)]="desdePorCobrar" />
+                </div>
+                <div class="w-full sm:w-[10rem]">
+                    <label class="block font-bold mb-1 text-sm">Hasta</label>
+                    <input class="p-inputtext w-full" type="date" [(ngModel)]="hastaPorCobrar" />
+                </div>
+                <div class="w-full sm:w-[14rem] min-w-0">
                     <label class="block font-bold mb-1 text-sm">Ver</label>
                     <p-select [options]="filtrosSituacion" optionLabel="label" optionValue="value" [(ngModel)]="filtroSituacion" fluid />
                 </div>
+                <app-botones-exportar tipo="cuentas_por_cobrar" [estado]="estadoPorCobrar" [idCliente]="filtroClientePorCobrar" [fechaDesde]="desdePorCobrar" [fechaHasta]="hastaPorCobrar" />
             </div>
             <p-table
                 #dtPendientes
@@ -135,7 +153,7 @@ import { TooltipModule } from 'primeng/tooltip';
             </p-table>
         </div>
 
-        <div class="card">
+        <div class="card" *ngIf="vista === 'realizados'">
             <div class="barra-listado">
                 <div class="campo-wide">
                     <label class="block font-bold mb-1 text-sm">Cliente</label>
@@ -264,6 +282,10 @@ export class CobranzasPage implements OnInit {
     metodosFiltro = METODOS_DOCUMENTO_FILTRO;
     diasAviso = 7;
     filtroSituacion = '';
+    filtroClientePorCobrar: number | null = null;
+    desdePorCobrar = '';
+    hastaPorCobrar = '';
+    vista: 'por-cobrar' | 'realizados' = 'por-cobrar';
     filtrosSituacion = [
         { label: 'Todas con saldo', value: '' },
         { label: 'Vencidas', value: 'VENCIDA' },
@@ -294,7 +316,20 @@ export class CobranzasPage implements OnInit {
         const ordenSituacion: Record<string, number> = { 'VENCIDA': 0, 'VENCE HOY': 1, 'POR VENCER': 2, 'AL DIA': 3, 'SIN PLAZO': 4 };
         return this.pendientes
             .filter((v) => !this.filtroSituacion || v.situacion === this.filtroSituacion)
+            .filter((v) => !this.filtroClientePorCobrar || v.id_cliente === this.filtroClientePorCobrar)
+            .filter((v) => {
+                const dia = String(v.fecha || '').slice(0, 10);
+                if (this.desdePorCobrar && dia < this.desdePorCobrar) return false;
+                if (this.hastaPorCobrar && dia > this.hastaPorCobrar) return false;
+                return true;
+            })
             .sort((a, b) => (ordenSituacion[a.situacion || ''] ?? 9) - (ordenSituacion[b.situacion || ''] ?? 9));
+    }
+
+    get estadoPorCobrar(): string {
+        if (this.filtroSituacion === 'VENCIDA') return 'VENCIDAS';
+        if (this.filtroSituacion === 'POR VENCER' || this.filtroSituacion === 'VENCE HOY') return 'POR_VENCER';
+        return 'CON_SALDO';
     }
 
     get saldoFiltrado(): number {

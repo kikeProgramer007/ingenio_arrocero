@@ -113,7 +113,7 @@ function generarReporte(id: keyof typeof COLUMNAS_DOCUMENTOS, titulo: string, pa
             cobranzas: ['Cantidad', 'Total cobrado'], pagos: ['Cantidad', 'Total pagado'],
             inventario: ['Productos'], clientes: ['Clientes'], proveedores: ['Proveedores'],
             empaques: ['Productos'], produccion: ['Producciones'], campanas: ['Campañas'], cajas: ['Cajas'],
-            cuenta_proveedor: ['Saldo anterior', 'Compras', 'Servicios', 'Pagado', 'Acopios', 'Cargo', 'Abono', 'Saldo'],
+            cuenta_proveedor: ['Saldo anterior', 'Compras', 'Servicios', 'Pagado', 'Cargo', 'Abono', 'Saldo'],
             cuentas_por_cobrar: ['Total crédito', 'Total cobrado', 'Total pendiente'],
             caja: ['Saldo inicial (efectivo)', 'Ingresos', 'Egresos', 'Efectivo en caja', 'Saldo QR / banco',
                 'Cobros de clientes', 'Anulaciones / devoluciones', 'Cobrado neto', 'Total esperado',

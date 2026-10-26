@@ -26,7 +26,7 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA, UNIDADES_MEDIDA } from '../../shared/utils/unidad-medida';
 
-/** Bolsas y empaques: existencia = entradas − salidas. No se mezcla con el arroz de los productores. */
+/** Bolsas y empaques: existencia = entradas − salidas. No se mezcla con el arroz en chala. */
 @Component({
     selector: 'app-empaques',
     standalone: true,

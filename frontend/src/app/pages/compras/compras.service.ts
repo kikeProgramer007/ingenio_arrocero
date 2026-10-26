@@ -30,7 +30,7 @@ export class ProveedoresService {
         return this.http.put<ApiMensaje<Proveedor>>(apiUrl(`/api/proveedores/${id}`), payload);
     }
 
-    cuenta(id: number, filtros?: { fecha_desde?: string; fecha_hasta?: string; id_productor?: number; tipo_compra?: string }): Observable<CuentaProveedor> {
+    cuenta(id: number, filtros?: { fecha_desde?: string; fecha_hasta?: string; tipo_compra?: string; ordenante?: string }): Observable<CuentaProveedor> {
         let httpParams = new HttpParams();
         if (filtros?.fecha_desde) {
             httpParams = httpParams.set('fecha_desde', filtros.fecha_desde);
@@ -38,11 +38,11 @@ export class ProveedoresService {
         if (filtros?.fecha_hasta) {
             httpParams = httpParams.set('fecha_hasta', filtros.fecha_hasta);
         }
-        if (filtros?.id_productor) {
-            httpParams = httpParams.set('id_productor', String(filtros.id_productor));
-        }
         if (filtros?.tipo_compra) {
             httpParams = httpParams.set('tipo_compra', filtros.tipo_compra);
+        }
+        if (filtros?.ordenante) {
+            httpParams = httpParams.set('ordenante', filtros.ordenante);
         }
         return this.http.get<CuentaProveedor>(apiUrl(`/api/proveedores/${id}/cuenta`), { params: httpParams });
     }
@@ -112,6 +112,10 @@ export class ComprasService {
 
     crear(payload: CrearCompraPayload): Observable<ApiMensaje<Compra>> {
         return this.http.post<ApiMensaje<Compra>>(apiUrl('/api/compras'), payload);
+    }
+
+    recibir(id: number, lineas: { id_detalle?: number; cantidad: number }[]): Observable<ApiMensaje<Compra>> {
+        return this.http.post<ApiMensaje<Compra>>(apiUrl(`/api/compras/${id}/recepciones`), { lineas });
     }
 
     listarPagos(filtros?: { id_compra?: number; id_proveedor?: number; metodo?: string; fecha_desde?: string; fecha_hasta?: string }): Observable<PagoProveedor[]> {

@@ -46,7 +46,7 @@ export class RevenueStreamWidget implements OnChanges, OnDestroy {
         const egresos = this.resumen?.egresos_hoy ?? 0;
 
         this.chartData = {
-            labels: ['Hoy'],
+            labels: ['Período'],
             datasets: [
                 {
                     type: 'bar',

@@ -8,7 +8,8 @@ export type PlazoCredito =
 export function resolverPlazoCredito(
     saldoPendiente: number,
     plazoDias?: number,
-    fechaVencimiento?: string
+    fechaVencimiento?: string,
+    exigir = false
 ): PlazoCredito {
     if (saldoPendiente <= 0) {
         return { ok: true, plazo_dias: null, fecha_vencimiento: null };
@@ -31,6 +32,9 @@ export function resolverPlazoCredito(
     if (plazoDias) {
         const venc = agregarDias(hoy, plazoDias);
         return { ok: true, plazo_dias: plazoDias, fecha_vencimiento: ymdLocal(venc) };
+    }
+    if (exigir) {
+        return { ok: false, mensaje: 'Seleccione un plazo en días o una fecha de vencimiento' };
     }
     return { ok: true, plazo_dias: null, fecha_vencimiento: null };
 }

@@ -24,11 +24,18 @@ import { Campana, Acopio } from './campana.model';
 import { Produccion } from './produccion.model';
 import { Empresa } from './empresa.model';
 import { Despacho, ReservaProducto, ReservaVenta, VentaEntrega } from './despacho.model';
+import { CategoriaEgreso } from './categoria-egreso.model';
+import { Beneficiario } from './beneficiario.model';
+import { ArqueoCaja } from './arqueo-caja.model';
+import { BitacoraVenta } from './bitacora-venta.model';
 
 Venta.hasOne(VentaEntrega, { foreignKey: 'id_venta', as: 'entrega' });
 Venta.hasMany(ReservaVenta, { foreignKey: 'id_venta', as: 'reservas' });
 ReservaVenta.belongsTo(Venta, { foreignKey: 'id_venta', as: 'venta' });
 Venta.hasMany(Despacho, { foreignKey: 'id_venta', as: 'despachos' });
+Venta.hasMany(BitacoraVenta, { foreignKey: 'id_venta', as: 'bitacora' });
+BitacoraVenta.belongsTo(Venta, { foreignKey: 'id_venta', as: 'venta' });
+BitacoraVenta.belongsTo(User, { foreignKey: 'id_usuario', as: 'usuario' });
 Despacho.belongsTo(Venta, { foreignKey: 'id_venta', as: 'venta' });
 Despacho.belongsTo(User, { foreignKey: 'id_usuario', as: 'usuario' });
 
@@ -95,6 +102,10 @@ Proveedor.hasMany(PagoProveedor, { foreignKey: 'id_proveedor', as: 'pagos' });
 
 Gasto.belongsTo(User, { foreignKey: 'id_usuario', as: 'usuario' });
 Gasto.belongsTo(Caja, { foreignKey: 'id_caja', as: 'caja' });
+Gasto.belongsTo(Beneficiario, { foreignKey: 'id_beneficiario', as: 'beneficiario' });
+Beneficiario.hasMany(Gasto, { foreignKey: 'id_beneficiario', as: 'retiros' });
+ArqueoCaja.belongsTo(Caja, { foreignKey: 'id_caja', as: 'caja' });
+ArqueoCaja.belongsTo(User, { foreignKey: 'id_usuario', as: 'usuario' });
 
 Gasto.hasMany(PagoGasto, { foreignKey: 'id_gasto', as: 'pagos' });
 PagoGasto.belongsTo(Gasto, { foreignKey: 'id_gasto', as: 'gasto' });
@@ -144,5 +155,9 @@ export {
   Campana,
   Acopio,
   Produccion,
-  Empresa
+  Empresa,
+  CategoriaEgreso,
+  Beneficiario,
+  ArqueoCaja,
+  BitacoraVenta
 };

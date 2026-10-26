@@ -11,9 +11,8 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
-import { Proveedor, Productor, CuentaProveedor } from './compras.models';
-import { ProductoresService, ProveedoresService } from './compras.service';
-import { ConfirmarService } from '../../shared/services/confirmar.service';
+import { Proveedor, CuentaProveedor } from './compras.models';
+import { ProveedoresService } from './compras.service';
 import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
@@ -56,7 +55,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div class="min-w-0">
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Proveedores</div>
-                <div class="text-muted-color">Quienes venden arroz en chala, insumos y servicios. Cada proveedor puede tener varios productores.</div>
+                <div class="text-muted-color">Quienes venden arroz en chala, insumos y servicios.</div>
             </div>
             <p-button label="Nuevo proveedor" icon="pi pi-plus" (onClick)="abrirNuevo()" />
         </div>
@@ -153,7 +152,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
                     <input pInputText class="w-full" [(ngModel)]="form.nit_ci" />
                 </div>
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Teléfono <app-ayuda-campo texto="Para coordinar acopio o pagos. Opcional." posicion="right" /></label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Teléfono <app-ayuda-campo texto="Para coordinar pagos. Opcional." posicion="right" /></label>
                     <input pInputText class="w-full" [(ngModel)]="form.telefono" />
                 </div>
                 <div>
@@ -175,96 +174,6 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
             </ng-template>
         </p-dialog>
 
-        <p-dialog
-            [header]="'Productores de ' + (proveedorProductores?.nombre || '')"
-            [(visible)]="dialogProductores"
-            [modal]="true"
-            [style]="{ width: '48rem' }"
-            [breakpoints]="{ '960px': '95vw' }"
-        >
-            <p class="text-muted-color text-sm mb-3">Un proveedor tiene varios productores. Aquí se editan o eliminan. Si ya tiene compras, no se borra: inactívelo.</p>
-            <div class="flex justify-end mb-3">
-                <p-button label="Nuevo productor" icon="pi pi-plus" size="small" (onClick)="abrirNuevoProductor()" />
-            </div>
-            <p-table [value]="productores" [loading]="cargandoProductores" [showLoader]="false" responsiveLayout="scroll">
-                <ng-template #header>
-                    <tr>
-                        <th>Nombre</th>
-                        <th>NIT / CI</th>
-                        <th>Teléfono</th>
-                        <th>Estado</th>
-                        <th></th>
-                    </tr>
-                </ng-template>
-                <ng-template #body let-item>
-                    <tr>
-                        <td>
-                            {{ item.nombre }}
-                            <p-tag *ngIf="!item.id_proveedor" value="Sin asignar" severity="warn" class="ml-2" />
-                        </td>
-                        <td>{{ item.nit_ci || '-' }}</td>
-                        <td>{{ item.telefono || '-' }}</td>
-                        <td><p-tag [value]="item.activo ? 'Activo' : 'Inactivo'" [severity]="item.activo ? 'success' : 'secondary'" /></td>
-                        <td class="text-right whitespace-nowrap">
-                            <p-button icon="pi pi-pencil" [rounded]="true" [text]="true" severity="warn" pTooltip="Editar" (onClick)="editarProductor(item)" />
-                            <p-button icon="pi pi-trash" [rounded]="true" [text]="true" severity="danger" pTooltip="Eliminar" (onClick)="eliminarProductor(item)" />
-                        </td>
-                    </tr>
-                </ng-template>
-                <ng-template #emptymessage>
-                    <tr>
-                        <td colspan="5">
-                            <div class="text-center py-6 text-muted-color">Este proveedor aún no tiene productores.</div>
-                        </td>
-                    </tr>
-                </ng-template>
-            </p-table>
-            <ng-template #footer>
-                <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogProductores = false" />
-            </ng-template>
-        </p-dialog>
-
-        <p-dialog
-            [header]="formProductor.id ? 'Editar productor' : 'Nuevo productor'"
-            [(visible)]="dialogProductor"
-            [modal]="true"
-            [appendTo]="'body'"
-            [baseZIndex]="2000"
-            [style]="{ width: '28rem' }"
-            [breakpoints]="{ '960px': '95vw' }"
-        >
-            <div class="flex flex-col gap-4">
-                <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Quién cosechó o entregó el arroz." posicion="right" /></label>
-                    <input pInputText class="w-full" [(ngModel)]="formProductor.nombre" />
-                </div>
-                <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">NIT / CI <app-ayuda-campo texto="Opcional." posicion="right" /></label>
-                    <input pInputText class="w-full" [(ngModel)]="formProductor.nit_ci" />
-                </div>
-                <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Teléfono <app-ayuda-campo texto="Opcional." posicion="right" /></label>
-                    <input pInputText class="w-full" [(ngModel)]="formProductor.telefono" />
-                </div>
-                <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Dirección <app-ayuda-campo texto="Opcional." posicion="right" /></label>
-                    <input pInputText class="w-full" [(ngModel)]="formProductor.direccion" />
-                </div>
-                <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Observación <app-ayuda-campo texto="Nota interna. Opcional." posicion="top" /></label>
-                    <textarea pTextarea class="w-full" rows="2" [(ngModel)]="formProductor.observacion"></textarea>
-                </div>
-                <div class="flex items-center gap-2" *ngIf="formProductor.id">
-                    <p-toggleswitch [(ngModel)]="formProductor.activo" />
-                    <span>Activo</span>
-                </div>
-            </div>
-            <ng-template #footer>
-                <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="dialogProductor = false" />
-                <p-button label="Guardar" [loading]="guardandoProductor" (onClick)="guardarProductor()" />
-            </ng-template>
-        </p-dialog>
-
         <p-dialog header="Estado de cuenta de {{ cuenta?.proveedor?.nombre || proveedorCuenta?.nombre }}" [(visible)]="dialogCuenta" [modal]="true" [style]="{ width: '80rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="grid grid-cols-12 gap-3 mb-4">
                 <div class="col-span-12 md:col-span-4">
@@ -272,12 +181,12 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
                     <p-datepicker [(ngModel)]="filtroPeriodo" selectionMode="range" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Todas las fechas" fluid />
                 </div>
                 <div class="col-span-12 md:col-span-3">
-                    <label class="block font-bold mb-2 text-sm">Productor</label>
-                    <p-select [options]="opcionesProductor" optionLabel="label" optionValue="value" [(ngModel)]="filtroProductorId" placeholder="Todos" [showClear]="true" fluid appendTo="body" [baseZIndex]="2100" />
-                </div>
-                <div class="col-span-12 md:col-span-3">
                     <label class="block font-bold mb-2 text-sm">Tipo de compra</label>
                     <p-select [options]="tiposCompraFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipoCompra" placeholder="Todos" [showClear]="true" fluid appendTo="body" [baseZIndex]="2100" />
+                </div>
+                <div class="col-span-12 md:col-span-3">
+                    <label class="block font-bold mb-2 text-sm">Ordenante</label>
+                    <input pInputText class="w-full" [(ngModel)]="filtroOrdenante" placeholder="Texto libre" maxlength="150" />
                 </div>
                 <div class="col-span-12 md:col-span-2 flex items-end">
                     <p-button label="Consultar" icon="pi pi-filter" (onClick)="consultarCuenta()" [loading]="cargandoCuenta" fluid />
@@ -289,13 +198,13 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
                     <div class="font-semibold text-xl">{{ formatBs(cuenta.resumen.cargo) }}</div>
                     <div class="text-muted-color text-xs" *ngIf="cuenta.resumen.saldo_anterior">Anterior {{ formatBs(cuenta.resumen.saldo_anterior) }}</div>
                     <div class="text-muted-color text-xs" *ngIf="cuenta.resumen.compras_usd">USD ref. {{ formatUsd(cuenta.resumen.compras_usd) }}</div>
-                    <div class="text-muted-color text-xs">Compras {{ formatBs(cuenta.resumen.compras) }} · Servicios {{ formatBs(cuenta.resumen.servicios) }} · Acopio {{ formatBs(cuenta.resumen.acopios) }}</div>
+                    <div class="text-muted-color text-xs">Compras {{ formatBs(cuenta.resumen.compras) }} · Servicios {{ formatBs(cuenta.resumen.servicios) }}</div>
                 </div>
                 <div class="col-span-4">
                     <div class="text-muted-color">Abonado</div>
                     <div class="font-semibold text-xl text-green-600">{{ formatBs(cuenta.resumen.abono) }}</div>
                     <div class="text-muted-color text-xs" *ngIf="cuenta.resumen.pagado_usd">USD ref. {{ formatUsd(cuenta.resumen.pagado_usd) }}</div>
-                    <div class="text-muted-color text-xs">Pagos {{ formatBs(cuenta.resumen.pagado_compras) }} · Acopio {{ formatBs(cuenta.resumen.pagado_acopios) }}</div>
+                    <div class="text-muted-color text-xs">Pagos {{ formatBs(cuenta.resumen.pagado_compras) }}</div>
                 </div>
                 <div class="col-span-4">
                     <div class="text-muted-color">{{ (cuenta.resumen.saldo || 0) < 0 ? 'Saldo a favor' : 'Saldo por pagar' }}</div>
@@ -303,83 +212,85 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
                     <div class="text-muted-color text-xs" *ngIf="cuenta.resumen.saldo_usd">USD ref. {{ formatUsd(cuenta.resumen.saldo_usd) }}</div>
                 </div>
             </div>
-            <p class="text-muted-color text-sm mb-2">Entregas de inventario de esta cuenta. El stock del almacén es único: no se reserva ni se descuenta el pilado por productor.</p>
+            <p class="text-muted-color text-sm mb-2">Entregas de inventario de esta cuenta. El stock del almacén es único.</p>
             <p-table [value]="cuenta?.inventario || []" [paginator]="(cuenta?.inventario?.length || 0) > 5" [rows]="5" responsiveLayout="scroll" styleClass="mb-4">
                 <ng-template #header>
-                    <tr><th>Producto</th><th>Unidad</th><th>Compras</th><th>Acopio</th><th>Entregado</th></tr>
+                    <tr><th>Producto</th><th>Unidad</th><th>Compras</th><th>Entregado</th></tr>
                 </ng-template>
                 <ng-template #body let-i>
                     <tr>
                         <td>{{ i.producto }}</td>
                         <td>{{ i.unidad }}</td>
                         <td>{{ formatCantidad(i.compras) }}</td>
-                        <td>{{ formatCantidad(i.acopio) }}</td>
                         <td class="font-medium">{{ formatCantidad(i.entregado) }}</td>
                     </tr>
                 </ng-template>
                 <ng-template #emptymessage>
-                    <tr><td colspan="5"><div class="text-center py-3 text-muted-color">Sin entregas de inventario. Un servicio (compra sin producto) no suma kilos.</div></td></tr>
+                    <tr><td colspan="4"><div class="text-center py-3 text-muted-color">Sin entregas de inventario. Un servicio (compra sin producto) no suma kilos.</div></td></tr>
                 </ng-template>
             </p-table>
-            <p class="text-muted-color text-sm mb-3">Kardex por proveedor. Incluye sus distintos productores. La deuda y los pagos son en Bs; el USD es referencial.</p>
+            <p class="text-muted-color text-sm mb-3">Kardex por proveedor. La deuda y los pagos son en Bs; el USD es referencial.</p>
             <p-table [value]="cuenta?.kardex || []" [paginator]="true" [alwaysShowPaginator]="true" [rows]="8" sortMode="single" responsiveLayout="scroll">
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
-                        <th>Productor</th>
+                        <th>Ordenante</th>
                         <th>Tipo de operación</th>
                         <th>Concepto/Producto</th>
                         <th>Boleta</th>
                         <th>Chofer</th>
                         <th>Placa</th>
-                        <th>Fanegas</th>
-                        <th>Precio</th>
-                        <th>Compra</th>
-                        <th>Pago/Amortización</th>
-                        <th>Saldo</th>
+                        <th class="text-right">Fanegas</th>
+                        <th class="text-right">Precio Bs</th>
+                        <th class="text-right">Precio USD</th>
+                        <th class="text-right">Compra Bs</th>
+                        <th class="text-right">Compra USD</th>
+                        <th class="text-right">Pago Bs</th>
+                        <th class="text-right">Pago USD</th>
+                        <th class="text-right">Saldo Bs</th>
+                        <th class="text-right">Saldo USD</th>
                     </tr>
                 </ng-template>
                 <ng-template #body let-l>
                     <tr>
                         <td>{{ formatFecha(l.fecha) }}</td>
-                        <td>{{ l.productor || '-' }}</td>
+                        <td>{{ l.ordenante || '-' }}</td>
                         <td><p-tag [value]="l.tipo" [severity]="severidadKardex(l.tipo)" /></td>
                         <td>{{ l.detalle }}</td>
                         <td>{{ l.boleta || '-' }}</td>
                         <td>{{ l.chofer || '-' }}</td>
                         <td>{{ l.placa || '-' }}</td>
-                        <td>{{ l.fanegas ? formatCantidad(l.fanegas) : '-' }}</td>
-                        <td>
-                            <div *ngIf="l.precio_usd">{{ formatUsd(l.precio_usd) }}</div>
-                            <div [class.text-xs]="l.precio_usd" [class.text-muted-color]="l.precio_usd">{{ l.precio ? formatBs(l.precio) : '-' }}</div>
-                        </td>
-                        <td>
-                            <div>{{ l.cargo ? formatBs(l.cargo) : '-' }}</div>
-                            <div class="text-xs text-muted-color" *ngIf="l.cargo_usd">{{ formatUsd(l.cargo_usd) }}</div>
-                        </td>
-                        <td>
-                            <div>{{ l.abono ? formatBs(l.abono) : '-' }}</div>
-                            <div class="text-xs text-muted-color" *ngIf="l.abono_usd">{{ formatUsd(l.abono_usd) }}</div>
-                        </td>
-                        <td class="font-medium">
-                            <div>{{ formatBs(l.saldo) }}</div>
-                            <div class="text-xs text-muted-color" *ngIf="l.saldo_usd">{{ formatUsd(l.saldo_usd) }}</div>
-                        </td>
+                        <td class="text-right">{{ l.fanegas ? formatCantidad(l.fanegas) : '-' }}</td>
+                        <td class="text-right">{{ l.precio ? formatBs(l.precio) : '-' }}</td>
+                        <td class="text-right">{{ l.precio_usd ? formatUsd(l.precio_usd) : '-' }}</td>
+                        <td class="text-right">{{ l.cargo ? formatBs(l.cargo) : '-' }}</td>
+                        <td class="text-right">{{ l.cargo_usd ? formatUsd(l.cargo_usd) : '-' }}</td>
+                        <td class="text-right">{{ l.abono ? formatBs(l.abono) : '-' }}</td>
+                        <td class="text-right">{{ l.abono_usd ? formatUsd(l.abono_usd) : '-' }}</td>
+                        <td class="text-right font-medium">{{ formatBs(l.saldo) }}</td>
+                        <td class="text-right">{{ l.saldo_usd ? formatUsd(l.saldo_usd) : '-' }}</td>
                     </tr>
                 </ng-template>
                 <ng-template #emptymessage>
-                    <tr><td colspan="12"><div class="text-center py-4 text-muted-color">Sin movimientos para estos filtros.</div></td></tr>
+                    <tr><td colspan="16"><div class="text-center py-4 text-muted-color">Sin movimientos para estos filtros.</div></td></tr>
                 </ng-template>
             </p-table>
             <ng-template #footer>
+                <app-botones-exportar
+                    tipo="cuentas_por_pagar"
+                    [idProveedor]="proveedorCuenta?.id"
+                    [fechaHasta]="fechaHastaYmd"
+                    [tipoCompra]="filtroTipoCompra"
+                    [ordenante]="filtroOrdenante"
+                />
                 <app-botones-exportar
                     *ngIf="proveedorCuenta?.id"
                     tipo="cuenta_proveedor"
                     [id]="proveedorCuenta?.id"
                     [fechaDesde]="fechaDesdeYmd"
                     [fechaHasta]="fechaHastaYmd"
-                    [idProductor]="filtroProductorId"
                     [tipoCompra]="filtroTipoCompra"
+                    [ordenante]="filtroOrdenante"
                 />
                 <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogCuenta = false" />
             </ng-template>
@@ -407,20 +318,13 @@ export class ProveedoresPage implements OnInit {
     cargando = false;
     guardando = false;
     dialog = false;
-    dialogProductores = false;
-    dialogProductor = false;
-    cargandoProductores = false;
-    guardandoProductor = false;
-    proveedorProductores: Proveedor | null = null;
-    productores: Productor[] = [];
-    formProductor: Productor = this.productorVacio();
     dialogCuenta = false;
     cargandoCuenta = false;
     form: Proveedor = this.vacio();
     cuenta: CuentaProveedor | null = null;
     proveedorCuenta: Proveedor | null = null;
     filtroPeriodo: Date[] | null = null;
-    filtroProductorId: number | null = null;
+    filtroOrdenante = '';
     filtroTipoCompra = '';
     tiposCompraFiltro = [
         { label: 'Arroz en chala', value: 'CHALA' },
@@ -434,8 +338,6 @@ export class ProveedoresPage implements OnInit {
 
     constructor(
         private proveedoresService: ProveedoresService,
-        private productoresService: ProductoresService,
-        private confirmar: ConfirmarService,
         private aviso: AvisoService
     ) {}
 
@@ -465,12 +367,6 @@ export class ProveedoresPage implements OnInit {
     abrirAcciones(event: Event, menu: Menu, item: Proveedor): void {
         this.itemsAcciones = [
             {
-                label: 'Productores',
-                icon: 'pi pi-users',
-                iconStyle: { color: '#0f766e' },
-                command: () => this.abrirProductores(item)
-            },
-            {
                 label: 'Estado de cuenta',
                 icon: 'pi pi-book menu-icon-ver',
                 iconStyle: { color: '#3b82f6' },
@@ -491,117 +387,11 @@ export class ProveedoresPage implements OnInit {
         this.dialog = true;
     }
 
-    abrirProductores(item: Proveedor): void {
-        this.proveedorProductores = item;
-        this.dialogProductores = true;
-        this.cargarProductores();
-    }
-
-    cargarProductores(): void {
-        if (!this.proveedorProductores?.id) {
-            return;
-        }
-        this.cargandoProductores = true;
-        this.productoresService.listar({
-            id_proveedor: this.proveedorProductores.id,
-            activos: 'todos',
-            libres: false
-        }).subscribe({
-            next: (data) => {
-                this.productores = data;
-                this.cargandoProductores = false;
-            },
-            error: (err) => {
-                this.cargandoProductores = false;
-                this.aviso.error(err, 'No se pudieron cargar los productores');
-            }
-        });
-    }
-
-    abrirNuevoProductor(): void {
-        this.formProductor = this.productorVacio();
-        this.dialogProductor = true;
-    }
-
-    editarProductor(item: Productor): void {
-        this.formProductor = { ...item };
-        this.dialogProductor = true;
-    }
-
-    guardarProductor(): void {
-        if (!this.formProductor.nombre?.trim()) {
-            this.aviso.aviso('Validación', 'El nombre es obligatorio');
-            return;
-        }
-        if (!this.proveedorProductores?.id) {
-            return;
-        }
-        this.guardandoProductor = true;
-        const payload = {
-            id_proveedor: this.proveedorProductores.id,
-            nombre: this.formProductor.nombre.trim(),
-            nit_ci: this.formProductor.nit_ci || '',
-            telefono: this.formProductor.telefono || '',
-            direccion: this.formProductor.direccion || '',
-            observacion: this.formProductor.observacion || '',
-            activo: this.formProductor.activo,
-            path_imagen: this.formProductor.path_imagen || imagenDefault('proveedor')
-        };
-        const req = this.formProductor.id
-            ? this.productoresService.actualizar(this.formProductor.id, payload)
-            : this.productoresService.crear(payload);
-        req.subscribe({
-            next: (res) => {
-                this.guardandoProductor = false;
-                this.dialogProductor = false;
-                this.aviso.ok('Productor', res.mensaje);
-                this.cargarProductores();
-            },
-            error: (err) => {
-                this.guardandoProductor = false;
-                this.aviso.error(err, 'No se pudo guardar el productor');
-            }
-        });
-    }
-
-    async eliminarProductor(item: Productor): Promise<void> {
-        const ok = await this.confirmar.pedir({
-            titulo: 'Eliminar productor',
-            mensaje: `¿Eliminar a ${item.nombre}? Si ya tiene compras, no se podrá borrar.`,
-            peligro: true,
-            aceptar: 'Eliminar'
-        });
-        if (!ok) {
-            return;
-        }
-        this.productoresService.eliminar(item.id).subscribe({
-            next: (res) => {
-                this.aviso.ok('Productor', res.mensaje);
-                this.cargarProductores();
-            },
-            error: (err) => this.aviso.error(err, 'No se pudo eliminar el productor')
-        });
-    }
-
-    private productorVacio(): Productor {
-        return {
-            id: 0,
-            id_proveedor: this.proveedorProductores?.id || null,
-            nombre: '',
-            nit_ci: '',
-            telefono: '',
-            direccion: '',
-            observacion: '',
-            activo: true,
-            path_imagen: imagenDefault('proveedor')
-        };
-    }
-
     verCuenta(item: Proveedor): void {
         this.proveedorCuenta = item;
         this.cuenta = null;
         this.filtroPeriodo = null;
-        this.filtroProductorId = null;
+        this.filtroOrdenante = '';
         this.filtroTipoCompra = '';
         this.dialogCuenta = true;
         this.consultarCuenta();
@@ -615,8 +405,8 @@ export class ProveedoresPage implements OnInit {
         this.proveedoresService.cuenta(this.proveedorCuenta.id, {
             fecha_desde: this.fechaDesdeYmd,
             fecha_hasta: this.fechaHastaYmd,
-            id_productor: this.filtroProductorId || undefined,
-            tipo_compra: this.filtroTipoCompra || undefined
+            tipo_compra: this.filtroTipoCompra || undefined,
+            ordenante: this.filtroOrdenante.trim() || undefined
         }).subscribe({
             next: (data) => {
                 this.cuenta = data;
@@ -627,11 +417,6 @@ export class ProveedoresPage implements OnInit {
                 this.aviso.error(err, 'No se pudo cargar el estado de cuenta');
             }
         });
-    }
-
-    get opcionesProductor(): { label: string; value: number | null }[] {
-        const lista = (this.cuenta?.productores || []).map((p) => ({ label: p.nombre, value: p.id }));
-        return [{ label: 'Todos', value: null }, ...lista];
     }
 
     get fechaDesdeYmd(): string | undefined {

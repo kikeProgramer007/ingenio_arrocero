@@ -94,6 +94,7 @@ export class AppMenu {
                 items: [
                     submenu('Caja', 'pi pi-wallet', [
                         link(APP_ROUTES.caja, 'Caja actual', 'pi pi-wallet'),
+                        link(APP_ROUTES.cajaChica, 'Caja chica', 'pi pi-wallet'),
                         link(APP_ROUTES.cajaHistorial, 'Historial de cajas', 'pi pi-history')
                     ]),
                     link(APP_ROUTES.ingresosEgresos, 'Ingresos y egresos', 'pi pi-arrows-h')
@@ -104,9 +105,7 @@ export class AppMenu {
                 items: [
                     link(APP_ROUTES.inventario, 'Inventario', 'pi pi-th-large'),
                     ...(byUrl.has(APP_ROUTES.despachos) ? [link(APP_ROUTES.despachos, 'Despachos', 'pi pi-truck')] : []),
-                    link(APP_ROUTES.empaques, 'Bolsas y empaques', 'pi pi-inbox'),
-                    link(APP_ROUTES.campanas, 'Campañas de acopio', 'pi pi-sun'),
-                    link(APP_ROUTES.produccion, 'Producción', 'pi pi-cog')
+                    link(APP_ROUTES.empaques, 'Bolsas y empaques', 'pi pi-inbox')
                 ]
             },
             {

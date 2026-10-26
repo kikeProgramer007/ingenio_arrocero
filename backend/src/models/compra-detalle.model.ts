@@ -44,6 +44,11 @@ export const CompraDetalle = sequelize.define('compra_detalle', {
     subtotal: {
         type: DataTypes.DECIMAL(12, 2),
         allowNull: false
+    },
+    cantidad_recibida: {
+        type: DataTypes.DECIMAL(12, 3),
+        allowNull: false,
+        defaultValue: 0
     }
 }, {
     tableName: 'compra_detalles',

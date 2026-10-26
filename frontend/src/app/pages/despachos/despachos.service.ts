@@ -16,7 +16,11 @@ export interface Despacho {
     fecha: string;
     persona_retira: string;
     chofer?: string;
+    ci?: string;
     placa?: string;
+    marca?: string;
+    color?: string;
+    destino?: string | null;
     observacion?: string;
     usuario?: { nombre?: string; username?: string };
     lineas: LineaDespacho[];

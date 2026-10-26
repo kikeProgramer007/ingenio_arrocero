@@ -1,8 +1,9 @@
-import { Transaction } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 import { Caja } from '../models/caja.model';
 import { MovimientoCaja } from '../models/movimiento-caja.model';
-import { ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
-import { toMoney } from './money';
+import { ESTADO_CAJA, TIPO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
+import { roundMoney, toMoney } from './money';
+import { resumirMovimientos } from './caja-resumen';
 import { conceptoPorCanal, resolverPartesPago } from './metodo-pago';
 
 type MovimientoCajaParams = {
@@ -19,12 +20,43 @@ type MovimientoCajaParams = {
     origenId?: number | null;
 };
 
-export async function obtenerCajaAbierta(transaction: Transaction) {
+export async function obtenerCajaAbierta(transaction?: Transaction) {
     return Caja.findOne({
-        where: { estado: ESTADO_CAJA.ABIERTA },
+        where: { estado: ESTADO_CAJA.ABIERTA, tipo: TIPO_CAJA.PRINCIPAL },
         transaction,
-        lock: transaction.LOCK.UPDATE
+        lock: transaction ? transaction.LOCK.UPDATE : undefined
     });
+}
+
+export async function obtenerCajaChica(transaction?: Transaction) {
+    return Caja.findOne({
+        where: { tipo: TIPO_CAJA.CHICA },
+        transaction,
+        lock: transaction ? transaction.LOCK.UPDATE : undefined
+    });
+}
+
+export async function saldoEfectivoCaja(idCaja: number, transaction?: Transaction): Promise<number> {
+    const [caja, movimientos] = await Promise.all([
+        Caja.findByPk(idCaja, { transaction }),
+        MovimientoCaja.findAll({ where: { id_caja: idCaja }, transaction })
+    ]);
+    const flujo = resumirMovimientos(movimientos);
+    return roundMoney(toMoney(caja?.get('saldo_inicial')) + flujo.efectivo_ingresos - flujo.efectivo_egresos);
+}
+
+/** Excluye la caja chica de consultas de la caja principal. */
+export async function idsCajaChica(): Promise<number[]> {
+    const filas = await Caja.findAll({ where: { tipo: TIPO_CAJA.CHICA }, attributes: ['id'] });
+    return filas.map((fila) => Number(fila.get('id')));
+}
+
+export function excluirIds(where: Record<string, unknown>, ids: number[], campo = 'id_caja'): void {
+    if (!ids.length) {
+        return;
+    }
+    const actual = (where[campo] || {}) as Record<string | symbol, unknown>;
+    where[campo] = { ...actual, [Op.notIn]: ids };
 }
 
 async function registrarMovimientoCaja(params: MovimientoCajaParams & { tipo: string }) {

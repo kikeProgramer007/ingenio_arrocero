@@ -3,8 +3,9 @@ import { Op } from 'sequelize';
 import { Caja, Cliente, Compra, MovimientoCaja, User, Venta } from '../models';
 import { handleError } from '../utils/error.handler';
 import { clasificarDiferencia, roundMoney, toMoney } from '../utils/money';
-import { inicioFinDia, inicioFinMes, rangoDesdeQuery } from '../utils/fecha';
-import { CATEGORIA_EGRESO, ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
+import { inicioFinDia, inicioFinMes, parseFechaLocal, rangoDesdeQuery } from '../utils/fecha';
+import { CATEGORIA_EGRESO, ESTADO_CAJA, TIPO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
+import { excluirIds, idsCajaChica } from '../utils/caja-ingreso';
 import { cobradoVenta, diasParaVencer, ESTADO_VENTA, esVentaVencida, situacionCobranza } from '../constants/venta.constants';
 import { ESTADO_COMPRA } from '../constants/compra.constants';
 import { resumirMovimientos } from '../utils/caja-resumen';
@@ -39,24 +40,50 @@ export class DashboardController {
             const { inicio: inicioMes, fin: finMes } = inicioFinMes();
 
             const cajaAbierta = await Caja.findOne({
-                where: { estado: ESTADO_CAJA.ABIERTA },
+                where: { estado: ESTADO_CAJA.ABIERTA, tipo: TIPO_CAJA.PRINCIPAL },
                 include: [
                     { model: User, as: 'usuarioApertura', attributes: ['id', 'username', 'nombre'] }
                 ],
                 order: [['id', 'DESC']]
             });
 
+            const idCaja = cajaAbierta ? Number(cajaAbierta.get('id')) : 0;
+            const desdeTxt = typeof req.query.fecha_desde === 'string' ? req.query.fecha_desde : '';
+            const hastaTxt = typeof req.query.fecha_hasta === 'string' ? req.query.fecha_hasta : '';
+            let inicioConsulta = cajaAbierta?.get('fecha_apertura') ? new Date(cajaAbierta.get('fecha_apertura') as string) : inicioDia;
+            let finConsulta = new Date();
+            if (desdeTxt) {
+                const parsed = parseFechaLocal(desdeTxt);
+                if (!Number.isNaN(parsed.getTime())) {
+                    parsed.setHours(0, 0, 0, 0);
+                    inicioConsulta = parsed;
+                }
+            }
+            if (hastaTxt) {
+                const parsed = parseFechaLocal(hastaTxt);
+                if (!Number.isNaN(parsed.getTime())) {
+                    parsed.setHours(23, 59, 59, 999);
+                    finConsulta = parsed;
+                }
+            }
+            const dondeFecha = { [Op.between]: [inicioConsulta, finConsulta] };
+            const whereHoy: Record<string, unknown> = idCaja
+                ? { id_caja: idCaja, fecha: dondeFecha }
+                : { id: -1 };
+            const whereVentas: Record<string, unknown> = idCaja
+                ? { id_caja: idCaja, estado: { [Op.ne]: ESTADO_VENTA.ANULADA }, fecha: dondeFecha }
+                : { id: -1 };
+            const whereAnuladas: Record<string, unknown> = idCaja
+                ? { id_caja: idCaja, estado: ESTADO_VENTA.ANULADA, fecha_anulacion: dondeFecha }
+                : { id: -1 };
             const [movimientosHoy, ventasHoyRows, ventasPendientes, comprasPendientes] = await Promise.all([
                 MovimientoCaja.findAll({
-                    where: { fecha: { [Op.between]: [inicioDia, finDia] } },
+                    where: whereHoy,
                     include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }],
                     order: [['fecha', 'DESC'], ['id', 'DESC']]
                 }),
                 Venta.findAll({
-                    where: {
-                        fecha: { [Op.between]: [inicioDia, finDia] },
-                        estado: { [Op.ne]: ESTADO_VENTA.ANULADA }
-                    }
+                    where: whereVentas
                 }),
                 Venta.findAll({
                     where: { estado: { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] } },
@@ -121,8 +148,15 @@ export class DashboardController {
                 .slice(0, 6)
                 .map((m: any) => mapMovimiento(m));
 
+            const anuladas = await Venta.findAll({ where: whereAnuladas, attributes: ['id', 'total'] });
+            const ventasAnuladas = {
+                cantidad: anuladas.length,
+                importe: roundMoney(anuladas.reduce((acc, v) => acc + toMoney(v.get('total')), 0))
+            };
+
             res.status(200).json({
                 ventas_hoy: ventasHoy,
+                ventas_anuladas: ventasAnuladas,
                 cobrado_hoy: cobradoHoy,
                 cobros_brutos_hoy: flujoHoy.cobros_clientes,
                 anulaciones_hoy: flujoHoy.anulaciones_venta,
@@ -136,7 +170,7 @@ export class DashboardController {
                 efectivo_esperado: efectivoEsperado,
                 qr_esperado: qrEsperado,
                 egresos_por_tipo: egresosPorTipo,
-                periodo: { inicio: inicioDia, fin: finDia, mes_inicio: inicioMes, mes_fin: finMes },
+                periodo: { inicio: inicioConsulta, fin: finConsulta, mes_inicio: inicioMes, mes_fin: finMes },
                 caja: cajaAbierta
                     ? {
                         id: cajaAbierta.get('id'),
@@ -178,8 +212,10 @@ export class DashboardController {
     public static async movimientos(req: Request, res: Response): Promise<void> {
         try {
             const { inicio, fin } = rangoDesdeQuery(req.query.fecha_desde, req.query.fecha_hasta);
+            const whereMov: Record<string, unknown> = { fecha: { [Op.between]: [inicio, fin] } };
+            excluirIds(whereMov, await idsCajaChica());
             const movimientos = await MovimientoCaja.findAll({
-                where: { fecha: { [Op.between]: [inicio, fin] } },
+                where: whereMov,
                 include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }],
                 order: [['fecha', 'DESC'], ['id', 'DESC']]
             });

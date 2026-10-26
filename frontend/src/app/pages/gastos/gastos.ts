@@ -6,7 +6,6 @@ import { ActivatedRoute } from '@angular/router';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { ChartModule } from 'primeng/chart';
-import { CheckboxModule } from 'primeng/checkbox';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
@@ -37,7 +36,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
 @Component({
     selector: 'app-gastos',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, CheckboxModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent, TooltipModule],
+    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent, TooltipModule],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -54,9 +53,13 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Ver <app-ayuda-campo texto="Empresa: gastos operativos. Personal: retiros. Todo: ambos." posicion="bottom" /></label>
                     <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Tipo" fluid appendTo="body" />
                 </div>
-                <div class="campo" *ngIf="listandoEmpresa">
+                <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Categoría</label>
                     <p-select [options]="categoriasFiltro" [(ngModel)]="filtroCategoria" placeholder="Todas" [showClear]="true" fluid appendTo="body" />
+                </div>
+                <div class="campo" *ngIf="esRetiro">
+                    <label class="block font-bold mb-1 text-sm">Persona</label>
+                    <p-select [options]="beneficiarios" optionLabel="nombre" optionValue="nombre" [(ngModel)]="filtroPersona" placeholder="Todas" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Método</label>
@@ -251,15 +254,28 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
         </div>
         <p-dialog [header]="titulo" [(visible)]="dialog" [modal]="true" [style]="{ width: '32rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-4">
-                <p class="text-muted-color text-sm" *ngIf="esEmpresa">Al contado sale de caja al guardar. A crédito solo queda como cuenta por pagar y la caja no se mueve hasta que registres el pago. Los servicios de un productor (flete, trilla) van en Compras para que carguen a su cuenta.</p>
-                <div *ngIf="esEmpresa">
-                    <label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Clasifica el gasto (combustible, energía, etc.) para el reporte." posicion="right" /></label>
+                <p class="text-muted-color text-sm" *ngIf="esEmpresa">Al contado sale de caja al guardar. A crédito solo queda como cuenta por pagar y la caja no se mueve hasta que registres el pago. Un servicio cargado a un proveedor se registra en Compras.</p>
+                <div>
+                    <label class="flex items-center gap-1 font-bold mb-2">Categoría <app-ayuda-campo texto="Clasifica el movimiento. Puede crear una categoría nueva sin salir de este formulario." posicion="right" /></label>
                     <p-select [options]="categorias" [(ngModel)]="categoria" placeholder="Categoría" fluid appendTo="body" [baseZIndex]="2100" />
+                    <div class="flex gap-2 mt-2">
+                        <input pInputText class="w-full" [(ngModel)]="nuevaCategoria" placeholder="Nueva categoría" maxlength="80" />
+                        <p-button label="Crear" [outlined]="true" (onClick)="crearCategoria()" />
+                    </div>
                 </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Concepto <app-ayuda-campo texto="Ej.: Combustible camión, almuerzo cuadrilla, luz planta." posicion="right" /></label><input pInputText class="w-full" [(ngModel)]="concepto" /></div>
                 <div *ngIf="esEmpresa">
                     <label class="flex items-center gap-1 font-bold mb-2">Persona o proveedor <app-ayuda-campo texto="A quién le pagamos: taller, mecánico, electricista. Opcional." posicion="right" /></label>
                     <input pInputText class="w-full" [(ngModel)]="persona" />
+                </div>
+                <div *ngIf="esRetiro">
+                    <label class="flex items-center gap-1 font-bold mb-2">Persona que recibe <app-ayuda-campo texto="A quién se entrega el dinero. Puede registrar una persona nueva sin salir del retiro." posicion="right" /></label>
+                    <p-select [options]="beneficiarios" optionLabel="nombre" optionValue="id" [(ngModel)]="idBeneficiario" [filter]="true" placeholder="Buscar persona" fluid appendTo="body" [baseZIndex]="2100" (onChange)="alElegirPersona()" />
+                    <div class="flex gap-2 mt-2">
+                        <input pInputText class="w-full" [(ngModel)]="nuevaPersona" placeholder="Nueva persona" maxlength="120" />
+                        <p-button label="Agregar" [outlined]="true" (onClick)="crearPersona()" />
+                    </div>
+                    <small class="text-muted-color">El retiro sale siempre del efectivo de caja chica. No usa QR ni la caja principal.</small>
                 </div>
                 <div><label class="flex items-center gap-1 font-bold mb-2">Monto <app-ayuda-campo texto="Importe total del gasto, aunque lo paguemos después." posicion="right" /></label><app-input-numero [(ngModel)]="monto" /></div>
                 <div *ngIf="esEmpresa">
@@ -280,13 +296,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                     <p-datepicker [(ngModel)]="fechaVencimiento" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [minDate]="hoy" [readonlyInput]="true" fluid />
                 </div>
                 <small class="text-muted-color" *ngIf="aCredito">No sale dinero de caja ahora. Queda en Cuentas por pagar por {{ formatBs(monto) }}.</small>
-                <div class="flex items-center gap-2" *ngIf="esRetiro">
-                    <p-checkbox [(ngModel)]="descontarCaja" [binary]="true" inputId="descontarCaja" />
-                    <label for="descontarCaja">Descontar de la caja</label>
-                    <app-ayuda-campo texto="Si está marcado, el retiro sale de la caja abierta. Si no, solo se anota." posicion="right" />
-                </div>
-                <small class="text-muted-color" *ngIf="esRetiro && !descontarCaja">Se registra el retiro, pero no sale dinero de caja.</small>
-                <div *ngIf="descuentaCaja">
+                <div *ngIf="descuentaCaja && !esRetiro">
                     <label class="flex items-center gap-1 font-bold mb-2">Forma de pago <app-ayuda-campo texto="QR sale del banco. Efectivo del cajón. Mixto parte el egreso." posicion="right" /></label>
                     <app-metodo-pago [(ngModel)]="metodo" [montoTotal]="monto" [(montoEfectivo)]="montoEfectivo" [(montoQr)]="montoQr" />
                 </div>
@@ -332,6 +342,11 @@ export class GastosPage implements OnInit {
     rango: Date[] | null = null;
     metodosFiltro = METODOS_DOCUMENTO_FILTRO;
     categoriasFiltro = CATEGORIAS;
+    beneficiarios: { id: number; nombre: string }[] = [];
+    idBeneficiario: number | null = null;
+    nuevaCategoria = '';
+    nuevaPersona = '';
+    filtroPersona = '';
     tiposFiltro = [
         { label: 'Empresa', value: 'GASTO_EMPRESA' },
         { label: 'Personal', value: 'RETIRO_PERSONAL' },
@@ -396,9 +411,63 @@ export class GastosPage implements OnInit {
         this.filtroTipo = this.tipo;
         this.titulo = this.route.snapshot.data['titulo'] || this.titulo;
         if (this.esRetiro) {
-            this.subtitulo = 'Dinero retirado de la empresa para uso personal. No se mezcla con gastos operativos.';
+            this.subtitulo = 'El dinero sale siempre del efectivo de caja chica. No hace falta abrir la caja principal.';
         }
+        this.cargarCatalogos();
         this.cargar();
+    }
+
+    cargarCatalogos(): void {
+        this.http.get<{ id: number; nombre: string }[]>(apiUrl('/api/gastos/categorias'), { params: { tipo: this.tipo } }).subscribe({
+            next: (data) => {
+                const nombres = data.map((item) => item.nombre);
+                this.categorias = nombres.length ? nombres : CATEGORIAS;
+                this.categoriasFiltro = this.categorias;
+                if (!this.categorias.includes(this.categoria)) {
+                    this.categoria = this.categorias[0] || 'Otros';
+                }
+            }
+        });
+        if (this.esRetiro) {
+            this.http.get<{ id: number; nombre: string }[]>(apiUrl('/api/gastos/beneficiarios')).subscribe({
+                next: (data) => (this.beneficiarios = data)
+            });
+        }
+    }
+
+    crearCategoria(): void {
+        const nombre = this.nuevaCategoria.trim();
+        if (!nombre) {
+            return;
+        }
+        this.http.post<{ data: { nombre: string } }>(apiUrl('/api/gastos/categorias'), { tipo: this.tipo, nombre }).subscribe({
+            next: (res) => {
+                this.nuevaCategoria = '';
+                this.categoria = res.data.nombre;
+                this.cargarCatalogos();
+            },
+            error: (err) => this.aviso.error(err, 'No se pudo crear la categoría')
+        });
+    }
+
+    crearPersona(): void {
+        const nombre = this.nuevaPersona.trim();
+        if (!nombre) {
+            return;
+        }
+        this.http.post<{ data: { id: number; nombre: string } }>(apiUrl('/api/gastos/beneficiarios'), { nombre }).subscribe({
+            next: (res) => {
+                this.nuevaPersona = '';
+                this.idBeneficiario = res.data.id;
+                this.persona = res.data.nombre;
+                this.cargarCatalogos();
+            },
+            error: (err) => this.aviso.error(err, 'No se pudo registrar la persona')
+        });
+    }
+
+    alElegirPersona(): void {
+        this.persona = this.beneficiarios.find((item) => item.id === this.idBeneficiario)?.nombre || '';
     }
 
     get listandoEmpresa(): boolean {
@@ -413,12 +482,9 @@ export class GastosPage implements OnInit {
         return this.esEmpresa && this.condicion === 'CREDITO';
     }
 
-    /** Solo un gasto al contado (o un retiro marcado) mueve la caja al registrarse. */
+    /** El gasto al contado sale de la caja principal. El retiro sale siempre de caja chica. */
     get descuentaCaja(): boolean {
-        if (this.aCredito) {
-            return false;
-        }
-        return this.esEmpresa || this.descontarCaja;
+        return !this.aCredito;
     }
 
     get columnasLista(): number {
@@ -499,7 +565,7 @@ export class GastosPage implements OnInit {
 
     get mensajeVacio(): string {
         return this.esRetiro
-            ? 'Los retiros salen como egreso solo si marcas descontar de la caja.'
+            ? 'Cada retiro descuenta el efectivo de caja chica.'
             : 'Registra combustible, energía u otros gastos operativos.';
     }
 
@@ -545,6 +611,9 @@ export class GastosPage implements OnInit {
         this.montoEfectivo = 0;
         this.montoQr = 0;
         this.descontarCaja = true;
+        this.idBeneficiario = null;
+        this.nuevaCategoria = '';
+        this.nuevaPersona = '';
         this.referencia = '';
         this.observacion = '';
         this.dialog = true;
@@ -614,12 +683,15 @@ export class GastosPage implements OnInit {
 
     cargar(): void {
         this.cargando = true;
-        const params: { tipo?: string; categoria?: string; metodo?: string; fecha_desde?: string; fecha_hasta?: string } = {};
+        const params: { tipo?: string; categoria?: string; metodo?: string; persona?: string; fecha_desde?: string; fecha_hasta?: string } = {};
         if (this.filtroTipo) {
             params.tipo = this.filtroTipo;
         }
         if (this.filtroCategoria) {
             params.categoria = this.filtroCategoria;
+        }
+        if (this.filtroPersona) {
+            params.persona = this.filtroPersona;
         }
         if (this.filtroMetodo) {
             params.metodo = this.filtroMetodo;
@@ -645,6 +717,10 @@ export class GastosPage implements OnInit {
             this.aviso.aviso('Validación', 'Concepto y monto son obligatorios');
             return;
         }
+        if (this.esRetiro && !this.persona.trim()) {
+            this.aviso.aviso('Validación', 'Indique la persona que recibe el dinero');
+            return;
+        }
         const descuenta = this.descuentaCaja;
         const mixto = descuenta ? mensajePagoMixto(this.metodo, this.monto, this.montoEfectivo, this.montoQr) : null;
         if (mixto) {
@@ -664,12 +740,13 @@ export class GastosPage implements OnInit {
         this.http.post<{ mensaje: string; data?: { id: number } }>(apiUrl('/api/gastos'), {
             tipo: this.tipo,
             concepto: this.concepto.trim(),
-            categoria: this.esEmpresa ? this.categoria : undefined,
-            persona: this.esEmpresa ? this.persona.trim() || undefined : undefined,
+            categoria: this.categoria,
+            persona: this.persona.trim() || undefined,
+            id_beneficiario: this.esRetiro ? this.idBeneficiario || undefined : undefined,
             monto: this.monto,
             condicion: this.esEmpresa ? this.condicion : 'CONTADO',
-            descontar_caja: this.esEmpresa ? !this.aCredito : this.descontarCaja,
-            metodo_pago: descuenta ? this.metodo : undefined,
+            descontar_caja: this.esRetiro ? true : !this.aCredito,
+            metodo_pago: this.esRetiro ? 'EFECTIVO' : (descuenta ? this.metodo : undefined),
             referencia: this.referencia || undefined,
             observacion: this.observacion || undefined,
             ...(descuenta ? extrasPagoMixto(this.metodo, this.montoEfectivo, this.montoQr) : {}),

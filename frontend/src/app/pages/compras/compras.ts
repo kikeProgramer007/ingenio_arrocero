@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
+import { CheckboxModule } from 'primeng/checkbox';
 import { DialogModule } from 'primeng/dialog';
 import { DrawerModule } from 'primeng/drawer';
 import { IconFieldModule } from 'primeng/iconfield';
@@ -17,8 +18,8 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { formatBs, formatFecha, formatFechaCorta, esErrorCajaCerrada } from '../caja/caja.utils';
-import { Compra, CrearCompraPayload, LineaCompra, Productor, Proveedor, TipoCompra } from './compras.models';
-import { ComprasService, ProductoresService, ProveedoresService } from './compras.service';
+import { Compra, CrearCompraPayload, LineaCompra, Proveedor, TipoCompra } from './compras.models';
+import { ComprasService, ProveedoresService } from './compras.service';
 import { CategoriaProducto, ProductoLista, ProductosService } from '../inventario/productos.service';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 import { DialogCajaCerradaComponent } from '../../shared/components/dialog-caja-cerrada';
@@ -47,6 +48,7 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
         CommonModule,
         FormsModule,
         ButtonModule,
+        CheckboxModule,
         DialogModule,
         DrawerModule,
         InputTextModule,
@@ -116,7 +118,7 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                 [rowsPerPageOptions]="filasTabla"
                 [showCurrentPageReport]="true"
                 currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} compras"
-                [globalFilterFields]="['id', 'fecha', 'proveedor.nombre', 'productor.nombre', 'estado', 'tipo_compra']"
+                [globalFilterFields]="['id', 'fecha', 'proveedor.nombre', 'estado', 'tipo_compra']"
                 [rowHover]="true"
                 sortMode="single"
                 responsiveLayout="scroll"
@@ -126,7 +128,6 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                         <th>#</th>
                         <th>Fecha</th>
                         <th>Proveedor</th>
-                        <th>Productor</th>
                         <th>Tipo</th>
                         <th class="text-right">Total</th>
                         <th class="text-right">Pagado</th>
@@ -140,7 +141,6 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                         <td>{{ compra.id }}</td>
                         <td>{{ formatFecha(compra.fecha) }}</td>
                         <td>{{ compra.proveedor?.nombre || '-' }}</td>
-                        <td>{{ nombreProductor(compra) }}</td>
                         <td><p-tag [value]="etiquetaTipo(compra)" [severity]="severidadTipo(compra)" /></td>
                         <td class="text-right">
                             <div>{{ formatBs(compra.total) }}</div>
@@ -164,11 +164,11 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
-                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="10" [fila]="f"></tr>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="9" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
                     <tr>
-                        <td colspan="10">
+                        <td colspan="9">
                             <div class="text-center py-8 text-muted-color">
                                 <i class="pi pi-box text-4xl mb-3 block"></i>
                                 No hay compras registradas.
@@ -234,21 +234,24 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                         <div class="grid grid-cols-12 gap-3">
                             <div class="col-span-12 md:col-span-6">
                                 <div class="flex items-center justify-between gap-2 mb-2">
-                                    <label class="flex items-center gap-1 font-bold">Proveedor <app-ayuda-campo texto="Titular de la cuenta. Un proveedor puede tener varios productores." posicion="right" /></label>
-                                    <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirNuevoProveedor('proveedor')" />
+                                    <label class="flex items-center gap-1 font-bold">Proveedor <app-ayuda-campo texto="Titular de la cuenta y de la deuda." posicion="right" /></label>
+                                    <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirNuevoProveedor()" />
                                 </div>
-                                <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProveedor" (ngModelChange)="onProveedorChange()" placeholder="Seleccione proveedor" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
+                                <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProveedor" placeholder="Seleccione proveedor" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
                             </div>
-                            <div class="col-span-12 md:col-span-6" *ngIf="esChala">
-                                <div class="flex items-center justify-between gap-2 mb-2">
-                                    <label class="flex items-center gap-1 font-bold">Productor <app-ayuda-campo texto="Opcional. Si no elige, el productor es el mismo proveedor. Úselo cuando otro nombre entrega el arroz." posicion="left" /></label>
-                                    <p-button label="Nuevo" icon="pi pi-plus" size="small" [outlined]="true" (onClick)="abrirNuevoProveedor('productor')" />
-                                </div>
-                                <p-select [options]="productores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProductor" placeholder="Mismo que el proveedor" [showClear]="true" [filter]="true" fluid appendTo="body" [baseZIndex]="2100" />
+                            <div class="col-span-12 md:col-span-6">
+                                <label class="flex items-center gap-1 font-bold mb-2">Ordenante / propietario <app-ayuda-campo texto="Opcional. Escriba el nombre sin crearlo en un listado." posicion="right" /></label>
+                                <input pInputText class="w-full" [(ngModel)]="ordenante" maxlength="150" />
                             </div>
                             <div class="col-span-12 md:col-span-6">
                                 <label class="flex items-center gap-1 font-bold mb-2">Fecha <app-ayuda-campo texto="Fecha del documento." posicion="left" /></label>
                                 <p-datepicker [(ngModel)]="fechaCompra" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" fluid />
+                            </div>
+                            <div class="col-span-12" *ngIf="esBolsas">
+                                <div class="flex items-center gap-2">
+                                    <p-checkbox [(ngModel)]="anticipada" [binary]="true" inputId="compraAnticipada" />
+                                    <label for="compraAnticipada">Compra anticipada: se puede pagar ahora y el stock entra al recibir la mercadería</label>
+                                </div>
                             </div>
                             <div class="col-span-12" *ngIf="!esChala">
                                 <label class="flex items-center gap-1 font-bold mb-2">Concepto <app-ayuda-campo texto="Resumen de la compra. Opcional." posicion="top" /></label>
@@ -444,10 +447,10 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
             </ng-template>
         </p-dialog>
 
-        <p-dialog [header]="destinoNuevo === 'productor' ? 'Nuevo productor' : 'Nuevo proveedor'" [(visible)]="dialogProveedor" [modal]="true" [appendTo]="'body'" [baseZIndex]="2000" [style]="{ width: '28rem' }" [breakpoints]="{ '960px': '95vw' }">
+        <p-dialog header="Nuevo proveedor" [(visible)]="dialogProveedor" [modal]="true" [appendTo]="'body'" [baseZIndex]="2000" [style]="{ width: '28rem' }" [breakpoints]="{ '960px': '95vw' }">
             <div class="flex flex-col gap-3">
                 <div>
-                    <label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Nombre del productor o proveedor." posicion="right" /></label>
+                    <label class="flex items-center gap-1 font-bold mb-2">Nombre <app-ayuda-campo texto="Nombre del proveedor, titular de la cuenta." posicion="right" /></label>
                     <input pInputText class="w-full" [(ngModel)]="formProveedor.nombre" />
                 </div>
                 <div>
@@ -469,11 +472,12 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
             <ng-container *ngIf="detalle">
                 <div class="mb-3">
                     {{ detalle.proveedor?.nombre }}
-                    <span> · Productor {{ nombreProductor(detalle) }}</span>
+                    <span *ngIf="detalle.ordenante"> · Ordenante {{ detalle.ordenante }}</span>
                     · {{ formatFecha(detalle.fecha) }}
                 </div>
                 <p-tag [value]="etiquetaTipo(detalle)" [severity]="severidadTipo(detalle)" styleClass="mb-3" />
                 <p-tag [value]="detalle.estado" [severity]="severidad(detalle.estado)" styleClass="mb-3 ml-2" />
+                <p-tag [value]="etiquetaRecepcion(detalle.estado_recepcion)" severity="info" styleClass="mb-3 ml-2" *ngIf="detalle.anticipada" />
                 <span class="text-muted-color ml-2" *ngIf="detalle.plazo_dias">Plazo {{ detalle.plazo_dias }} {{ detalle.plazo_dias === 1 ? 'día' : 'días' }}</span>
                 <span class="text-muted-color ml-2" *ngIf="detalle.fecha_vencimiento"> · Vence {{ formatFechaCorta(detalle.fecha_vencimiento) }}</span>
                 <div class="text-sm text-muted-color mb-3" *ngIf="detalle.concepto || detalle.boleta || detalle.chofer || detalle.placa || detalle.fanegas">
@@ -494,6 +498,8 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                             <th>Descripción</th>
                             <th>Unidad</th>
                             <th class="text-right">Cant.</th>
+                            <th class="text-right" *ngIf="detalle.anticipada">Recibida</th>
+                            <th class="text-right" *ngIf="detalle.anticipada && detalle.estado_recepcion !== 'RECIBIDA'">Recibir ahora</th>
                             <th class="text-right">P. unit.</th>
                             <th class="text-right">Subtotal</th>
                         </tr>
@@ -503,6 +509,10 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                             <td>{{ linea.descripcion }}{{ linea.id_producto ? ' · inventario' : '' }}</td>
                             <td>{{ linea.unidad || '-' }}</td>
                             <td class="text-right">{{ linea.cantidad }}</td>
+                            <td class="text-right" *ngIf="detalle.anticipada">{{ linea.cantidad_recibida || 0 }}</td>
+                            <td class="text-right" *ngIf="detalle.anticipada && detalle.estado_recepcion !== 'RECIBIDA'">
+                                <app-input-numero tipo="cantidad" [(ngModel)]="linea.recibir_ahora" [min]="0" />
+                            </td>
                             <td class="text-right">{{ formatBs(linea.precio_unitario) }}</td>
                             <td class="text-right">{{ formatBs(linea.subtotal) }}</td>
                         </tr>
@@ -511,7 +521,7 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                 <div class="mt-3 font-medium text-right">Total {{ formatBs(detalle.total) }} · Saldo {{ formatBs(detalle.saldo_pendiente) }}</div>
             </ng-container>
             <ng-template #footer>
-                <p-button label="Cerrar" severity="secondary" [outlined]="true" (onClick)="dialogDetalle = false" />
+                <p-button *ngIf="detalle?.anticipada && detalle?.estado_recepcion !== 'RECIBIDA'" label="Registrar recepción" icon="pi pi-box" [loading]="recibiendo" (onClick)="recibir()" />
                 <p-button *ngIf="detalle" label="PDF" icon="pi pi-file-pdf" severity="danger" [outlined]="true" pTooltip="Ver PDF" tooltipPosition="top" (onClick)="exportarCompra(detalle, 'pdf')" />
             </ng-template>
         </p-dialog>
@@ -646,7 +656,6 @@ export class ComprasPage implements OnInit {
     filtrarTabla = filtrarTabla;
     compras: Compra[] = [];
     proveedores: Proveedor[] = [];
-    productores: Productor[] = [];
     productos: ProductoLista[] = [];
     categorias: CategoriaProducto[] = [];
     filtroCategoriaId: number | null = null;
@@ -715,9 +724,10 @@ export class ComprasPage implements OnInit {
     hoy = new Date();
     tipoCompra: TipoCompra = 'CHALA';
     idProveedor: number | null = null;
-    idProductor: number | null = null;
+    ordenante = '';
+    anticipada = false;
+    recibiendo = false;
     idProductoChala: number | null = null;
-    destinoNuevo: 'proveedor' | 'productor' = 'proveedor';
     lineas: LineaCompra[] = [this.lineaVacia()];
     pagoInicial = 0;
     metodoPago = 'EFECTIVO';
@@ -743,16 +753,11 @@ export class ComprasPage implements OnInit {
     formatFecha = formatFecha;
     formatFechaCorta = formatFechaCorta;
 
-    nombreProductor(compra: Compra): string {
-        return compra.productor?.nombre || compra.proveedor?.nombre || '-';
-    }
-
     private queryPendienteProducto: number | null = null;
 
     constructor(
         private comprasService: ComprasService,
         private proveedoresService: ProveedoresService,
-        private productoresService: ProductoresService,
         private productosService: ProductosService,
         private exportarService: ExportarService,
         private empresaService: EmpresaService,
@@ -805,6 +810,9 @@ export class ComprasPage implements OnInit {
                 return false;
             }
             if (!this.esBolsas && !this.esChala && this.esProductoBolsa(p)) {
+                return false;
+            }
+            if (p.disponible_en === 'VENTAS') {
                 return false;
             }
             const categoriaId = p.categoria?.id ?? p.id_categoria ?? null;
@@ -876,32 +884,14 @@ export class ComprasPage implements OnInit {
 
     onTipoChange(): void {
         const proveedor = this.idProveedor;
-        const productor = this.idProductor;
         const fecha = this.fechaCompra;
         this.resetCamposTipo();
         this.idProveedor = proveedor;
-        this.idProductor = productor;
         this.fechaCompra = fecha;
         this.aplicarFiltroCategoriaTipo();
         if (this.esChala) {
             this.sincronizarLineaChala();
-            this.cargarProductores();
         }
-    }
-
-    onProveedorChange(): void {
-        this.idProductor = null;
-        this.cargarProductores();
-    }
-
-    cargarProductores(): void {
-        if (!this.idProveedor) {
-            this.productores = [];
-            return;
-        }
-        this.productoresService.listar({ id_proveedor: this.idProveedor, libres: false }).subscribe({
-            next: (data) => (this.productores = data)
-        });
     }
 
     agregarDesdeCatalogo(producto: ProductoLista): void {
@@ -1048,12 +1038,7 @@ export class ComprasPage implements OnInit {
         });
     }
 
-    abrirNuevoProveedor(destino: 'proveedor' | 'productor' = 'proveedor'): void {
-        if (destino === 'productor' && !this.idProveedor) {
-            this.aviso.aviso('Validación', 'Seleccione primero el proveedor. El productor queda asociado a esa cuenta.');
-            return;
-        }
-        this.destinoNuevo = destino;
+    abrirNuevoProveedor(): void {
         this.formProveedor = this.proveedorVacio();
         this.dialogProveedor = true;
     }
@@ -1073,28 +1058,12 @@ export class ComprasPage implements OnInit {
             activo: true,
             path_imagen: imagenDefault('proveedor')
         };
-        const esProductor = this.destinoNuevo === 'productor';
-        if (esProductor && !this.idProveedor) {
-            this.guardandoProveedor = false;
-            this.aviso.aviso('Validación', 'Seleccione primero el proveedor');
-            return;
-        }
-        const peticion = esProductor
-            ? this.productoresService.crear({ ...payload, id_proveedor: this.idProveedor! })
-            : this.proveedoresService.crear(payload);
-        peticion.subscribe({
+        this.proveedoresService.crear(payload).subscribe({
             next: (res) => {
                 this.guardandoProveedor = false;
                 this.dialogProveedor = false;
-                this.aviso.ok(esProductor ? 'Productor' : 'Proveedor', res.mensaje);
+                this.aviso.ok('Proveedor', res.mensaje);
                 const creado = res.data;
-                if (esProductor) {
-                    this.cargarProductores();
-                    if (creado?.id) {
-                        this.idProductor = creado.id;
-                    }
-                    return;
-                }
                 this.proveedoresService.listar().subscribe({
                     next: (data) => {
                         this.proveedores = data;
@@ -1106,7 +1075,7 @@ export class ComprasPage implements OnInit {
             },
             error: (err) => {
                 this.guardandoProveedor = false;
-                this.aviso.error(err, esProductor ? 'No se pudo registrar el productor' : 'No se pudo registrar el proveedor');
+                this.aviso.error(err, 'No se pudo registrar el proveedor');
             }
         });
     }
@@ -1290,6 +1259,42 @@ export class ComprasPage implements OnInit {
         });
     }
 
+    etiquetaRecepcion(estado?: string | null): string {
+        if (estado === 'PARCIAL') {
+            return 'Recepción parcial';
+        }
+        if (estado === 'RECIBIDA') {
+            return 'Recibida';
+        }
+        return 'Pendiente de recepción';
+    }
+
+    recibir(): void {
+        if (!this.detalle) {
+            return;
+        }
+        const lineas = (this.detalle.detalles || [])
+            .filter((linea) => Number(linea.recibir_ahora) > 0)
+            .map((linea) => ({ id_detalle: linea.id, cantidad: Number(linea.recibir_ahora) }));
+        if (!lineas.length) {
+            this.aviso.aviso('Validación', 'Indique cuánto se recibió');
+            return;
+        }
+        this.recibiendo = true;
+        this.comprasService.recibir(this.detalle.id, lineas).subscribe({
+            next: (res) => {
+                this.recibiendo = false;
+                this.detalle = res.data;
+                this.aviso.ok('Recepción', res.mensaje);
+                this.cargar();
+            },
+            error: (err) => {
+                this.recibiendo = false;
+                this.aviso.error(err, 'No se pudo registrar la recepción');
+            }
+        });
+    }
+
     severidad(estado: string): 'success' | 'warn' | 'info' | 'secondary' {
         if (estado === 'PAGADA') return 'success';
         if (estado === 'PARCIAL') return 'warn';
@@ -1358,7 +1363,7 @@ export class ComprasPage implements OnInit {
         }
         this.enviar({
             id_proveedor: this.idProveedor!,
-            id_productor: this.idProductor || undefined,
+            ordenante: this.ordenante.trim() || undefined,
             fecha: this.fechaYmd(this.fechaCompra),
             tipo_compra: 'CHALA',
             concepto,
@@ -1400,6 +1405,8 @@ export class ComprasPage implements OnInit {
         }
         this.enviar({
             id_proveedor: this.idProveedor!,
+            ordenante: this.ordenante.trim() || undefined,
+            anticipada: this.esBolsas ? this.anticipada : undefined,
             fecha: this.fechaYmd(this.fechaCompra),
             tipo_compra: this.tipoCompra,
             concepto: this.conceptoLibre.trim() || undefined,
@@ -1445,7 +1452,8 @@ export class ComprasPage implements OnInit {
     private resetFormulario(): void {
         this.tipoCompra = 'CHALA';
         this.idProveedor = null;
-        this.idProductor = null;
+        this.ordenante = '';
+        this.anticipada = false;
         this.fechaCompra = new Date();
         this.resetCamposTipo();
         this.sincronizarLineaChala();

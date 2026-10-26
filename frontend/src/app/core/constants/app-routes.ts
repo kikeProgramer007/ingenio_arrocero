@@ -7,6 +7,7 @@ export const APP_ROUTES = {
     dashboard: '/dashboard',
     caja: '/caja',
     cajaHistorial: '/caja/historial',
+    cajaChica: '/caja/chica',
     clientes: '/clientes',
     ventas: '/ventas',
     cobranzas: '/cobranzas',

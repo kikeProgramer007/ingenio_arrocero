@@ -11,6 +11,7 @@ export interface FiltroCuentaProveedor {
     hasta?: Date | null;
     id_productor?: number | null;
     tipo_compra?: string | null;
+    ordenante?: string | null;
 }
 
 export interface LineaKardexProveedor {
@@ -19,6 +20,7 @@ export interface LineaKardexProveedor {
     documento: string;
     detalle: string;
     productor: string;
+    ordenante?: string;
     id_productor: number | null;
     boleta: string;
     chofer: string;
@@ -210,7 +212,7 @@ function pasaFiltroTipo(compraLike: any, filtro?: string | null): boolean {
     return inferirTipoCompra(compraLike || {}) === filtro;
 }
 
-export function filtroCuentaDesdeQuery(query: { fecha_desde?: unknown; fecha_hasta?: unknown; id_productor?: unknown; tipo_compra?: unknown }): FiltroCuentaProveedor {
+export function filtroCuentaDesdeQuery(query: { fecha_desde?: unknown; fecha_hasta?: unknown; id_productor?: unknown; tipo_compra?: unknown; ordenante?: unknown }): FiltroCuentaProveedor {
     const desdeRaw = typeof query.fecha_desde === 'string' ? query.fecha_desde.trim() : '';
     const hastaRaw = typeof query.fecha_hasta === 'string' ? query.fecha_hasta.trim() : '';
     let desde: Date | null = null;
@@ -231,11 +233,13 @@ export function filtroCuentaDesdeQuery(query: { fecha_desde?: unknown; fecha_has
     }
     const idProductor = Number(query.id_productor);
     const tipo = String(query.tipo_compra || '').toUpperCase();
+    const ordenante = typeof query.ordenante === 'string' ? query.ordenante.trim() : '';
     return {
         desde,
         hasta,
         id_productor: Number.isFinite(idProductor) && idProductor > 0 ? idProductor : null,
-        tipo_compra: (TIPOS_COMPRA as string[]).includes(tipo) ? tipo : null
+        tipo_compra: (TIPOS_COMPRA as string[]).includes(tipo) ? tipo : null,
+        ordenante: ordenante || null
     };
 }
 
@@ -309,8 +313,9 @@ export function armarCuentaProveedor(compras: any[], pagos: any[], acopios: any[
             tipo: servicio ? 'SERVICIO' : 'COMPRA',
             documento: `#${compra.id}`,
             detalle: detalleCompra(compra),
-            productor: nombreProductorDe(compra),
-            id_productor: idProductorDe(compra),
+            productor: '',
+            ordenante: textoCampo(compra.ordenante),
+            id_productor: null,
             boleta: textoCampo(compra.boleta),
             chofer: textoCampo(compra.chofer),
             placa: textoCampo(compra.placa),
@@ -339,8 +344,9 @@ export function armarCuentaProveedor(compras: any[], pagos: any[], acopios: any[
             tipo: 'PAGO',
             documento: pago.id_compra ? `Compra #${pago.id_compra}` : `#${pago.id}`,
             detalle: String(pago.observacion || pago.referencia || 'Pago / amortización').trim(),
-            productor: nombreProductorDe({ ...pago, compra: compraPago }),
-            id_productor: idProductorDe({ ...pago, compra: compraPago }),
+            productor: '',
+            ordenante: textoCampo(compraPago?.ordenante),
+            id_productor: null,
             boleta: '',
             chofer: '',
             placa: '',
@@ -403,6 +409,13 @@ export function armarCuentaProveedor(compras: any[], pagos: any[], acopios: any[
                 abono_usd: 0
             });
         }
+    }
+
+    const textoOrdenante = (filtro.ordenante || '').trim().toLocaleLowerCase('es');
+    if (textoOrdenante) {
+        const coinciden = eventos.filter((e) => (e.ordenante || '').toLocaleLowerCase('es').includes(textoOrdenante));
+        eventos.length = 0;
+        eventos.push(...coinciden);
     }
 
     eventos.sort((a, b) => {

@@ -29,12 +29,12 @@ export class StatsWidget {
     get kpis(): KpiItem[] {
         const r = this.resumen;
         return [
-            { label: 'Ventas', value: formatBs(r?.ventas_hoy), icon: 'pi pi-shopping-cart', tone: 'neutral', hint: 'Vendido hoy, sin documentos anulados' },
+            { label: 'Ventas', value: formatBs(r?.ventas_hoy), icon: 'pi pi-shopping-cart', tone: 'neutral', hint: 'Vendido en el período, sin documentos anulados' },
             { label: 'Cobrado', value: formatBs(r?.cobrado_hoy), icon: 'pi pi-money-bill', tone: 'success', hint: 'Cobros menos devoluciones por anulación' },
             { label: 'Por cobrar', value: formatBs(r?.por_cobrar), icon: 'pi pi-clock', tone: 'warn', hint: 'Saldo pendiente de ventas vigentes' },
             { label: 'Efectivo en caja', value: formatBs(r?.efectivo_esperado), icon: 'pi pi-wallet', tone: 'info', hint: 'Cajón: inicial + efectivo − egresos en efectivo' },
             { label: 'QR / banco', value: formatBs(r?.qr_esperado), icon: 'pi pi-qrcode', tone: 'info', hint: 'Saldo de la sesión por cobros y pagos QR' },
-            { label: 'Saldo neto', value: formatBs(r?.saldo_neto), icon: 'pi pi-chart-line', tone: 'info', hint: 'Ingresos menos egresos del día' }
+            { label: 'Saldo neto', value: formatBs(r?.saldo_neto), icon: 'pi pi-chart-line', tone: 'info', hint: 'Ingresos menos egresos del período' }
         ];
     }
 }
