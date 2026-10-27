@@ -44,7 +44,62 @@ function esColumnaEntera(columna: string): boolean {
 }
 
 function esColumnaMoneda(nombre: string): boolean {
-    return /monto|total|precio|saldo|cobrado|pagado|ingreso|egreso|cargo|abono|compra|p\.\s*(venta|compra|unit)|subtotal|vendido|pendiente/i.test(nombre);
+    const n = nombre.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (/\(\s*bs\s*\)|\(\s*usd\s*\)/.test(n) || /\busd\b/.test(n) || /\bbs\b/.test(n)) {
+        return true;
+    }
+    if (/^p\.\s*(venta|compra|unitario)/.test(n)) {
+        return true;
+    }
+    return /^(monto|total|subtotal|precio|saldo|cobrado|pagado|ingreso|egreso|cargo|abono)(\b|$)/.test(n)
+        || /^(saldo inicial|cobrado efectivo|cobrado qr|esperado|contado|diferencia)$/.test(n);
+}
+
+function encabezadoConUnidad(nombre: string): string {
+    const n = nombre.trim();
+    if (/\(\s*(bs|usd)\s*\)/i.test(n)) {
+        return n.replace(/\(bs\)/i, '(Bs)').replace(/\(usd\)/i, '(USD)');
+    }
+    if (/usd/i.test(n)) {
+        return `${n.replace(/\s*usd(\s*ref\.?)?$/i, '').trim()} (USD)`;
+    }
+    if (/\bbs\b/i.test(n)) {
+        return `${n.replace(/\s*bs\.?$/i, '').trim()} (Bs)`;
+    }
+    if (esColumnaMoneda(n)) {
+        return `${n} (Bs)`;
+    }
+    return n;
+}
+
+function reordenarMontosAlFinal(hoja: HojaExport): void {
+    const columnas = hoja.columnas.map(encabezadoConUnidad);
+    const esMoney = columnas.map((c) => esColumnaMoneda(c));
+    const hayMoney = esMoney.some(Boolean);
+    let hayTextoTrasMonto = false;
+    let vistoMonto = false;
+    for (const money of esMoney) {
+        if (money) {
+            vistoMonto = true;
+        } else if (vistoMonto) {
+            hayTextoTrasMonto = true;
+        }
+    }
+    if (!hayMoney || !hayTextoTrasMonto) {
+        hoja.columnas = columnas;
+        return;
+    }
+    const orden = [
+        ...columnas.map((c, i) => ({ c, i, money: esMoney[i] })).filter((x) => !x.money),
+        ...columnas.map((c, i) => ({ c, i, money: esMoney[i] })).filter((x) => x.money)
+    ];
+    const idx = orden.map((x) => x.i);
+    const remap = (fila: Celda[]) => idx.map((i) => (i < fila.length ? fila[i] : ''));
+    hoja.columnas = orden.map((x) => x.c);
+    hoja.filas = hoja.filas.map(remap);
+    if (hoja.pie?.length) {
+        hoja.pie = hoja.pie.map(remap);
+    }
 }
 
 function esColumnaSumable(nombre: string): boolean {
@@ -127,6 +182,29 @@ function textoNumero(valor: number, columna = ''): string {
     return valor.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function parsearMonedaTexto(valor: Celda): number | null {
+    if (typeof valor === 'number' && Number.isFinite(valor)) {
+        return valor;
+    }
+    const t = String(valor ?? '').trim();
+    const m = t.match(/^(?:Bs\.?|USD)\s+(-?[\d.]+(?:,\d{1,2})?)$/i);
+    if (!m) {
+        return null;
+    }
+    const n = Number(m[1].replace(/\./g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+}
+
+function asignarCeldaExcel(cell: ExcelJS.Cell, valor: Celda, columna: string): void {
+    const numero = typeof valor === 'number' ? valor : parsearMonedaTexto(valor);
+    if (typeof numero === 'number') {
+        cell.value = numero;
+        cell.numFmt = esColumnaEntera(columna) ? '0' : '#,##0.00';
+        return;
+    }
+    cell.value = valor == null ? '' : String(valor);
+}
+
 function celdaTexto(valor: Celda, columna = ''): string {
     if (valor == null || valor === '') {
         return '';
@@ -135,15 +213,12 @@ function celdaTexto(valor: Celda, columna = ''): string {
         if (esColumnaEntera(columna) && Number.isInteger(valor)) {
             return String(valor);
         }
-        if (/usd/i.test(columna)) {
-            return `USD ${textoNumero(valor, columna)}`;
-        }
-        if (esColumnaMoneda(columna) || /\(bs\)|\bbs\b/i.test(columna)) {
-            return `Bs ${textoNumero(valor, columna)}`;
-        }
         return textoNumero(valor, columna);
     }
-    const texto = String(valor);
+    const crudo = String(valor);
+    const texto = (esColumnaMoneda(columna) || /usd|\(bs\)|\bbs\b/i.test(columna))
+        ? crudo.replace(/^(Bs\.?|USD)\s+/i, '')
+        : crudo;
     if (/fecha/i.test(columna)) {
         return texto.replace(/^(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2}(?::\d{2})?)/, '$1\n$2');
     }
@@ -167,7 +242,7 @@ function recapValor(valor: Celda, label: string): string {
         if (esColumnaEntera(label) && Number.isInteger(valor)) {
             return String(valor);
         }
-        return `${textoNumero(valor, label)} Bs.`;
+        return textoNumero(valor, label);
     }
     return String(valor ?? '');
 }
@@ -264,6 +339,7 @@ export function aplicarPlantillaFormal(hoja: HojaExport, consulta: { label: stri
     } else {
         hoja.pie = pieOrigen;
     }
+    reordenarMontosAlFinal(hoja);
     return hoja;
 }
 
@@ -466,12 +542,7 @@ function pintarHojaExcelFormal(
         datos.forEach((valor, i) => {
             const cell = row.getCell(i + 1);
             const nombreCol = hoja.columnas[i] || '';
-            if (typeof valor === 'number') {
-                cell.value = valor;
-                cell.numFmt = esColumnaEntera(nombreCol) ? '0' : '#,##0.00';
-            } else {
-                cell.value = valor;
-            }
+            asignarCeldaExcel(cell, valor, nombreCol);
             cell.font = { size: 9, color: negro, bold: String(valor) === 'VENCIDA' };
             cell.alignment = { wrapText: true, vertical: 'middle', horizontal: alinearColumna(nombreCol, valor) };
             cell.border = bordeExcel();
@@ -497,7 +568,7 @@ function pintarHojaExcelFormal(
             const val = sheet.getCell(fila, lastCol);
             if (typeof item.valor === 'number') {
                 val.value = item.valor;
-                val.numFmt = '"Bs" #,##0.00';
+                val.numFmt = '#,##0.00';
             } else {
                 val.value = item.valor;
             }
@@ -570,6 +641,7 @@ export async function enviarExcel(res: Response, baseNombre: string, hojas: Hoja
     }
 
     for (const hoja of hojas) {
+        reordenarMontosAlFinal(hoja);
         const sheet = workbook.addWorksheet(hoja.nombre.slice(0, 31));
         if (hoja.plantilla === 'formal') {
             pintarHojaExcelFormal(sheet, hoja, logoId);
@@ -646,12 +718,7 @@ export async function enviarExcel(res: Response, baseNombre: string, hojas: Hoja
             datos.forEach((valor, i) => {
                 const cell = row.getCell(i + 1);
                 const nombreCol = hoja.columnas[i] || '';
-                if (typeof valor === 'number') {
-                    cell.value = valor;
-                    cell.numFmt = esColumnaEntera(nombreCol) ? '0' : '#,##0.00';
-                } else {
-                    cell.value = valor;
-                }
+                asignarCeldaExcel(cell, valor, nombreCol);
                 cell.font = { size: 9 };
                 cell.alignment = { wrapText: true, vertical: 'middle', horizontal: alinearColumna(nombreCol, valor) };
                 cell.border = bordeExcel();
@@ -672,7 +739,7 @@ export async function enviarExcel(res: Response, baseNombre: string, hojas: Hoja
                 sheet.getCell(fila, 1).font = { bold: pendiente || !formal, size: 9 };
                 if (formal && typeof item.valor === 'number') {
                     sheet.getCell(fila, 2).value = item.valor;
-                    sheet.getCell(fila, 2).numFmt = '"Bs" #,##0.00';
+                    sheet.getCell(fila, 2).numFmt = '#,##0.00';
                 } else {
                     sheet.getCell(fila, 2).value = recapValor(item.valor, item.label);
                 }
@@ -755,6 +822,7 @@ export function bufferReportePdf(hojas: HojaExport[], opciones: OpcionesPdfRepor
 function pintarReporte(doc: PDFKit.PDFDocument, hojas: HojaExport[]) {
     const formal = hojas.some((h) => h.plantilla === 'formal');
     hojas.forEach((hoja, index) => {
+        reordenarMontosAlFinal(hoja);
         if (index > 0) {
             doc.addPage();
         }
@@ -1024,12 +1092,7 @@ function pintarPieExcel(sheet: ExcelJS.Worksheet, fila: number, hoja: HojaExport
             const cell = row.getCell(i + 1);
             const nombreCol = hoja.columnas[i] || '';
             const valor = datos[i] ?? '';
-            if (typeof valor === 'number') {
-                cell.value = valor;
-                cell.numFmt = esColumnaEntera(nombreCol) ? '0' : '#,##0.00';
-            } else {
-                cell.value = valor;
-            }
+            asignarCeldaExcel(cell, valor, nombreCol);
             cell.font = { bold: true, size: 9, color: negro };
             cell.alignment = { wrapText: true, vertical: 'middle', horizontal: alinearColumna(nombreCol, valor) };
             cell.border = bordeExcel();
@@ -1231,8 +1294,8 @@ function dibujarTotalesFormal(
         doc.font(pendiente ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor('#000000');
         doc.text(`${item.label}:`, xLabel, y, { width: labelW, align: 'right', lineBreak: false });
         const texto = typeof item.valor === 'number'
-            ? `Bs ${textoNumero(item.valor, item.label)}`
-            : String(item.valor ?? '');
+            ? textoNumero(item.valor, item.label)
+            : String(item.valor ?? '').replace(/^(Bs\.?|USD)\s+/i, '');
         doc.text(texto, xLabel + labelW + 8, y, { width: valorW, align: 'right', lineBreak: false });
         doc.y = y + 11;
     });

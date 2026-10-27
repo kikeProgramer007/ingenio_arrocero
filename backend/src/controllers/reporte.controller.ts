@@ -759,8 +759,8 @@ export class ReporteController {
                 etiquetaCategoriaMovimiento(item.categoria),
                 item.concepto || '',
                 etiquetaMetodoPago(item.metodo_pago),
-                monto,
-                nombreVisible(item.usuario)
+                nombreVisible(item.usuario),
+                monto
             ];
         });
         const saldoInicial = toMoney(caja.get('saldo_inicial'));
@@ -785,8 +785,8 @@ export class ReporteController {
                 { label: 'Anulaciones / devoluciones', valor: flujo.anulaciones_venta },
                 { label: 'Cobrado neto', valor: flujo.cobrado_neto },
                 { label: 'Total esperado', valor: saldoEsperado },
-                { label: 'Efectivo contado', valor: saldoContado == null ? '-' : formatBs(saldoContado) },
-                { label: 'Diferencia (cajón)', valor: diferencia == null ? '-' : formatBs(diferencia) },
+                { label: 'Efectivo contado', valor: saldoContado == null ? '-' : saldoContado },
+                { label: 'Diferencia (cajón)', valor: diferencia == null ? '-' : diferencia },
                 { label: 'Arqueo', valor: diferencia == null ? '-' : clasificarDiferencia(diferencia) },
                 { label: 'Usuario apertura', valor: nombreVisible((caja as any).usuarioApertura) }
             ],
@@ -837,14 +837,14 @@ export class ReporteController {
                 { label: 'Pendiente', valor: pendiente },
                 { label: 'Usuario', valor: nombreVisible(venta.usuario) }
             ],
-            columnas: ['Descripción', 'Cantidad', 'P. unitario', 'Subtotal'],
+            columnas: ['Descripción', 'Cantidad', 'P. unitario (Bs)', 'Subtotal (Bs)'],
             filas
         }];
         if (cobros.length) {
             hojas.push({
                 nombre: 'Cobranzas',
                 titulo: `Cobranzas de la venta #${venta.id}`,
-                columnas: ['Fecha', 'Monto', 'Método', 'Referencia'],
+                columnas: ['Fecha', 'Monto (Bs)', 'Método', 'Referencia'],
                 filas: cobros
             });
         }
@@ -934,7 +934,7 @@ export class ReporteController {
                 { label: 'Pendiente', valor: pendiente },
                 { label: 'Usuario', valor: nombreVisible(compra.usuario) }
             ],
-            columnas: ['Descripción', 'Cantidad', 'P. unitario', 'Subtotal'],
+            columnas: ['Descripción', 'Cantidad', 'P. unitario (Bs)', 'Subtotal (Bs)'],
             filas
         }];
         const pagos = (compra.pagos || []).map((p: any) => [
@@ -947,7 +947,7 @@ export class ReporteController {
             hojas.push({
                 nombre: 'Pagos',
                 titulo: `Pagos de la compra #${compra.id}`,
-                columnas: ['Fecha', 'Monto', 'Método', 'Referencia'],
+                columnas: ['Fecha', 'Monto (Bs)', 'Método', 'Referencia'],
                 filas: pagos
             });
         }
@@ -1131,12 +1131,12 @@ export class ReporteController {
             fila.telefono || '',
             fila.notas,
             fila.fanegas || '',
-            formatBs(fila.compras_bs),
-            formatBs(fila.pagos_bs),
-            formatBs(fila.saldo_bs),
-            formatUsd(fila.saldo_usd)
+            fila.compras_bs,
+            fila.pagos_bs,
+            fila.saldo_bs,
+            fila.saldo_usd
         ]);
-        filas.push(['TOTAL', '', '', data.totales.fanegas || '', formatBs(data.totales.compras_bs), formatBs(data.totales.pagos_bs), formatBs(data.totales.saldo_bs), formatUsd(data.totales.saldo_usd)]);
+        filas.push(['TOTAL', '', '', data.totales.fanegas || '', data.totales.compras_bs, data.totales.pagos_bs, data.totales.saldo_bs, data.totales.saldo_usd]);
         const partes = [
             data.corte ? `Saldo al ${data.corte}` : 'Saldo a la fecha',
             valoresQuery(req.query, 'tipo_compra').length
@@ -1243,14 +1243,14 @@ export class ReporteController {
                         linea.chofer || '',
                         linea.placa || '',
                         linea.fanegas || '',
-                        linea.precio ? formatBs(linea.precio) : '',
-                        linea.precio_usd ? formatUsd(linea.precio_usd) : '',
-                        linea.cargo ? formatBs(linea.cargo) : '',
-                        linea.cargo_usd ? formatUsd(linea.cargo_usd) : '',
-                        linea.abono ? formatBs(linea.abono) : '',
-                        linea.abono_usd ? formatUsd(linea.abono_usd) : '',
-                        formatBs(linea.saldo),
-                        formatUsd(linea.saldo_usd)
+                        linea.precio ? linea.precio : '',
+                        linea.precio_usd ? linea.precio_usd : '',
+                        linea.cargo ? linea.cargo : '',
+                        linea.cargo_usd ? linea.cargo_usd : '',
+                        linea.abono ? linea.abono : '',
+                        linea.abono_usd ? linea.abono_usd : '',
+                        linea.saldo,
+                        linea.saldo_usd
                     ]),
                     [
                         '',
@@ -1263,12 +1263,12 @@ export class ReporteController {
                         '',
                         '',
                         '',
-                        formatBs(r.cargo),
-                        r.compras_usd ? formatUsd(r.compras_usd) : '',
-                        formatBs(r.abono),
-                        r.pagado_usd ? formatUsd(r.pagado_usd) : '',
-                        formatBs(r.saldo),
-                        formatUsd(r.saldo_usd)
+                        r.cargo,
+                        r.compras_usd ? r.compras_usd : '',
+                        r.abono,
+                        r.pagado_usd ? r.pagado_usd : '',
+                        r.saldo,
+                        r.saldo_usd
                     ]
                 ]
             },
