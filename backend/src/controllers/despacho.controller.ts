@@ -19,10 +19,12 @@ import {
   registrarDespacho,
 } from "../servicios/despachos.servicio";
 import { getAuthUser, nombreVisible } from "../utils/auth-user";
-import { enviarExcel, enviarPdf, HojaExport } from "../utils/exportar";
+import { aplicarPlantillaFormal, enviarExcel, enviarPdf, HojaExport } from "../utils/exportar";
+import { etiquetaEstadoDespacho, etiquetaEstadoVenta } from "../utils/etiquetas-documento";
 import { aplicarFiltroFecha } from "../utils/fecha";
 import { handleError } from "../utils/error.handler";
 import { COLUMNAS_DOCUMENTOS } from "../utils/columnas-documentos";
+import { idsQuery, valoresQuery } from "../utils/query";
 
 export async function permisoDespacho(
   req: Request,
@@ -57,29 +59,22 @@ export async function permisoDespacho(
 
 function consulta(req: Request) {
   const where: any = { estado: { [Op.ne]: "ANULADA" } };
-  for (const campo of ["id_cliente", "numero"]) {
-    if (
-      req.query[campo] &&
-      (!Number.isInteger(Number(req.query[campo])) ||
-        Number(req.query[campo]) <= 0)
-    )
-      throw new ErrorDespacho("Cliente o numero de venta invalido", 400);
-  }
-  if (req.query.id_cliente) where.id_cliente = Number(req.query.id_cliente);
+  if (
+    req.query.numero &&
+    (!Number.isInteger(Number(req.query.numero)) || Number(req.query.numero) <= 0)
+  )
+    throw new ErrorDespacho("Cliente o numero de venta invalido", 400);
+  const clientes = idsQuery(req.query, "id_cliente");
+  if (clientes.length === 1) where.id_cliente = clientes[0];
+  else if (clientes.length > 1) where.id_cliente = { [Op.in]: clientes };
   if (req.query.numero) where.id = Number(req.query.numero);
   aplicarFiltroFecha(where, req.query);
-  const estado = String(req.query.estado_despacho || "ABIERTOS");
-  if (
-    ![
-      "ABIERTOS",
-      "TODOS",
-      "PENDIENTE",
-      "PARCIAL",
-      "COMPLETO",
-      "NO_APLICA",
-    ].includes(estado)
-  )
+  const estadosDespacho = valoresQuery(req.query, "estado_despacho");
+  const permitidos = ["ABIERTOS", "TODOS", "PENDIENTE", "PARCIAL", "COMPLETO", "NO_APLICA"];
+  if (estadosDespacho.some((estado) => !permitidos.includes(estado)))
     throw new ErrorDespacho("Estado de despacho invalido", 400);
+  const estadosEntrega = [...new Set(estadosDespacho.flatMap((e) => (e === "ABIERTOS" ? ["PENDIENTE", "PARCIAL"] : e === "TODOS" ? [] : [e])))];
+  const filtrarEntrega = estadosDespacho.length > 0 && !estadosDespacho.includes("TODOS") && estadosEntrega.length > 0;
   const campoOrden = String(req.query.sortField || "fecha");
   const direccion = String(req.query.sortOrder) === "1" ? "ASC" : "DESC";
   const ordenes: Record<string, any[]> = {
@@ -98,13 +93,10 @@ function consulta(req: Request) {
         ? {
             ...i,
             required: true,
-            ...(estado !== "TODOS"
+            ...(filtrarEntrega
               ? {
                   where: {
-                    estado:
-                      estado === "ABIERTOS"
-                        ? { [Op.in]: ["PENDIENTE", "PARCIAL"] }
-                        : estado,
+                    estado: estadosEntrega.length === 1 ? estadosEntrega[0] : { [Op.in]: estadosEntrega },
                   },
                 }
               : {}),
@@ -121,14 +113,27 @@ function errorRespuesta(res: Response, error: unknown) {
     res.status(409).json({ mensaje: "La clave de solicitud ya fue utilizada" });
   else handleError(res, error, "Error al procesar despacho");
 }
+function etiquetaFiltroDespacho(clave: string): string {
+  const map: Record<string, string> = {
+    id_cliente: "Cliente",
+    numero: "N° venta",
+    estado_despacho: "Estado de despacho",
+    fecha_desde: "Desde",
+    fecha_hasta: "Hasta",
+  };
+  return map[clave] || clave;
+}
+
 function hojaListado(ventas: any[], req: Request): HojaExport {
-  return {
+  return aplicarPlantillaFormal({
     nombre: "Despachos",
     titulo: "DESPACHOS DE VENTAS",
-    plantilla: "formal",
     consulta: Object.entries(req.query)
       .filter(([k]) => !["pagina", "limite", "formato", "sortField", "sortOrder"].includes(k))
-      .map(([label, valor]) => ({ label, valor: String(valor) })),
+      .map(([label, valor]) => ({
+        label: etiquetaFiltroDespacho(label),
+        valor: label === "estado_despacho" ? etiquetaEstadoDespacho(String(valor)) : String(valor),
+      })),
     columnas: COLUMNAS_DOCUMENTOS.despachos,
     filas: ventas.flatMap((v) =>
       (v.detalles || [])
@@ -137,16 +142,16 @@ function hojaListado(ventas: any[], req: Request): HojaExport {
           String(v.id),
           new Date(v.fecha).toLocaleDateString("es-BO"),
           v.cliente?.nombre || "",
-          v.estado,
-          v.estado_despacho,
+          etiquetaEstadoVenta(v.estado),
+          etiquetaEstadoDespacho(v.estado_despacho),
           l.descripcion,
           l.unidad || "",
-          String(l.cantidad),
-          String(l.entregado),
-          String(l.pendiente),
+          Number(l.cantidad) || 0,
+          Number(l.entregado) || 0,
+          Number(l.pendiente) || 0,
         ]),
     ),
-  };
+  });
 }
 export class DespachoController {
   static async config(_req: Request, res: Response) {
@@ -292,9 +297,9 @@ export function hojaNotaEntrega(d: any): HojaExport {
       { label: "Cliente", valor: d.venta?.cliente?.nombre || "" },
       { label: "Fecha/hora", valor: new Date(d.fecha).toLocaleString("es-BO") },
       { label: "Chofer", valor: d.chofer || "" },
-      { label: "CI", valor: d.ci || "" },
+      { label: "CI del chofer", valor: d.ci || "" },
       { label: "Placa", valor: d.placa || "" },
-      { label: "Marca", valor: d.marca || "" },
+      { label: "Marca del camión", valor: d.marca || "" },
       { label: "Color", valor: d.color || "" },
       { label: "Destino", valor: d.destino || "" },
       { label: "Usuario que entrega", valor: nombreVisible(d.usuario) },
@@ -303,13 +308,13 @@ export function hojaNotaEntrega(d: any): HojaExport {
         label: "Firma del chofer",
         valor: "________________________________",
       },
-    ],
+    ].filter((item) => item.label === "Firma del chofer" || String(item.valor || "").trim()),
     columnas: COLUMNAS_DOCUMENTOS.nota_entrega,
     filas: d.lineas.map((l: any) => [
       l.descripcion,
       l.unidad,
-      String(l.cantidad),
-      String(l.pendiente),
+      Number(l.cantidad) || 0,
+      Number(l.pendiente) || 0,
     ]),
   };
 }

@@ -11,6 +11,7 @@ import { TextareaModule } from 'primeng/textarea';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { forkJoin } from 'rxjs';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { Cliente, Cobranza, PROCEDENCIAS_CLIENTE, Venta } from './ventas.models';
 import { ImagenCampoComponent } from '../../shared/components/imagen-campo';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
@@ -24,7 +25,8 @@ import { ClientesService, VentasService } from './ventas.service';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
-import { ESTADOS_ACTIVO_FILTRO } from '../../shared/utils/fecha-filtro';
+import { ESTADOS_ACTIVO_MULTI } from '../../shared/utils/fecha-filtro';
+import { coincideActivo, coincideFiltro } from '../../shared/utils/filtro-lista';
 
 @Component({
     selector: 'app-clientes',
@@ -40,6 +42,7 @@ import { ESTADOS_ACTIVO_FILTRO } from '../../shared/utils/fecha-filtro';
         TextareaModule,
         ToggleSwitchModule,
         SelectModule,
+        MultiSelectModule,
         ImagenCampoComponent,
         TablaEsqueletoComponent,
         AyudaCampoComponent,
@@ -62,11 +65,11 @@ import { ESTADOS_ACTIVO_FILTRO } from '../../shared/utils/fecha-filtro';
             <div class="barra-listado">
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Estado</label>
-                    <p-select [options]="estadosActivo" optionLabel="label" optionValue="value" [(ngModel)]="filtroActivo" fluid appendTo="body" />
+                    <p-multiselect [options]="estadosActivo" optionLabel="label" optionValue="value" [(ngModel)]="filtroActivo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Procedencia</label>
-                    <p-select [options]="procedenciasFiltro" [(ngModel)]="filtroProcedencia" placeholder="Todas" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="procedenciasFiltro" [(ngModel)]="filtroProcedencia" placeholder="Todas" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
@@ -263,23 +266,12 @@ export class ClientesPage implements OnInit {
     etiquetaPago = etiquetaPago;
     procedencias = [...PROCEDENCIAS_CLIENTE];
     procedenciasFiltro = [...PROCEDENCIAS_CLIENTE];
-    estadosActivo = ESTADOS_ACTIVO_FILTRO;
-    filtroActivo = 'todos';
-    filtroProcedencia = '';
+    estadosActivo = ESTADOS_ACTIVO_MULTI;
+    filtroActivo: string[] = [];
+    filtroProcedencia: string[] = [];
 
     get clientesFiltrados(): Cliente[] {
-        return this.clientes.filter((c) => {
-            if (this.filtroActivo === 'activos' && !c.activo) {
-                return false;
-            }
-            if (this.filtroActivo === 'inactivos' && c.activo) {
-                return false;
-            }
-            if (this.filtroProcedencia && c.procedencia !== this.filtroProcedencia) {
-                return false;
-            }
-            return true;
-        });
+        return this.clientes.filter((c) => coincideActivo(!!c.activo, this.filtroActivo) && coincideFiltro(c.procedencia, this.filtroProcedencia));
     }
 
     constructor(private clientesService: ClientesService, private ventasService: VentasService, private aviso: AvisoService) {}

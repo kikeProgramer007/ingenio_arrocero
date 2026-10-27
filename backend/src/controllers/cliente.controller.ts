@@ -5,6 +5,7 @@ import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { ActualizarClienteDTO, CrearClienteDTO } from '../dtos/cliente.dto';
 import { imagenParaGuardar, resolverImagen } from '../utils/imagen';
+import { aplicarFiltroIn, valoresQuery } from '../utils/query';
 
 function mapCliente(cliente: any) {
     return {
@@ -25,16 +26,14 @@ function mapCliente(cliente: any) {
 export class ClienteController {
     public static async listar(req: Request, res: Response): Promise<void> {
         try {
-            const { q, activos, procedencia } = req.query;
+            const { q, activos } = req.query;
             const where: any = {};
             if (activos === 'inactivos') {
                 where.activo = false;
             } else if (activos !== 'todos') {
                 where.activo = true;
             }
-            if (typeof procedencia === 'string' && procedencia) {
-                where.procedencia = procedencia;
-            }
+            aplicarFiltroIn(where, 'procedencia', valoresQuery(req.query, 'procedencia'));
             if (typeof q === 'string' && q.trim()) {
                 where[Op.or] = [
                     { nombre: { [Op.like]: `%${q.trim()}%` } },

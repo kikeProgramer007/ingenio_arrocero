@@ -7,6 +7,7 @@ import { DialogModule } from 'primeng/dialog';
 import { DatePickerModule } from 'primeng/datepicker';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
@@ -21,7 +22,8 @@ import { Menu, MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
 import { imagenDefault, mediaUrl } from '../../core/utils/media-url';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
-import { ESTADOS_ACTIVO_FILTRO } from '../../shared/utils/fecha-filtro';
+import { ESTADOS_ACTIVO_MULTI } from '../../shared/utils/fecha-filtro';
+import { coincideActivo } from '../../shared/utils/filtro-lista';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { formatBs, formatFecha } from '../caja/caja.utils';
 import { formatUsd } from '../../shared/utils/money';
@@ -38,6 +40,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
         DatePickerModule,
         InputTextModule,
         SelectModule,
+        MultiSelectModule,
         TableModule,
         TagModule,
         TextareaModule,
@@ -64,7 +67,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
             <div class="barra-listado">
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Estado</label>
-                    <p-select [options]="estadosActivo" optionLabel="label" optionValue="value" [(ngModel)]="filtroActivo" fluid appendTo="body" />
+                    <p-multiselect [options]="estadosActivo" optionLabel="label" optionValue="value" [(ngModel)]="filtroActivo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
@@ -182,7 +185,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
                 </div>
                 <div class="col-span-12 md:col-span-3">
                     <label class="block font-bold mb-2 text-sm">Tipo de compra</label>
-                    <p-select [options]="tiposCompraFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipoCompra" placeholder="Todos" [showClear]="true" fluid appendTo="body" [baseZIndex]="2100" />
+                    <p-multiselect [options]="tiposCompraFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipoCompra" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" [baseZIndex]="2100" />
                 </div>
                 <div class="col-span-12 md:col-span-3">
                     <label class="block font-bold mb-2 text-sm">Ordenante</label>
@@ -268,7 +271,7 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
                         <td class="text-right">{{ l.abono ? formatBs(l.abono) : '-' }}</td>
                         <td class="text-right">{{ l.abono_usd ? formatUsd(l.abono_usd) : '-' }}</td>
                         <td class="text-right font-medium">{{ formatBs(l.saldo) }}</td>
-                        <td class="text-right">{{ l.saldo_usd ? formatUsd(l.saldo_usd) : '-' }}</td>
+                        <td class="text-right">{{ formatUsd(l.saldo_usd) }}</td>
                     </tr>
                 </ng-template>
                 <ng-template #emptymessage>
@@ -301,19 +304,11 @@ export class ProveedoresPage implements OnInit {
     filasTabla = FILAS_TABLA;
     filtrarTabla = filtrarTabla;
     proveedores: Proveedor[] = [];
-    filtroActivo = 'todos';
-    estadosActivo = ESTADOS_ACTIVO_FILTRO;
+    filtroActivo: string[] = [];
+    estadosActivo = ESTADOS_ACTIVO_MULTI;
 
     get proveedoresFiltrados(): Proveedor[] {
-        return this.proveedores.filter((p) => {
-            if (this.filtroActivo === 'activos' && !p.activo) {
-                return false;
-            }
-            if (this.filtroActivo === 'inactivos' && p.activo) {
-                return false;
-            }
-            return true;
-        });
+        return this.proveedores.filter((p) => coincideActivo(!!p.activo, this.filtroActivo));
     }
     cargando = false;
     guardando = false;
@@ -325,7 +320,7 @@ export class ProveedoresPage implements OnInit {
     proveedorCuenta: Proveedor | null = null;
     filtroPeriodo: Date[] | null = null;
     filtroOrdenante = '';
-    filtroTipoCompra = '';
+    filtroTipoCompra: string[] = [];
     tiposCompraFiltro = [
         { label: 'Arroz en chala', value: 'CHALA' },
         { label: 'Bolsas y empaques', value: 'BOLSAS' },
@@ -392,7 +387,7 @@ export class ProveedoresPage implements OnInit {
         this.cuenta = null;
         this.filtroPeriodo = null;
         this.filtroOrdenante = '';
-        this.filtroTipoCompra = '';
+        this.filtroTipoCompra = [];
         this.dialogCuenta = true;
         this.consultarCuenta();
     }
@@ -405,7 +400,7 @@ export class ProveedoresPage implements OnInit {
         this.proveedoresService.cuenta(this.proveedorCuenta.id, {
             fecha_desde: this.fechaDesdeYmd,
             fecha_hasta: this.fechaHastaYmd,
-            tipo_compra: this.filtroTipoCompra || undefined,
+            tipo_compra: this.filtroTipoCompra.length ? this.filtroTipoCompra : undefined,
             ordenante: this.filtroOrdenante.trim() || undefined
         }).subscribe({
             next: (data) => {

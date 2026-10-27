@@ -6,6 +6,7 @@ import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { PasswordModule } from 'primeng/password';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
@@ -17,7 +18,8 @@ import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
-import { ESTADOS_ACTIVO_FILTRO } from '../../shared/utils/fecha-filtro';
+import { ESTADOS_ACTIVO_MULTI } from '../../shared/utils/fecha-filtro';
+import { coincideActivo } from '../../shared/utils/filtro-lista';
 import { AuthService } from '../../core/services/auth.service';
 import { PerfilLista, Usuario, UsuariosService } from './usuarios.service';
 
@@ -32,6 +34,7 @@ import { PerfilLista, Usuario, UsuariosService } from './usuarios.service';
         InputTextModule,
         PasswordModule,
         SelectModule,
+        MultiSelectModule,
         TableModule,
         TagModule,
         ToggleSwitchModule,
@@ -55,7 +58,7 @@ import { PerfilLista, Usuario, UsuariosService } from './usuarios.service';
             <div class="barra-listado">
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Estado</label>
-                    <p-select [options]="estadosActivo" optionLabel="label" optionValue="value" [(ngModel)]="filtroActivo" fluid appendTo="body" />
+                    <p-multiselect [options]="estadosActivo" optionLabel="label" optionValue="value" [(ngModel)]="filtroActivo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
@@ -199,8 +202,8 @@ export class UsuariosPage implements OnInit {
     password2 = '';
     form: Usuario = this.vacio();
     itemsAcciones: MenuItem[] = [];
-    estadosActivo = ESTADOS_ACTIVO_FILTRO;
-    filtroActivo = 'todos';
+    estadosActivo = ESTADOS_ACTIVO_MULTI;
+    filtroActivo: string[] = [];
 
     constructor(
         private usuariosService: UsuariosService,
@@ -217,15 +220,7 @@ export class UsuariosPage implements OnInit {
     }
 
     get usuariosFiltrados(): Usuario[] {
-        return this.usuarios.filter((u) => {
-            if (this.filtroActivo === 'activos' && !u.activo) {
-                return false;
-            }
-            if (this.filtroActivo === 'inactivos' && u.activo) {
-                return false;
-            }
-            return true;
-        });
+        return this.usuarios.filter((u) => coincideActivo(!!u.activo, this.filtroActivo));
     }
 
     get esYo(): boolean {

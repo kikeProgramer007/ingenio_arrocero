@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AvisoService } from '../../shared/services/aviso.service';
@@ -8,6 +8,7 @@ import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
@@ -22,6 +23,7 @@ import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { BotonesExportarComponent } from '../../shared/components/botones-exportar';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
+import { parametrosLista } from '../../shared/utils/filtro-lista';
 import { TooltipModule } from 'primeng/tooltip';
 import { Menu, MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
@@ -29,7 +31,7 @@ import { MenuItem } from 'primeng/api';
 @Component({
     selector: 'app-campanas',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent, BotonesExportarComponent, TooltipModule, MenuModule],
+    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, MultiSelectModule, TableModule, TagModule, TextareaModule, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent, BotonesExportarComponent, TooltipModule, MenuModule],
     template: `
         <p-menu #menuAcciones [popup]="true" [model]="itemsAcciones" [appendTo]="'body'" [baseZIndex]="1200" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -43,7 +45,7 @@ import { MenuItem } from 'primeng/api';
             <div class="barra-listado">
                 <div class="campo campo-sm">
                     <label class="block font-bold mb-1 text-sm">Estado</label>
-                    <p-select [options]="estadosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Todas" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="estadosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Todas" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-fecha">
                     <label class="block font-bold mb-1 text-sm">Período</label>
@@ -136,7 +138,7 @@ export class CampanasPage implements OnInit {
     filtrarTabla = filtrarTabla;
     campanas: any[] = [];
     proveedores: any[] = [];
-    filtroEstado = '';
+    filtroEstado: string[] = [];
     rango: Date[] | null = null;
     estadosFiltro = [
         { label: 'Abierta', value: 'ABIERTA' },
@@ -170,15 +172,13 @@ export class CampanasPage implements OnInit {
 
     cargar(): void {
         this.cargando = true;
-        const params: { estado?: string; fecha_desde?: string; fecha_hasta?: string } = {};
-        if (this.filtroEstado) {
-            params.estado = this.filtroEstado;
-        }
+        let params = new HttpParams();
+        params = parametrosLista(params, 'estado', this.filtroEstado);
         if (this.fechaDesde) {
-            params.fecha_desde = this.fechaDesde;
+            params = params.set('fecha_desde', this.fechaDesde);
         }
         if (this.fechaHasta) {
-            params.fecha_hasta = this.fechaHasta;
+            params = params.set('fecha_hasta', this.fechaHasta);
         }
         this.http.get<any[]>(apiUrl('/api/campanas'), { params }).subscribe({
             next: (d) => { this.campanas = d; this.cargando = false; },

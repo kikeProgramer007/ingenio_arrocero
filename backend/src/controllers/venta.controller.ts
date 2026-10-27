@@ -4,12 +4,13 @@ import { CategoriaProducto, Cliente, Cobranza, Productos, sequelize, User, Venta
 import { Op, UniqueConstraintError } from 'sequelize';
 import { handleError } from '../utils/error.handler';
 import { aplicarFiltroFecha, parseFechaLocal, ymdLocal } from '../utils/fecha';
+import { aplicarFiltroIn, idsQuery, valoresQuery } from '../utils/query';
 import { resolverPlazoCredito } from '../utils/credito';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
 import { obtenerCajaAbierta, registrarEgresoCaja, registrarIngresosPartidos } from '../utils/caja-ingreso';
-import { aplicarStock, TIPO_INVENTARIO } from '../utils/inventario';
+import { aplicarStock, disponiblePara, TIPO_INVENTARIO } from '../utils/inventario';
 import { CATEGORIA_EGRESO, CATEGORIA_INGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { cobradoVenta, diasAtraso, diasParaVencer, ESTADO_VENTA, estadoVentaPorSaldo, esVentaVencida, situacionCobranza } from '../constants/venta.constants';
 import { CrearCobranzaDTO, CrearVentaDTO } from '../dtos/venta.dto';
@@ -86,6 +87,7 @@ function mapCobranza(item: any) {
         fecha: item.fecha,
         cliente: item.cliente ? { id: item.cliente.id, nombre: item.cliente.nombre } : null,
         venta: item.venta ? { id: item.venta.id, total: toMoney(item.venta.total), saldo_pendiente: toMoney(item.venta.saldo_pendiente), estado: item.venta.estado } : null,
+        revertido: item.venta?.estado === ESTADO_VENTA.ANULADA,
         usuario: mapUsuarioResumen(item.usuario)
     };
 }
@@ -103,19 +105,31 @@ export class VentaController {
     public static async listar(req: Request, res: Response): Promise<void> {
         try {
             const where: any = {};
-            const { estado, id_cliente, fecha_desde, fecha_hasta } = req.query;
-            if (estado === 'VENCIDA') {
-                where.estado = { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] };
-                where.saldo_pendiente = { [Op.gt]: 0 };
-                where.fecha_vencimiento = { [Op.lt]: ymdLocal() };
-            } else if (typeof estado === 'string' && estado) {
-                where.estado = estado;
-            } else {
+            const { fecha_desde, fecha_hasta } = req.query;
+            const estados = valoresQuery(req.query, 'estado');
+            if (!estados.length) {
                 where.estado = { [Op.ne]: ESTADO_VENTA.ANULADA };
+            } else {
+                const reales = estados.filter((e) => e !== 'VENCIDA');
+                const vencida = estados.includes('VENCIDA');
+                const partes: any[] = [];
+                if (reales.length) {
+                    partes.push({ estado: reales.length === 1 ? reales[0] : { [Op.in]: reales } });
+                }
+                if (vencida) {
+                    partes.push({
+                        estado: { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] },
+                        saldo_pendiente: { [Op.gt]: 0 },
+                        fecha_vencimiento: { [Op.lt]: ymdLocal() }
+                    });
+                }
+                if (partes.length === 1) {
+                    Object.assign(where, partes[0]);
+                } else if (partes.length > 1) {
+                    where[Op.or] = partes;
+                }
             }
-            if (typeof id_cliente === 'string' && id_cliente) {
-                where.id_cliente = Number(id_cliente);
-            }
+            aplicarFiltroIn(where, 'id_cliente', idsQuery(req.query, 'id_cliente'));
             if (typeof fecha_desde === 'string' && fecha_desde) {
                 const inicio = parseFechaLocal(fecha_desde);
                 if (!Number.isNaN(inicio.getTime())) {
@@ -251,7 +265,8 @@ export class VentaController {
             // Bloquear antes de insertar detalles evita actualizar bloqueos compartidos de sus FK.
             for (const id of [...new Set(lineas.map(l => l.id_producto).filter((id): id is number => !!id))].sort((a, b) => a - b)) {
                 const producto = await Productos.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
-                if (!producto || producto.get('eliminado')) throw new ErrorDespacho('Producto inexistente o inactivo', 400);
+                    if (!producto || producto.get('eliminado')) throw new ErrorDespacho('Producto inexistente o inactivo', 400);
+                    if (!disponiblePara(producto, 'VENTAS')) throw new ErrorDespacho('Este producto está disponible solo para compras', 400);
             }
             // Mantener el mismo orden de bloqueo en ventas concurrentes.
             for (const linea of [...lineas].sort((a, b) => (a.id_producto || 0) - (b.id_producto || 0))) {
@@ -420,6 +435,7 @@ export class VentaController {
                 return;
             }
             const entregasReales = await ReservaVenta.findAll({ where: { id_venta: idVenta }, transaction });
+            let restockDesdeReservas = false;
             for (const reserva of entregasReales) {
                 const entregado = Number(reserva.get('entregado'));
                 if (!(entregado > 0)) {
@@ -440,6 +456,7 @@ export class VentaController {
                     res.status(409).json({ mensaje: stock.mensaje });
                     return;
                 }
+                restockDesdeReservas = true;
                 await reserva.update({ entregado: 0 }, { transaction });
             }
             if (entrega) await liberarReservas(idVenta, transaction);
@@ -499,7 +516,7 @@ export class VentaController {
             }
 
             for (const linea of detalles) {
-                if (entrega) continue;
+                if (entrega || restockDesdeReservas) continue;
                 const idProducto = linea.get('id_producto') as number | null;
                 if (!idProducto) {
                     continue;
@@ -521,6 +538,7 @@ export class VentaController {
                 }
             }
 
+            const estadoAnterior = venta.get('estado');
             await venta.update({
                 estado: ESTADO_VENTA.ANULADA,
                 saldo_pendiente: 0,
@@ -535,7 +553,7 @@ export class VentaController {
                 idCaja: idCajaVenta || null,
                 accion: 'ANULACION',
                 motivo,
-                anterior: { total, saldo, estado: venta.get('estado') },
+                anterior: { total, saldo, estado: estadoAnterior },
                 nuevo: { total, saldo: 0, estado: ESTADO_VENTA.ANULADA },
                 transaction
             });
@@ -558,12 +576,8 @@ export class CobranzaController {
             if (typeof req.query.id_venta === 'string' && req.query.id_venta) {
                 where.id_venta = Number(req.query.id_venta);
             }
-            if (typeof req.query.id_cliente === 'string' && req.query.id_cliente) {
-                where.id_cliente = Number(req.query.id_cliente);
-            }
-            if (typeof req.query.metodo === 'string' && req.query.metodo) {
-                where.metodo_pago = req.query.metodo;
-            }
+            aplicarFiltroIn(where, 'id_cliente', idsQuery(req.query, 'id_cliente'));
+            aplicarFiltroIn(where, 'metodo_pago', valoresQuery(req.query, 'metodo'));
             aplicarFiltroFecha(where, req.query);
             const cobranzas = await Cobranza.findAll({
                 where,

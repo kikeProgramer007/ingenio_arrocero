@@ -78,7 +78,9 @@ export function etiquetaCategoria(categoria: string): string {
         GASTO_EMPRESA: 'Gasto de empresa',
         RETIRO_PERSONAL: 'Retiro personal',
         ANULACION_VENTA: 'Anulación de venta',
-        OTRO_EGRESO: 'Otro egreso'
+        OTRO_EGRESO: 'Otro egreso',
+        TRANSFERENCIA_CAJA: 'Transferencia entre cajas',
+        APORTE_EXTERNO: 'Aporte externo'
     };
     return map[categoria] || categoria;
 }

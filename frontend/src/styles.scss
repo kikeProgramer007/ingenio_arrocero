@@ -81,13 +81,18 @@
     width: 100%;
 }
 
+.barra-listado .p-multiselect,
+.barra-listado p-multiselect {
+    width: 100%;
+}
+
 @media (min-width: 640px) {
     .barra-listado > .campo {
-        width: 11rem;
+        width: 13rem;
     }
 
     .barra-listado > .campo-sm {
-        width: 9.5rem;
+        width: 12rem;
     }
 
     .barra-listado > .campo-fecha {

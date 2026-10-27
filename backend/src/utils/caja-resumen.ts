@@ -15,6 +15,7 @@ export interface DesgloseMovimientos {
     gastos_empresa: number;
     retiros: number;
     otros_egresos: number;
+    transferencias: number;
     efectivo_ingresos: number;
     efectivo_egresos: number;
     qr_ingresos: number;
@@ -37,6 +38,7 @@ export function resumirMovimientos(movimientos: any[]): DesgloseMovimientos {
     let gastosEmpresa = 0;
     let retiros = 0;
     let otrosEgresos = 0;
+    let transferencias = 0;
     let efectivoIngresos = 0;
     let efectivoEgresos = 0;
     let qrIngresos = 0;
@@ -58,6 +60,8 @@ export function resumirMovimientos(movimientos: any[]): DesgloseMovimientos {
             }
             if (CATEGORIAS_COBRO_CLIENTE.includes(categoria as any)) {
                 cobrosClientes += monto;
+            } else if (categoria === CATEGORIA_INGRESO.TRANSFERENCIA_CAJA) {
+                transferencias += monto;
             } else {
                 otrosIngresos += monto;
             }
@@ -76,6 +80,8 @@ export function resumirMovimientos(movimientos: any[]): DesgloseMovimientos {
                 retiros += monto;
             } else if (categoria === CATEGORIA_EGRESO.ANULACION_VENTA) {
                 anulacionesVenta += monto;
+            } else if (categoria === CATEGORIA_EGRESO.TRANSFERENCIA_CAJA) {
+                transferencias += monto;
             } else {
                 otrosEgresos += monto;
             }
@@ -95,6 +101,7 @@ export function resumirMovimientos(movimientos: any[]): DesgloseMovimientos {
         gastos_empresa: roundMoney(gastosEmpresa),
         retiros: roundMoney(retiros),
         otros_egresos: roundMoney(otrosEgresos),
+        transferencias: roundMoney(transferencias),
         efectivo_ingresos: roundMoney(efectivoIngresos),
         efectivo_egresos: roundMoney(efectivoEgresos),
         qr_ingresos: roundMoney(qrIngresos),

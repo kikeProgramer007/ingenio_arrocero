@@ -11,6 +11,7 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
@@ -30,7 +31,7 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA, UNIDADES_MEDIDA } from '..
 @Component({
     selector: 'app-empaques',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, IconFieldModule, InputIconModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, AyudaCampoComponent, EstadoVacioComponent, InputNumeroComponent, KpiGridComponent, TablaBusquedaComponent, TablaEsqueletoComponent, BotonesExportarComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, IconFieldModule, InputIconModule, InputTextModule, SelectModule, MultiSelectModule, TableModule, TagModule, TextareaModule, AyudaCampoComponent, EstadoVacioComponent, InputNumeroComponent, KpiGridComponent, TablaBusquedaComponent, TablaEsqueletoComponent, BotonesExportarComponent],
     template: `
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div class="min-w-0">
@@ -54,7 +55,7 @@ import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA, UNIDADES_MEDIDA } from '..
             <div class="barra-listado">
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Existencia</label>
-                    <p-select [options]="estadosStock" optionLabel="label" optionValue="value" [(ngModel)]="filtroStock" placeholder="Todas" fluid appendTo="body" />
+                    <p-multiselect [options]="estadosStock" optionLabel="label" optionValue="value" [(ngModel)]="filtroStock" placeholder="Todas" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
@@ -195,9 +196,8 @@ export class EmpaquesPage implements OnInit {
     filasTabla = FILAS_TABLA;
     filtrarTabla = filtrarTabla;
     items: any[] = [];
-    filtroStock = '';
+    filtroStock: string[] = [];
     estadosStock = [
-        { label: 'Todas', value: '' },
         { label: 'Bajo mínimo', value: 'BAJO' },
         { label: 'En rango', value: 'OK' }
     ];
@@ -279,13 +279,10 @@ export class EmpaquesPage implements OnInit {
     }
 
     get itemsFiltrados(): any[] {
-        if (this.filtroStock === 'BAJO') {
-            return this.items.filter((p) => p.bajo_minimo);
+        if (!this.filtroStock.length) {
+            return this.items;
         }
-        if (this.filtroStock === 'OK') {
-            return this.items.filter((p) => !p.bajo_minimo);
-        }
-        return this.items;
+        return this.items.filter((p) => this.filtroStock.some((estado) => (estado === 'BAJO' ? p.bajo_minimo : estado === 'OK' ? !p.bajo_minimo : true)));
     }
 
     get kpis(): KpiItem[] {

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -10,6 +10,7 @@ import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
@@ -28,6 +29,7 @@ import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
 import { METODOS_DOCUMENTO_FILTRO, ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
+import { parametrosLista } from '../../shared/utils/filtro-lista';
 import { ExportarService } from '../../shared/services/exportar.service';
 import { TooltipModule } from 'primeng/tooltip';
 
@@ -36,7 +38,7 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
 @Component({
     selector: 'app-gastos',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent, TooltipModule],
+    imports: [CommonModule, FormsModule, ButtonModule, ChartModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, MultiSelectModule, TableModule, TagModule, TextareaModule, EstadoVacioComponent, KpiGridComponent, DialogCajaCerradaComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, MetodoPagoComponent, InputNumeroComponent, TablaBusquedaComponent, TooltipModule],
     template: `
         <app-dialog-caja-cerrada [(visible)]="dialogCajaCerrada" />
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -51,26 +53,26 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
             <div class="barra-listado">
                 <div class="campo">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Ver <app-ayuda-campo texto="Empresa: gastos operativos. Personal: retiros. Todo: ambos." posicion="bottom" /></label>
-                    <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Tipo" fluid appendTo="body" />
+                    <p-multiselect [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Categoría</label>
-                    <p-select [options]="categoriasFiltro" [(ngModel)]="filtroCategoria" placeholder="Todas" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="categoriasFiltro" [(ngModel)]="filtroCategoria" placeholder="Todas" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
-                <div class="campo" *ngIf="esRetiro">
+                <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Persona</label>
-                    <p-select [options]="beneficiarios" optionLabel="nombre" optionValue="nombre" [(ngModel)]="filtroPersona" placeholder="Todas" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="beneficiarios" optionLabel="nombre" optionValue="nombre" [(ngModel)]="filtroPersona" placeholder="Todas" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Método</label>
-                    <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-fecha">
                     <label class="block font-bold mb-1 text-sm">Período</label>
                     <p-datepicker selectionMode="range" [(ngModel)]="rango" dateFormat="dd/mm/yy" [showIcon]="true" iconDisplay="input" [readonlyInput]="true" placeholder="Fechas" fluid />
                 </div>
                 <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
-                <app-botones-exportar tipo="egresos" [tipoGasto]="filtroTipo || undefined" [categoria]="filtroCategoria" [metodo]="filtroMetodo" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
+                <app-botones-exportar tipo="egresos" [tipoGasto]="filtroTipo" [categoria]="filtroCategoria" [metodo]="filtroMetodo" [fechaDesde]="fechaDesde" [fechaHasta]="fechaHasta" />
             </div>
         </div>
         <div class="card mb-4" *ngIf="porPagar.length">
@@ -217,12 +219,12 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                 <ng-template #header>
                     <tr>
                         <th>Fecha</th>
-                        <th *ngIf="filtroTipo === ''">Tipo</th>
+                        <th *ngIf="filtroTipo.length !== 1">Tipo</th>
+                        <th>Categoría</th>
                         <th>Concepto</th>
                         <th>Persona</th>
                         <th>Monto</th>
                         <th>Pendiente</th>
-                        <th>Caja</th>
                         <th>Estado</th>
                         <th>Usuario</th>
                         <th></th>
@@ -231,12 +233,12 @@ const CATEGORIAS = ['Combustible', 'Transporte', 'Energía', 'Mantenimiento', 'R
                 <ng-template #body let-item>
                     <tr>
                         <td>{{ formatFecha(item.fecha) }}</td>
-                        <td *ngIf="filtroTipo === ''">{{ etiquetaTipo(item.tipo) }}</td>
+                        <td *ngIf="filtroTipo.length !== 1">{{ etiquetaTipo(item.tipo) }}</td>
+                        <td>{{ item.categoria || 'Otros' }}</td>
                         <td>{{ item.concepto }}</td>
                         <td>{{ item.persona || '-' }}</td>
                         <td>{{ formatBs(item.monto) }}</td>
                         <td>{{ item.saldo_pendiente ? formatBs(item.saldo_pendiente) : '-' }}</td>
-                        <td><p-tag [value]="item.descontar_caja ? 'Descontado' : 'Sin descontar'" [severity]="item.descontar_caja ? 'danger' : 'secondary'" /></td>
                         <td><p-tag [value]="etiquetaEstado(item)" [severity]="severidadEstado(item)" /></td>
                         <td>{{ nombreUsuario(item.usuario) }}</td>
                         <td>
@@ -336,9 +338,9 @@ export class GastosPage implements OnInit {
     filasTabla = FILAS_TABLA;
     filtrarTabla = filtrarTabla;
     tipo = 'GASTO_EMPRESA';
-    filtroTipo = 'GASTO_EMPRESA';
-    filtroCategoria = '';
-    filtroMetodo = '';
+    filtroTipo: string[] = ['GASTO_EMPRESA'];
+    filtroCategoria: string[] = [];
+    filtroMetodo: string[] = [];
     rango: Date[] | null = null;
     metodosFiltro = METODOS_DOCUMENTO_FILTRO;
     categoriasFiltro = CATEGORIAS;
@@ -346,11 +348,10 @@ export class GastosPage implements OnInit {
     idBeneficiario: number | null = null;
     nuevaCategoria = '';
     nuevaPersona = '';
-    filtroPersona = '';
+    filtroPersona: string[] = [];
     tiposFiltro = [
         { label: 'Empresa', value: 'GASTO_EMPRESA' },
-        { label: 'Personal', value: 'RETIRO_PERSONAL' },
-        { label: 'Todos', value: '' }
+        { label: 'Personal', value: 'RETIRO_PERSONAL' }
     ];
     titulo = 'Gastos de empresa';
     subtitulo = 'Gastos y servicios al contado o a crédito. A crédito la caja no se mueve hasta que registres el pago.';
@@ -408,7 +409,7 @@ export class GastosPage implements OnInit {
 
     ngOnInit(): void {
         this.tipo = this.route.snapshot.data['tipo'] || 'GASTO_EMPRESA';
-        this.filtroTipo = this.tipo;
+        this.filtroTipo = [this.tipo];
         this.titulo = this.route.snapshot.data['titulo'] || this.titulo;
         if (this.esRetiro) {
             this.subtitulo = 'El dinero sale siempre del efectivo de caja chica. No hace falta abrir la caja principal.';
@@ -471,7 +472,7 @@ export class GastosPage implements OnInit {
     }
 
     get listandoEmpresa(): boolean {
-        return this.filtroTipo === 'GASTO_EMPRESA';
+        return this.filtroTipo.length === 1 && this.filtroTipo[0] === 'GASTO_EMPRESA';
     }
 
     get esEmpresa(): boolean {
@@ -488,7 +489,7 @@ export class GastosPage implements OnInit {
     }
 
     get columnasLista(): number {
-        return this.filtroTipo === '' ? 10 : 9;
+        return this.filtroTipo.length !== 1 ? 10 : 9;
     }
 
     get porPagar(): any[] {
@@ -683,24 +684,16 @@ export class GastosPage implements OnInit {
 
     cargar(): void {
         this.cargando = true;
-        const params: { tipo?: string; categoria?: string; metodo?: string; persona?: string; fecha_desde?: string; fecha_hasta?: string } = {};
-        if (this.filtroTipo) {
-            params.tipo = this.filtroTipo;
-        }
-        if (this.filtroCategoria) {
-            params.categoria = this.filtroCategoria;
-        }
-        if (this.filtroPersona) {
-            params.persona = this.filtroPersona;
-        }
-        if (this.filtroMetodo) {
-            params.metodo = this.filtroMetodo;
-        }
+        let params = new HttpParams();
+        params = parametrosLista(params, 'tipo', this.filtroTipo);
+        params = parametrosLista(params, 'categoria', this.filtroCategoria);
+        params = parametrosLista(params, 'persona', this.filtroPersona);
+        params = parametrosLista(params, 'metodo', this.filtroMetodo);
         if (this.fechaDesde) {
-            params.fecha_desde = this.fechaDesde;
+            params = params.set('fecha_desde', this.fechaDesde);
         }
         if (this.fechaHasta) {
-            params.fecha_hasta = this.fechaHasta;
+            params = params.set('fecha_hasta', this.fechaHasta);
         }
         this.http.get<any[]>(apiUrl('/api/gastos'), { params }).subscribe({
             next: (data) => {

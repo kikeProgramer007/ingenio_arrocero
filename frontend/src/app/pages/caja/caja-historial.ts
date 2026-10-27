@@ -5,7 +5,7 @@ import { AvisoService } from '../../shared/services/aviso.service';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
-import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ESTADOS_CAJA_OPTIONS } from './caja.constants';
@@ -32,7 +32,7 @@ import { nombreUsuario } from '../../shared/utils/usuario';
         ButtonModule,
         DatePickerModule,
         DialogModule,
-        SelectModule,
+        MultiSelectModule,
         TableModule,
         TagModule,
         CuadreCajaComponent,
@@ -53,7 +53,7 @@ import { nombreUsuario } from '../../shared/utils/usuario';
             <div class="barra-listado">
                 <div class="campo campo-sm">
                     <label class="block font-bold mb-1 text-sm">Estado</label>
-                    <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="estado" placeholder="Estado" fluid appendTo="body" />
+                    <p-multiselect [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="estado" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-fecha">
                     <label class="block font-bold mb-1 text-sm">Período</label>
@@ -205,8 +205,8 @@ export class CajaHistorial implements OnInit {
     cargando = false;
     dialogDetalle = false;
     rangoFechas: Date[] | null = null;
-    estado = '';
-    estados = ESTADOS_CAJA_OPTIONS;
+    estado: string[] = [];
+    estados = ESTADOS_CAJA_OPTIONS.filter((item) => item.value);
     itemsAcciones: MenuItem[] = [];
 
     formatBs = formatBs;
@@ -236,14 +236,14 @@ export class CajaHistorial implements OnInit {
 
     cargar(): void {
         this.cargando = true;
-        const filtros: { fecha_desde?: string; fecha_hasta?: string; estado?: string } = {};
+        const filtros: { fecha_desde?: string; fecha_hasta?: string; estado?: string[] } = {};
         if (this.rangoFechas?.[0]) {
             filtros.fecha_desde = this.toIsoDate(this.rangoFechas[0]);
         }
         if (this.rangoFechas?.[1]) {
             filtros.fecha_hasta = this.toIsoDate(this.rangoFechas[1]);
         }
-        if (this.estado) {
+        if (this.estado.length) {
             filtros.estado = this.estado;
         }
 
@@ -261,7 +261,7 @@ export class CajaHistorial implements OnInit {
 
     limpiar(): void {
         this.rangoFechas = null;
-        this.estado = '';
+        this.estado = [];
         this.cargar();
     }
 

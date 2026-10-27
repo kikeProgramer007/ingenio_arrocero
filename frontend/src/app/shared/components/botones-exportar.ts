@@ -40,23 +40,24 @@ export class BotonesExportarComponent {
     @Input() tipo: TipoExport = 'resumen';
     @Input() fechaDesde?: string;
     @Input() fechaHasta?: string;
-    @Input() idCliente?: number | null;
-    @Input() estado?: string;
-    @Input() tipoGasto?: string;
+    @Input() idCliente?: number | number[] | null;
+    @Input() estado?: string | string[];
+    @Input() tipoGasto?: string | string[];
     @Input() idCaja?: number | null;
     @Input() id?: number | null;
     @Input() q?: string;
-    @Input() tipoCompra?: string;
-    @Input() metodo?: string;
-    @Input() categoria?: string;
-    @Input() disponibleEn?: string;
-    @Input() idProveedor?: number | null;
+    @Input() tipoCompra?: string | string[];
+    @Input() metodo?: string | string[];
+    @Input() categoria?: string | string[];
+    @Input() disponibleEn?: string | string[];
+    @Input() idProveedor?: number | number[] | null;
     @Input() ordenante?: string;
-    @Input() procedencia?: string;
-    @Input() activos?: string;
-    @Input() tipoMovimiento?: string;
-    @Input() origen?: string;
+    @Input() procedencia?: string | string[];
+    @Input() activos?: string | string[];
+    @Input() tipoMovimiento?: string | string[];
+    @Input() origen?: string | string[];
     @Input() rol?: string;
+    @Input() estadoDespacho?: string | string[];
     @Input() disabled = false;
 
     cargando: FormatoExport | null = null;
@@ -66,6 +67,14 @@ export class BotonesExportarComponent {
         private aviso: AvisoService
     ) {}
 
+    private lista(valor?: string | number | Array<string | number> | null): string[] | undefined {
+        if (valor == null || valor === '') {
+            return undefined;
+        }
+        const valores = (Array.isArray(valor) ? valor : [valor]).map(String).filter((item) => item !== '');
+        return valores.length ? valores : undefined;
+    }
+
     bajar(formato: FormatoExport): void {
         this.cargando = formato;
         const params: ParamsExport = {
@@ -73,24 +82,25 @@ export class BotonesExportarComponent {
             formato,
             fecha_desde: this.fechaDesde,
             fecha_hasta: this.fechaHasta,
-            id_cliente: this.idCliente || undefined,
-            estado: this.estado || undefined,
-            tipo_gasto: this.tipoGasto || undefined,
+            id_cliente: this.lista(this.idCliente),
+            estado: this.lista(this.estado),
+            tipo_gasto: this.lista(this.tipoGasto),
             id_caja: this.idCaja || undefined,
             id: this.id || undefined,
             q: this.q?.trim() || undefined,
-            tipo_compra: this.tipoCompra || undefined,
-            metodo: this.metodo || undefined,
-            categoria: this.categoria || undefined,
-            id_categoria: this.categoria || undefined,
-            disponible_en: this.disponibleEn || undefined,
-            id_proveedor: this.idProveedor || undefined,
+            tipo_compra: this.lista(this.tipoCompra),
+            metodo: this.lista(this.metodo),
+            categoria: this.lista(this.categoria),
+            id_categoria: this.lista(this.categoria),
+            disponible_en: this.lista(this.disponibleEn),
+            id_proveedor: this.lista(this.idProveedor),
             ordenante: this.ordenante?.trim() || undefined,
-            procedencia: this.procedencia || undefined,
-            activos: this.activos || undefined,
-            tipo_movimiento: this.tipoMovimiento || undefined,
-            origen: this.origen || undefined,
-            rol: this.rol || undefined
+            procedencia: this.lista(this.procedencia),
+            activos: this.lista(this.activos),
+            tipo_movimiento: this.lista(this.tipoMovimiento),
+            origen: this.lista(this.origen),
+            rol: this.rol || undefined,
+            estado_despacho: this.lista(this.estadoDespacho)
         };
         this.exportarService.descargar(params).subscribe({
             next: () => {

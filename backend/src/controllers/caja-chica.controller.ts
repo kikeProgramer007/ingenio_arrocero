@@ -16,6 +16,7 @@ import {
 } from '../utils/caja-ingreso';
 import { resumirMovimientos } from '../utils/caja-resumen';
 import { aplicarFiltroFecha } from '../utils/fecha';
+import { aplicarFiltroIn, valoresQuery } from '../utils/query';
 import { handleError } from '../utils/error.handler';
 import { clasificarDiferencia, roundMoney, toMoney } from '../utils/money';
 
@@ -83,9 +84,7 @@ export class CajaChicaController {
                 return;
             }
             const where: Record<string, unknown> = { id_caja: caja.get('id') };
-            if (typeof req.query.tipo === 'string' && req.query.tipo) {
-                where.tipo = req.query.tipo;
-            }
+            aplicarFiltroIn(where, 'tipo', valoresQuery(req.query, 'tipo'));
             aplicarFiltroFecha(where, req.query);
             const filas = await MovimientoCaja.findAll({
                 where,

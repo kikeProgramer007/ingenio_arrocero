@@ -12,6 +12,7 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
@@ -28,6 +29,7 @@ import { Menu, MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { coincideFiltro } from '../../shared/utils/filtro-lista';
 import { esUnidadMedidaValida, MENSAJE_UNIDAD_MEDIDA, UNIDADES_MEDIDA, normalizarUnidadMedida } from '../../shared/utils/unidad-medida';
 import { ProductosService } from './productos.service';
 import { DespachosService } from '../despachos/despachos.service';
@@ -36,7 +38,7 @@ import { DrawerModule } from 'primeng/drawer';
 @Component({
     selector: 'app-inventario',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, IconFieldModule, InputIconModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule, MenuModule, TablaBusquedaComponent, DrawerModule],
+    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, IconFieldModule, InputIconModule, InputTextModule, SelectModule, MultiSelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule, MenuModule, TablaBusquedaComponent, DrawerModule],
     template: `
         <p-drawer [(visible)]="dialogReservas" position="right" [header]="'Reservas · ' + (productoReservas?.nombre || '')" styleClass="!w-full md:!w-[32rem]">
             <div *ngIf="productoReservas" class="flex flex-wrap gap-4 mb-4"><span>Físico: {{productoReservas.stock}}</span><span>Reservado: {{productoReservas.reservado || 0}}</span><strong>Disponible: {{productoReservas.disponible ?? productoReservas.stock}} {{productoReservas.unidad_medida}}</strong></div>
@@ -61,11 +63,11 @@ import { DrawerModule } from 'primeng/drawer';
             <div class="flex flex-wrap items-end gap-3 mb-4">
                 <div class="w-full sm:w-60">
                     <label class="block font-bold mb-1 text-sm">Categoría</label>
-                    <p-select [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCategoria" placeholder="Todas" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="categorias" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCategoria" placeholder="Todas" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="w-full sm:w-60">
                     <label class="block font-bold mb-1 text-sm">Disponible en</label>
-                    <p-select [options]="disponibilidades" optionLabel="label" optionValue="value" [(ngModel)]="filtroDisponible" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="disponibilidades" optionLabel="label" optionValue="value" [(ngModel)]="filtroDisponible" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
@@ -221,8 +223,8 @@ export class InventarioPage implements OnInit {
     unidadesInvalidas: { origen: string; id: number; nombre: string; unidad: string; detalle: string }[] = [];
     mensajeUnidad = MENSAJE_UNIDAD_MEDIDA;
     unidades = UNIDADES_MEDIDA;
-    filtroCategoria: number | null = null;
-    filtroDisponible = '';
+    filtroCategoria: number[] = [];
+    filtroDisponible: string[] = [];
     disponibilidades = [
         { label: 'Compras y ventas', value: 'AMBOS' },
         { label: 'Solo compras', value: 'COMPRAS' },
@@ -234,20 +236,15 @@ export class InventarioPage implements OnInit {
     tocadoUnidad = false;
 
     dialogReservas = false; cargandoReservas = false; reservas: any[] = []; productoReservas: any = null;
-    get categoriaExport(): string {
-        return this.filtroCategoria ? String(this.filtroCategoria) : '';
+    get categoriaExport(): string[] {
+        return this.filtroCategoria.map(String);
     }
 
     get productosFiltrados(): any[] {
-        return this.productos.filter((p) => {
-            if (this.filtroCategoria && Number(p.id_categoria || p.categoria?.id) !== Number(this.filtroCategoria)) {
-                return false;
-            }
-            if (this.filtroDisponible && (p.disponible_en || 'AMBOS') !== this.filtroDisponible) {
-                return false;
-            }
-            return true;
-        });
+        return this.productos.filter((p) =>
+            coincideFiltro(p.id_categoria || p.categoria?.id, this.filtroCategoria) &&
+            coincideFiltro(p.disponible_en || 'AMBOS', this.filtroDisponible)
+        );
     }
     imagenProductoFallida(event: Event): void {
         const imagen = event.target as HTMLImageElement;

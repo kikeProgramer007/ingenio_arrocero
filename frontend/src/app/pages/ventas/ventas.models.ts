@@ -45,7 +45,7 @@ export interface Venta {
     usuario: { id: number; username: string; nombre?: string | null } | null;
     detalles?: LineaVenta[];
     cobranzas?: Cobranza[];
-    bitacora?: { accion: string; motivo: string; fecha: string; usuario?: { username: string; nombre?: string | null } | null }[];
+    bitacora?: { accion: string; motivo: string; fecha: string; id_caja?: number | null; anterior?: unknown; nuevo?: unknown; usuario?: { username: string; nombre?: string | null } | null }[];
 }
 
 export interface Cobranza {

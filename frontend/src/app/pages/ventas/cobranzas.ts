@@ -6,6 +6,7 @@ import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
@@ -27,6 +28,7 @@ import { ExportarService } from '../../shared/services/exportar.service';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { coincideFiltro } from '../../shared/utils/filtro-lista';
 import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
@@ -40,6 +42,7 @@ import { TooltipModule } from 'primeng/tooltip';
         InputTextModule,
         DatePickerModule,
         SelectModule,
+        MultiSelectModule,
         TableModule,
         TagModule,
         TextareaModule,
@@ -79,7 +82,7 @@ import { TooltipModule } from 'primeng/tooltip';
                 </div>
                 <div class="w-full sm:w-[14rem] min-w-0">
                     <label class="block font-bold mb-1 text-sm">Cliente</label>
-                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroClientePorCobrar" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroClientePorCobrar" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="w-full sm:w-[10rem]">
                     <label class="block font-bold mb-1 text-sm">Desde</label>
@@ -91,7 +94,7 @@ import { TooltipModule } from 'primeng/tooltip';
                 </div>
                 <div class="w-full sm:w-[14rem] min-w-0">
                     <label class="block font-bold mb-1 text-sm">Ver</label>
-                    <p-select [options]="filtrosSituacion" optionLabel="label" optionValue="value" [(ngModel)]="filtroSituacion" fluid />
+                    <p-multiselect [options]="filtrosSituacion" optionLabel="label" optionValue="value" [(ngModel)]="filtroSituacion" placeholder="Todas" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <app-botones-exportar tipo="cuentas_por_cobrar" [estado]="estadoPorCobrar" [idCliente]="filtroClientePorCobrar" [fechaDesde]="desdePorCobrar" [fechaHasta]="hastaPorCobrar" />
             </div>
@@ -157,11 +160,11 @@ import { TooltipModule } from 'primeng/tooltip';
             <div class="barra-listado">
                 <div class="campo-wide">
                     <label class="block font-bold mb-1 text-sm">Cliente</label>
-                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCliente" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCliente" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Método</label>
-                    <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-fecha">
                     <label class="block font-bold mb-1 text-sm">Período</label>
@@ -199,6 +202,7 @@ import { TooltipModule } from 'primeng/tooltip';
                         <th>Método</th>
                         <th>Saldo restante</th>
                         <th>Usuario</th>
+                        <th>Situación</th>
                         <th></th>
                     </tr>
                 </ng-template>
@@ -211,17 +215,18 @@ import { TooltipModule } from 'primeng/tooltip';
                         <td>{{ etiquetaPago(item) }}</td>
                         <td>{{ formatBs(item.venta?.saldo_pendiente) }}</td>
                         <td>{{ nombreUsuario(item.usuario) }}</td>
+                        <td><p-tag *ngIf="item.revertido || item.venta?.estado === 'ANULADA'" value="Revertido" severity="warn" /><span *ngIf="!(item.revertido || item.venta?.estado === 'ANULADA')">Vigente</span></td>
                         <td>
                             <p-button icon="pi pi-file-pdf" [rounded]="true" [outlined]="true" severity="danger" pTooltip="Ver boleta" tooltipPosition="left" (onClick)="exportarCobranza(item.id)" />
                         </td>
                     </tr>
                 </ng-template>
                 <ng-template #loadingbody>
-                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
+                    <tr *ngFor="let f of [0,1,2,3,4,5,6,7]" app-tabla-esqueleto [columnas]="9" [fila]="f"></tr>
                 </ng-template>
                 <ng-template #emptymessage>
                     <tr>
-                        <td colspan="8">
+                        <td colspan="9">
                             <app-estado-vacio
                                 icono="pi pi-money-bill"
                                 titulo="No hay cobranzas registradas"
@@ -276,18 +281,17 @@ export class CobranzasPage implements OnInit {
     cobranzas: Cobranza[] = [];
     clientes: Cliente[] = [];
     pendientes: Venta[] = [];
-    filtroCliente: number | null = null;
-    filtroMetodo = '';
+    filtroCliente: number[] = [];
+    filtroMetodo: string[] = [];
     rango: Date[] | null = null;
     metodosFiltro = METODOS_DOCUMENTO_FILTRO;
     diasAviso = 7;
-    filtroSituacion = '';
-    filtroClientePorCobrar: number | null = null;
+    filtroSituacion: string[] = [];
+    filtroClientePorCobrar: number[] = [];
     desdePorCobrar = '';
     hastaPorCobrar = '';
     vista: 'por-cobrar' | 'realizados' = 'por-cobrar';
     filtrosSituacion = [
-        { label: 'Todas con saldo', value: '' },
         { label: 'Vencidas', value: 'VENCIDA' },
         { label: 'Vencen hoy', value: 'VENCE HOY' },
         { label: 'Próximo a vencer', value: 'POR VENCER' },
@@ -315,8 +319,8 @@ export class CobranzasPage implements OnInit {
     get porCobrar(): Venta[] {
         const ordenSituacion: Record<string, number> = { 'VENCIDA': 0, 'VENCE HOY': 1, 'POR VENCER': 2, 'AL DIA': 3, 'SIN PLAZO': 4 };
         return this.pendientes
-            .filter((v) => !this.filtroSituacion || v.situacion === this.filtroSituacion)
-            .filter((v) => !this.filtroClientePorCobrar || v.id_cliente === this.filtroClientePorCobrar)
+            .filter((v) => coincideFiltro(v.situacion, this.filtroSituacion))
+            .filter((v) => coincideFiltro(v.id_cliente, this.filtroClientePorCobrar))
             .filter((v) => {
                 const dia = String(v.fecha || '').slice(0, 10);
                 if (this.desdePorCobrar && dia < this.desdePorCobrar) return false;
@@ -326,10 +330,16 @@ export class CobranzasPage implements OnInit {
             .sort((a, b) => (ordenSituacion[a.situacion || ''] ?? 9) - (ordenSituacion[b.situacion || ''] ?? 9));
     }
 
-    get estadoPorCobrar(): string {
-        if (this.filtroSituacion === 'VENCIDA') return 'VENCIDAS';
-        if (this.filtroSituacion === 'POR VENCER' || this.filtroSituacion === 'VENCE HOY') return 'POR_VENCER';
-        return 'CON_SALDO';
+    get estadoPorCobrar(): string | string[] {
+        if (!this.filtroSituacion.length) {
+            return 'CON_SALDO';
+        }
+        const mapa: Record<string, string> = {
+            VENCIDA: 'VENCIDAS',
+            'POR VENCER': 'POR_VENCER',
+            'VENCE HOY': 'POR_VENCER'
+        };
+        return [...new Set(this.filtroSituacion.map((s) => mapa[s] || 'CON_SALDO'))];
     }
 
     get saldoFiltrado(): number {
@@ -395,8 +405,8 @@ export class CobranzasPage implements OnInit {
     cargar(): void {
         this.cargando = true;
         this.ventasService.listarCobranzas({
-            id_cliente: this.filtroCliente || undefined,
-            metodo: this.filtroMetodo || undefined,
+            id_cliente: this.filtroCliente.length ? this.filtroCliente : undefined,
+            metodo: this.filtroMetodo.length ? this.filtroMetodo : undefined,
             fecha_desde: this.fechaDesde,
             fecha_hasta: this.fechaHasta
         }).subscribe({

@@ -7,6 +7,7 @@ import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TextareaModule } from 'primeng/textarea';
 import { etiquetaPago, formatBs, formatFecha, esErrorCajaCerrada } from '../caja/caja.utils';
@@ -42,6 +43,7 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
         InputTextModule,
         DatePickerModule,
         SelectModule,
+        MultiSelectModule,
         TableModule,
         TextareaModule,
         EstadoVacioComponent,
@@ -73,11 +75,11 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
             <div class="barra-listado">
                 <div class="campo-wide">
                     <label class="block font-bold mb-1 text-sm">Proveedor</label>
-                    <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroProveedor" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroProveedor" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Método</label>
-                    <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-fecha">
                     <label class="block font-bold mb-1 text-sm">Período</label>
@@ -200,8 +202,8 @@ export class PagosPage implements OnInit {
     pagos: PagoProveedor[] = [];
     proveedores: Proveedor[] = [];
     pendientes: Compra[] = [];
-    filtroProveedor: number | null = null;
-    filtroMetodo = '';
+    filtroProveedor: number[] = [];
+    filtroMetodo: string[] = [];
     rango: Date[] | null = null;
     metodosFiltro = METODOS_DOCUMENTO_FILTRO;
     cargando = false;
@@ -265,8 +267,8 @@ export class PagosPage implements OnInit {
     cargar(): void {
         this.cargando = true;
         this.comprasService.listarPagos({
-            id_proveedor: this.filtroProveedor || undefined,
-            metodo: this.filtroMetodo || undefined,
+            id_proveedor: this.filtroProveedor.length ? this.filtroProveedor : undefined,
+            metodo: this.filtroMetodo.length ? this.filtroMetodo : undefined,
             fecha_desde: this.fechaDesde,
             fecha_hasta: this.fechaHasta
         }).subscribe({

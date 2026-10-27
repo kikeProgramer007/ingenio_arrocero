@@ -438,7 +438,7 @@ function dibujarReciboMovimiento(doc: PDFKit.PDFDocument, datos: DatosReciboMovi
         doc.text(`EFECTIVO  ${numeroTabla(datos.efectivo)}`, left + width * 0.68, totY, { width: width * 0.32, align: 'right' });
         totY = doc.y + 2;
     }
-    if (datos.qr != null) {
+    if (datos.qr != null && Number(datos.qr) > 0) {
         doc.font('Helvetica').fontSize(g.metaSize);
         doc.text(`QR  ${numeroTabla(datos.qr)}`, left + width * 0.68, totY, { width: width * 0.32, align: 'right' });
         totY = doc.y + 2;
@@ -636,7 +636,7 @@ function dibujarVoucher(doc: PDFKit.PDFDocument, datos: DatosVoucher, opciones: 
         const paginaTxt = paginas > 1 ? `Página: ${pagina} de ${paginas}` : `Página: ${pagina}`;
         doc.text(paginaTxt, tituloX, metaY, { width: tituloW, align: 'right', lineBreak: false });
         metaY += metaStep;
-        doc.text(`VENDEDOR: ${datos.vendedor.toUpperCase()}`, tituloX, metaY, { width: tituloW, align: 'right', lineBreak: false });
+        doc.text(`VENDEDOR: ${datos.vendedor.toUpperCase()}`, tituloX, metaY, { width: tituloW, align: 'right' });
         metaY += metaStep;
         doc.text(`FECHA: ${fmtFechaCorta(datos.fecha)}`, tituloX, metaY, { width: tituloW, align: 'right', lineBreak: false });
         metaY += metaStep;

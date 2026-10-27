@@ -1,5 +1,6 @@
-import { ESTADO_COMPRA, inferirTipoCompra, TIPO_COMPRA, TIPOS_COMPRA } from '../constants/compra.constants';
+import { ESTADO_COMPRA, inferirTipoCompra, TIPO_CAMBIO_DEFAULT, TIPO_COMPRA, TIPOS_COMPRA } from '../constants/compra.constants';
 import { parseFechaLocal } from './fecha';
+import { valoresQuery } from './query';
 import { toQty } from './inventario';
 import { roundMoney, toMoney } from './money';
 import { normalizarUnidadMedida } from './unidad-medida';
@@ -10,7 +11,7 @@ export interface FiltroCuentaProveedor {
     desde?: Date | null;
     hasta?: Date | null;
     id_productor?: number | null;
-    tipo_compra?: string | null;
+    tipo_compra?: string | string[] | null;
     ordenante?: string | null;
 }
 
@@ -171,9 +172,9 @@ function precioDeCompra(compra: any): number {
     return linea ? toMoney(linea.precio_unitario) : 0;
 }
 
-function tipoCambioDe(valor: unknown): number {
+function tipoCambioDe(valor: unknown, respaldo = 0): number {
     const tc = Number(valor);
-    return Number.isFinite(tc) && tc > 0 ? tc : 0;
+    return Number.isFinite(tc) && tc > 0 ? tc : respaldo;
 }
 
 function idProductorDe(origen: any): number | null {
@@ -205,11 +206,14 @@ function pasaFiltroProductor(idProductor: number | null, filtro?: number | null)
     return idProductor === filtro;
 }
 
-function pasaFiltroTipo(compraLike: any, filtro?: string | null): boolean {
-    if (!filtro) {
+function pasaFiltroTipo(compraLike: any, filtro?: string | string[] | null): boolean {
+    const tipos = (Array.isArray(filtro) ? filtro : filtro ? [filtro] : [])
+        .map((t) => String(t).toUpperCase())
+        .filter(Boolean);
+    if (!tipos.length) {
         return true;
     }
-    return inferirTipoCompra(compraLike || {}) === filtro;
+    return tipos.includes(inferirTipoCompra(compraLike || {}));
 }
 
 export function filtroCuentaDesdeQuery(query: { fecha_desde?: unknown; fecha_hasta?: unknown; id_productor?: unknown; tipo_compra?: unknown; ordenante?: unknown }): FiltroCuentaProveedor {
@@ -232,13 +236,15 @@ export function filtroCuentaDesdeQuery(query: { fecha_desde?: unknown; fecha_has
         }
     }
     const idProductor = Number(query.id_productor);
-    const tipo = String(query.tipo_compra || '').toUpperCase();
+    const tipos = valoresQuery(query, 'tipo_compra')
+        .map((t) => t.toUpperCase())
+        .filter((t) => (TIPOS_COMPRA as string[]).includes(t));
     const ordenante = typeof query.ordenante === 'string' ? query.ordenante.trim() : '';
     return {
         desde,
         hasta,
         id_productor: Number.isFinite(idProductor) && idProductor > 0 ? idProductor : null,
-        tipo_compra: (TIPOS_COMPRA as string[]).includes(tipo) ? tipo : null,
+        tipo_compra: tipos.length === 1 ? tipos[0] : tipos.length ? tipos : null,
         ordenante: ordenante || null
     };
 }
@@ -270,7 +276,7 @@ export function armarCuentaProveedor(compras: any[], pagos: any[], acopios: any[
     inventario: LineaInventarioProveedor[];
 } {
     const filtroProductor = filtro.id_productor && Number(filtro.id_productor) > 0 ? Number(filtro.id_productor) : null;
-    const filtroTipo = filtro.tipo_compra ? String(filtro.tipo_compra).toUpperCase() : null;
+    const filtroTipo = filtro.tipo_compra;
     const comprasVigentes = compras.filter((c) => {
         if (String(c.estado) === ESTADO_COMPRA.ANULADA) {
             return false;
@@ -285,7 +291,8 @@ export function armarCuentaProveedor(compras: any[], pagos: any[], acopios: any[
         }
         return pasaFiltroTipo(compra, filtroTipo);
     });
-    const acopiosFiltrados = (filtroProductor || filtroTipo) ? [] : acopios;
+    const hayFiltroTipo = Array.isArray(filtroTipo) ? filtroTipo.length > 0 : !!filtroTipo;
+    const acopiosFiltrados = (filtroProductor || hayFiltroTipo) ? [] : acopios;
     const eventos: Omit<LineaKardexProveedor, 'saldo' | 'saldo_usd'>[] = [];
 
     let comprasTotal = 0;
@@ -297,9 +304,10 @@ export function armarCuentaProveedor(compras: any[], pagos: any[], acopios: any[
         const saldo = toMoney(compra.saldo_pendiente);
         const servicio = esCompraServicio(compra);
         const tipoCompra = inferirTipoCompra(compra);
-        const tipoCambio = tipoCambioDe(compra.tipo_cambio);
-        const cargoUsd = tipoCompra === TIPO_COMPRA.CHALA
-            ? (compra.total_usd != null ? toMoney(compra.total_usd) : usdDe(total, tipoCambio))
+        const esChala = tipoCompra === TIPO_COMPRA.CHALA;
+        const tipoCambio = tipoCambioDe(compra.tipo_cambio, esChala ? TIPO_CAMBIO_DEFAULT : 0);
+        const cargoUsd = esChala
+            ? (toMoney(compra.total_usd) || usdDe(total, tipoCambio))
             : 0;
         if (servicio) {
             serviciosTotal = roundMoney(serviciosTotal + total);
@@ -335,8 +343,15 @@ export function armarCuentaProveedor(compras: any[], pagos: any[], acopios: any[
     for (const pago of pagosFiltrados) {
         const compraPago = pago.compra || compras.find((c) => c.id === pago.id_compra);
         const monto = toMoney(pago.monto);
-        const tcPago = tipoCambioDe(compraPago?.tipo_cambio);
-        const abonoUsd = usdDe(monto, tcPago);
+        const esChalaPago = inferirTipoCompra(compraPago || {}) === TIPO_COMPRA.CHALA;
+        const tcPago = tipoCambioDe(compraPago?.tipo_cambio, esChalaPago ? TIPO_CAMBIO_DEFAULT : 0);
+        const totalCompra = toMoney(compraPago?.total);
+        const usdCompra = esChalaPago
+            ? (toMoney(compraPago?.total_usd) || usdDe(totalCompra, tcPago))
+            : 0;
+        const abonoUsd = esChalaPago
+            ? (totalCompra > 0 && usdCompra > 0 ? roundMoney(usdCompra * monto / totalCompra) : usdDe(monto, tcPago))
+            : 0;
         pagadoCompras = roundMoney(pagadoCompras + monto);
         pagadoUsd = roundMoney(pagadoUsd + abonoUsd);
         eventos.push({

@@ -4,7 +4,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { AvisoService } from '../../shared/services/aviso.service';
@@ -41,7 +41,7 @@ interface DocPorCobrar {
         FormsModule,
         ButtonModule,
         DatePickerModule,
-        SelectModule,
+        MultiSelectModule,
         TableModule,
         TagModule,
         BotonesExportarComponent,
@@ -65,21 +65,23 @@ interface DocPorCobrar {
                 </div>
                 <div class="w-full sm:w-[14rem] min-w-0">
                     <label class="block font-bold mb-1 text-sm">Cliente</label>
-                    <p-select
+                    <p-multiselect
                         [options]="clientes"
                         optionLabel="nombre"
                         optionValue="id"
                         [(ngModel)]="idCliente"
                         placeholder="Todos"
+                        display="chip"
                         [showClear]="true"
                         [filter]="true"
                         filterPlaceholder="Buscar"
                         fluid
+                        appendTo="body"
                     />
                 </div>
                 <div class="w-full sm:w-[11rem] min-w-0">
                     <label class="block font-bold mb-1 text-sm">Estado</label>
-                    <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="estado" fluid />
+                    <p-multiselect [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="estado" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <p-button label="Consultar" icon="pi pi-filter" (onClick)="cargar()" [loading]="cargando" />
                 <div class="w-full lg:w-[18rem] min-w-0 lg:ml-auto">
@@ -167,9 +169,9 @@ export class CuentasPorCobrarPage implements OnInit {
     formatFechaCorta = formatFechaCorta;
     desde: Date | null = null;
     hasta: Date | null = null;
-    idCliente: number | null = null;
+    idCliente: number[] = [];
     busqueda = '';
-    estado = 'CON_SALDO';
+    estado: string[] = ['CON_SALDO'];
     estados = [
         { label: 'Con saldo', value: 'CON_SALDO' },
         { label: 'Vencidas', value: 'VENCIDAS' },
@@ -233,10 +235,11 @@ export class CuentasPorCobrarPage implements OnInit {
 
     cargar(): void {
         this.cargando = true;
-        const params: Record<string, string> = { estado: this.estado };
+        const params: Record<string, string | string[]> = {};
+        if (this.estado.length) params['estado'] = this.estado;
         if (this.fechaDesde) params['fecha_desde'] = this.fechaDesde;
         if (this.fechaHasta) params['fecha_hasta'] = this.fechaHasta;
-        if (this.idCliente) params['id_cliente'] = String(this.idCliente);
+        if (this.idCliente.length) params['id_cliente'] = this.idCliente.map(String);
         this.http.get<{ documentos: DocPorCobrar[]; totales: { vendido: number; cobrado: number; pendiente: number } }>(
             apiUrl('/api/reportes/cuentas-por-cobrar'),
             { params }

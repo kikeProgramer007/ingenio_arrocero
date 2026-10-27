@@ -13,6 +13,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
 import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -57,6 +58,7 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
         MessageModule,
         DatePickerModule,
         SelectModule,
+        MultiSelectModule,
         SelectButtonModule,
         TableModule,
         TagModule,
@@ -86,15 +88,15 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
             <div class="barra-listado">
                 <div class="campo campo-sm">
                     <label class="block font-bold mb-1 text-sm">Estado</label>
-                    <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid appendTo="body" />
+                    <p-multiselect [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Tipo</label>
-                    <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-wide">
                     <label class="block font-bold mb-1 text-sm">Proveedor</label>
-                    <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroProveedor" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroProveedor" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-fecha">
                     <label class="block font-bold mb-1 text-sm">Período</label>
@@ -132,7 +134,8 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                         <th class="text-right">Total</th>
                         <th class="text-right">Pagado</th>
                         <th class="text-right">Saldo</th>
-                        <th>Estado</th>
+                        <th>Pago</th>
+                        <th>Recepción</th>
                         <th></th>
                     </tr>
                 </ng-template>
@@ -149,6 +152,7 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                         <td class="text-right">{{ formatBs(compra.pagado) }}</td>
                         <td class="text-right">{{ formatBs(compra.saldo_pendiente) }}</td>
                         <td><p-tag [value]="compra.estado" [severity]="severidad(compra.estado)" /></td>
+                        <td><p-tag *ngIf="compra.anticipada" [value]="etiquetaRecepcion(compra.estado_recepcion)" severity="info" /><span *ngIf="!compra.anticipada">—</span></td>
                         <td>
                             <p-button
                                 icon="pi pi-ellipsis-v"
@@ -519,6 +523,12 @@ import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
                     </ng-template>
                 </p-table>
                 <div class="mt-3 font-medium text-right">Total {{ formatBs(detalle.total) }} · Saldo {{ formatBs(detalle.saldo_pendiente) }}</div>
+                <div class="mt-4" *ngIf="recepciones.length">
+                    <div class="font-semibold mb-2">Historial de recepciones</div>
+                    <div *ngFor="let rec of recepciones" class="text-sm mb-1">
+                        {{ formatFecha(rec.fecha) }} · {{ rec.descripcion }} · {{ rec.cantidad }} · {{ rec.usuario?.nombre || rec.usuario?.username || '-' }}
+                    </div>
+                </div>
             </ng-container>
             <ng-template #footer>
                 <p-button *ngIf="detalle?.anticipada && detalle?.estado_recepcion !== 'RECIBIDA'" label="Registrar recepción" icon="pi pi-box" [loading]="recibiendo" (onClick)="recibir()" />
@@ -676,9 +686,9 @@ export class ComprasPage implements OnInit {
     tocadoCategoriaProducto = false;
     tocadoUnidadProducto = false;
     formProveedor = this.proveedorVacio();
-    filtroEstado = '';
-    filtroTipo = '';
-    filtroProveedor: number | null = null;
+    filtroEstado: string[] = [];
+    filtroTipo: string[] = [];
+    filtroProveedor: number[] = [];
     rango: Date[] | null = null;
     tiposFiltro = [
         { label: 'Arroz en chala', value: 'CHALA' },
@@ -686,7 +696,6 @@ export class ComprasPage implements OnInit {
         { label: 'Otros / servicios', value: 'OTROS' }
     ];
     estados = [
-        { label: 'Todas', value: '' },
         { label: 'Pendiente', value: 'PENDIENTE' },
         { label: 'Parcial', value: 'PARCIAL' },
         { label: 'Pagada', value: 'PAGADA' }
@@ -726,6 +735,7 @@ export class ComprasPage implements OnInit {
     idProveedor: number | null = null;
     ordenante = '';
     anticipada = false;
+    recepciones: { fecha: string; descripcion: string; cantidad: number; usuario?: { nombre?: string; username?: string } }[] = [];
     recibiendo = false;
     idProductoChala: number | null = null;
     lineas: LineaCompra[] = [this.lineaVacia()];
@@ -859,9 +869,9 @@ export class ComprasPage implements OnInit {
     cargar(): void {
         this.cargando = true;
         this.comprasService.listar({
-            estado: this.filtroEstado || undefined,
-            tipo_compra: this.filtroTipo || undefined,
-            id_proveedor: this.filtroProveedor || undefined,
+            estado: this.filtroEstado.length ? this.filtroEstado : undefined,
+            tipo_compra: this.filtroTipo.length ? this.filtroTipo : undefined,
+            id_proveedor: this.filtroProveedor.length ? this.filtroProveedor : undefined,
             fecha_desde: this.fechaDesde,
             fecha_hasta: this.fechaHasta
         }).subscribe({
@@ -1253,7 +1263,14 @@ export class ComprasPage implements OnInit {
         this.comprasService.obtener(compra.id).subscribe({
             next: (data) => {
                 this.detalle = data;
+                this.recepciones = [];
                 this.dialogDetalle = true;
+                if (data.anticipada) {
+                    this.comprasService.recepciones(data.id).subscribe({
+                        next: (recs) => (this.recepciones = recs),
+                        error: () => (this.recepciones = [])
+                    });
+                }
             },
             error: (err) => this.aviso.error(err, 'No se pudo cargar el detalle')
         });

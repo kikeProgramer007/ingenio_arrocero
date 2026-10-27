@@ -3,6 +3,11 @@ import { MovimientoInventario, TIPO_INVENTARIO } from '../models/movimiento-inve
 import { Productos } from '../models/productos.model';
 import { ReservaProducto } from '../models/despacho.model';
 
+export function disponiblePara(producto: { get?: (k: string) => unknown; disponible_en?: string } | null | undefined, uso: 'COMPRAS' | 'VENTAS'): boolean {
+    const valor = String(producto?.get ? producto.get('disponible_en') : producto?.disponible_en || 'AMBOS');
+    return valor === 'AMBOS' || valor === uso;
+}
+
 function toQty(value: unknown): number {
     const n = typeof value === 'string' ? parseFloat(value) : Number(value);
     if (!Number.isFinite(n)) {

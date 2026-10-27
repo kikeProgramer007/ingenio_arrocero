@@ -4,7 +4,18 @@ import { ReservaProducto } from '../models/despacho.model';
 import { Acopio, Caja, Campana, CategoriaProducto, Cliente, Compra, CompraDetalle, Gasto, MovimientoCaja, PagoGasto, PagoProveedor, Produccion, Productor, Productos, Proveedor, User, Venta, VentaDetalle, Cobranza } from '../models';
 import { handleError } from '../utils/error.handler';
 import { clasificarDiferencia, formatBs, formatUsd, roundMoney, toMoney } from '../utils/money';
-import { enviarExcel, enviarPdf, HojaExport } from '../utils/exportar';
+import { aplicarPlantillaFormal, enviarExcel, enviarPdf, HojaExport } from '../utils/exportar';
+import {
+    etiquetaCategoriaMovimiento,
+    etiquetaDisponibleEn,
+    etiquetaEstadoCaja,
+    etiquetaEstadoVenta,
+    etiquetaMetodoPago,
+    etiquetaOrigenMovimiento,
+    etiquetaTipoGasto,
+    etiquetaTipoMovimiento,
+    etiquetaTipoOperacionProveedor
+} from '../utils/etiquetas-documento';
 import { COLUMNAS_DOCUMENTOS } from '../utils/columnas-documentos';
 import { DatosReciboMovimiento, DatosVoucher, enviarReciboMovimientoPdf, enviarVoucherPdf, LineaVoucher } from '../utils/pdf-voucher';
 import { ESTADO_CAJA, TIPO_MOVIMIENTO } from '../constants/caja.constants';
@@ -16,6 +27,7 @@ import { armarCuentaProveedor, esCompraServicio, extraerProductores, filtroCuent
 import { etiquetaTipoCompra, inferirTipoCompra, TIPO_COMPRA } from '../constants/compra.constants';
 import { getAuthUser, nombreVisible } from '../utils/auth-user';
 import { datosEmpresa, refrescarEmpresa } from '../utils/empresa';
+import { aplicarFiltroIn, idsQuery, valoresQuery } from '../utils/query';
 
 function rango(req: Request) {
     const desde = typeof req.query.fecha_desde === 'string' && req.query.fecha_desde
@@ -63,36 +75,11 @@ function fmtFechaDia(valor: Date | string | null | undefined): string {
     return date.toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function etiquetaCategoria(categoria: string): string {
-    const map: Record<string, string> = {
-        VENTA: 'Venta',
-        COBRANZA: 'Cobranza',
-        OTRO_INGRESO: 'Otro ingreso',
-        ANULACION_VENTA: 'Anulación de venta',
-        PAGO_PROVEEDOR: 'Pago a proveedor',
-        GASTO_EMPRESA: 'Gasto de empresa',
-        RETIRO_PERSONAL: 'Retiro personal',
-        OTRO_EGRESO: 'Otro egreso'
-    };
-    return map[categoria] || categoria;
-}
-
-function etiquetaMetodo(metodo: string): string {
-    const map: Record<string, string> = {
-        EFECTIVO: 'Efectivo',
-        QR: 'QR',
-        MIXTO: 'Mixto',
-        TRANSFERENCIA: 'QR',
-        OTRO: 'QR'
-    };
-    return map[metodo] || metodo || '-';
-}
-
 function etiquetaMetodoDocumento(item: { metodo_pago?: string; monto_efectivo?: unknown; monto_qr?: unknown }): string {
     if (item.metodo_pago === 'MIXTO') {
-        return `Mixto (efectivo ${toMoney(item.monto_efectivo).toFixed(2)} + QR ${toMoney(item.monto_qr).toFixed(2)})`;
+        return `Mixto (efectivo ${toMoney(item.monto_efectivo).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} + QR ${toMoney(item.monto_qr).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
     }
-    return etiquetaMetodo(String(item.metodo_pago || ''));
+    return etiquetaMetodoPago(String(item.metodo_pago || ''));
 }
 
 function partesMontos(item: { metodo_pago?: string; monto?: unknown; monto_efectivo?: unknown; monto_qr?: unknown }): { efectivo: number; qr: number } {
@@ -105,18 +92,6 @@ function partesMontos(item: { metodo_pago?: string; monto?: unknown; monto_efect
         return { efectivo: toMoney(item.monto_efectivo), qr: toMoney(item.monto_qr) };
     }
     return { efectivo: monto, qr: 0 };
-}
-
-function etiquetaOrigen(origen: string): string {
-    const map: Record<string, string> = {
-        MANUAL: 'Manual',
-        VENTA: 'Venta',
-        COBRANZA: 'Cobranza',
-        COMPRA: 'Compra',
-        GASTO: 'Gasto / retiro',
-        PAGO_PROVEEDOR: 'Pago a proveedor'
-    };
-    return map[origen] || origen || '-';
 }
 
 function periodoTexto(desde: Date, hasta: Date): string {
@@ -258,7 +233,7 @@ export class ReporteController {
             if (tipo !== 'venta' && tipo !== 'compra') {
                 const consulta = ReporteController.consultaFiltros(req, desde, hasta);
                 for (const hoja of hojas) {
-                    ReporteController.aplicarPlantillaFormal(hoja, consulta);
+                    aplicarPlantillaFormal(hoja, consulta);
                 }
             }
             const base = `ingenio-${tipo}-${ymd(desde)}`;
@@ -408,17 +383,21 @@ export class ReporteController {
 
     private static whereCuentasPorCobrar(req: Request): any {
         const where: any = { estado: { [Op.ne]: ESTADO_VENTA.ANULADA } };
-        const filtro = typeof req.query.estado === 'string' && req.query.estado ? req.query.estado : 'CON_SALDO';
-        if (filtro === 'CON_SALDO' || filtro === 'VENCIDAS' || filtro === 'POR_VENCER') {
+        const filtrosEstado = valoresQuery(req.query, 'estado');
+        const todos = !filtrosEstado.length || filtrosEstado.includes('TODAS');
+        const filtro = todos
+            ? 'TODAS'
+            : filtrosEstado.length === 1
+                ? filtrosEstado[0]
+                : 'CON_SALDO';
+        if (!todos) {
             where.estado = { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] };
             where.saldo_pendiente = { [Op.gt]: 0 };
         }
         if (filtro === 'VENCIDAS') {
             where.fecha_vencimiento = { [Op.lt]: ymdLocal() };
         }
-        if (typeof req.query.id_cliente === 'string' && req.query.id_cliente) {
-            where.id_cliente = Number(req.query.id_cliente);
-        }
+        aplicarFiltroIn(where, 'id_cliente', idsQuery(req.query, 'id_cliente'));
         if (typeof req.query.fecha_desde === 'string' && req.query.fecha_desde) {
             const inicio = parseFechaLocal(req.query.fecha_desde);
             if (!Number.isNaN(inicio.getTime())) {
@@ -441,10 +420,10 @@ export class ReporteController {
             { label: 'Período', valor: `${fmtFechaDia(desde)} - ${fmtFechaDia(hasta)}` }
         ];
         if (typeof req.query.estado === 'string' && req.query.estado) {
-            consulta.push({ label: 'Estado', valor: req.query.estado });
+            consulta.push({ label: 'Estado', valor: etiquetaEstadoVenta(req.query.estado) });
         }
         if (typeof req.query.tipo_gasto === 'string' && req.query.tipo_gasto) {
-            consulta.push({ label: 'Tipo', valor: req.query.tipo_gasto });
+            consulta.push({ label: 'Tipo', valor: etiquetaTipoGasto(req.query.tipo_gasto) });
         }
         if (typeof req.query.q === 'string' && req.query.q.trim()) {
             consulta.push({ label: 'Búsqueda', valor: req.query.q.trim() });
@@ -452,21 +431,6 @@ export class ReporteController {
         return consulta;
     }
 
-    private static aplicarPlantillaFormal(hoja: HojaExport, consulta: { label: string; valor: string }[]): void {
-        hoja.plantilla = 'formal';
-        hoja.mostrarFirma = true;
-        if (!hoja.consulta?.length) {
-            hoja.consulta = consulta;
-        }
-        const primera = String(hoja.columnas[0] || '').toLowerCase().replace(/\s/g, '');
-        if (primera === 'nro' || primera === '#') {
-            hoja.columnas[0] = 'N°';
-        } else if (hoja.columnas.length > 2 && !/^n[°º]$/.test(primera)) {
-            hoja.columnas = ['N°', ...hoja.columnas];
-            hoja.filas = hoja.filas.map((fila, i) => [i + 1, ...fila]);
-        }
-        hoja.pie = undefined;
-    }
 
     private static async datosCuentasPorCobrar(req: Request) {
         const { where, filtro } = ReporteController.whereCuentasPorCobrar(req);
@@ -548,7 +512,7 @@ export class ReporteController {
             doc.saldo,
             doc.fecha_vencimiento ? fmtFechaDia(doc.fecha_vencimiento) : 'Sin plazo',
             doc.dias_atraso == null ? '-' : doc.dias_atraso,
-            doc.vencida ? 'VENCIDA' : doc.estado
+            etiquetaEstadoVenta(doc.vencida ? 'VENCIDA' : doc.estado)
         ]);
         const consulta: { label: string; valor: string }[] = [];
         consulta.push({
@@ -589,15 +553,9 @@ export class ReporteController {
         if (typeof req.query.id_caja === 'string' && req.query.id_caja) {
             where.id_caja = Number(req.query.id_caja);
         }
-        if (typeof req.query.tipo_movimiento === 'string' && req.query.tipo_movimiento) {
-            where.tipo = req.query.tipo_movimiento;
-        }
-        if (typeof req.query.origen === 'string' && req.query.origen) {
-            where.origen = req.query.origen;
-        }
-        if (typeof req.query.metodo === 'string' && req.query.metodo) {
-            where.metodo_pago = req.query.metodo;
-        }
+        aplicarFiltroIn(where, 'tipo', valoresQuery(req.query, 'tipo_movimiento'));
+        aplicarFiltroIn(where, 'origen', valoresQuery(req.query, 'origen'));
+        aplicarFiltroIn(where, 'metodo_pago', valoresQuery(req.query, 'metodo'));
         if (hayPeriodoQuery(req.query) || !where.id_caja) {
             where.fecha = { [Op.between]: [desde, hasta] };
         }
@@ -615,11 +573,11 @@ export class ReporteController {
             else egresos += monto;
             return [
                 fmtFecha(item.fecha),
-                item.tipo,
-                etiquetaOrigen(item.origen),
-                etiquetaCategoria(item.categoria),
+                etiquetaTipoMovimiento(item.tipo),
+                etiquetaOrigenMovimiento(item.origen),
+                etiquetaCategoriaMovimiento(item.categoria),
                 item.concepto || '',
-                etiquetaMetodo(item.metodo_pago),
+                etiquetaMetodoPago(item.metodo_pago),
                 item.tipo === TIPO_MOVIMIENTO.INGRESO ? monto : 0,
                 item.tipo === TIPO_MOVIMIENTO.EGRESO ? monto : 0,
                 nombreVisible(item.usuario)
@@ -641,16 +599,28 @@ export class ReporteController {
 
     private static async hojaVentas(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
         const where: any = { fecha: { [Op.between]: [desde, hasta] } };
-        if (req.query.estado === 'VENCIDA') {
-            where.estado = { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] };
-            where.saldo_pendiente = { [Op.gt]: 0 };
-            where.fecha_vencimiento = { [Op.lt]: ymd(new Date()) };
-        } else if (typeof req.query.estado === 'string' && req.query.estado) {
-            where.estado = req.query.estado;
+        const estadosVenta = valoresQuery(req.query, 'estado');
+        if (estadosVenta.length) {
+            const reales = estadosVenta.filter((e) => e !== 'VENCIDA');
+            const vencida = estadosVenta.includes('VENCIDA');
+            const partes: any[] = [];
+            if (reales.length) {
+                partes.push({ estado: reales.length === 1 ? reales[0] : { [Op.in]: reales } });
+            }
+            if (vencida) {
+                partes.push({
+                    estado: { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] },
+                    saldo_pendiente: { [Op.gt]: 0 },
+                    fecha_vencimiento: { [Op.lt]: ymd(new Date()) }
+                });
+            }
+            if (partes.length === 1) {
+                Object.assign(where, partes[0]);
+            } else if (partes.length > 1) {
+                where[Op.or] = partes;
+            }
         }
-        if (typeof req.query.id_cliente === 'string' && req.query.id_cliente) {
-            where.id_cliente = Number(req.query.id_cliente);
-        }
+        aplicarFiltroIn(where, 'id_cliente', idsQuery(req.query, 'id_cliente'));
         const ventas = await Venta.findAll({
             where,
             include: [
@@ -685,10 +655,10 @@ export class ReporteController {
                 cobrado,
                 saldo,
                 fmtFechaDia(v.fecha_vencimiento),
-                esVentaVencida(v.fecha_vencimiento, saldo, estado) ? 'VENCIDA' : estado
+                esVentaVencida(v.fecha_vencimiento, saldo, estado) ? 'Vencida' : etiquetaEstadoVenta(estado)
             ];
         });
-        const vigentes = filas.filter((f) => f[9] !== ESTADO_VENTA.ANULADA);
+        const vigentes = filas.filter((f) => f[9] !== 'Anulada');
         const total = roundMoney(vigentes.reduce((acc, f) => acc + Number(f[3]), 0));
         const cobrado = roundMoney(vigentes.reduce((acc, f) => acc + Number(f[6]), 0));
         const efectivo = roundMoney(vigentes.reduce((acc, f) => acc + Number(f[4]), 0));
@@ -698,11 +668,12 @@ export class ReporteController {
             titulo: 'Ventas',
             subtitulo: periodoTexto(desde, hasta),
             resumen: [
-                { label: 'Cantidad', valor: String(ventas.length) },
+                { label: 'Cantidad', valor: String(vigentes.length) },
                 { label: 'Vendido', valor: total },
                 { label: 'Cobrado efectivo', valor: efectivo },
                 { label: 'Cobrado QR', valor: qr },
-                { label: 'Cobrado', valor: cobrado }
+                { label: 'Cobrado', valor: cobrado },
+                { label: 'Saldo pendiente', valor: roundMoney(vigentes.reduce((acc, f) => acc + Number(f[7]), 0)) }
             ],
             columnas: COLUMNAS_DOCUMENTOS.ventas,
             filas
@@ -711,15 +682,9 @@ export class ReporteController {
 
     private static async hojaEgresos(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
         const where: any = hayPeriodoQuery(req.query) ? { fecha: { [Op.between]: [desde, hasta] } } : {};
-        if (typeof req.query.tipo_gasto === 'string' && req.query.tipo_gasto) {
-            where.tipo = req.query.tipo_gasto;
-        }
-        if (typeof req.query.metodo === 'string' && req.query.metodo) {
-            where.metodo_pago = req.query.metodo;
-        }
-        if (typeof req.query.categoria === 'string' && req.query.categoria) {
-            where.categoria = req.query.categoria;
-        }
+        aplicarFiltroIn(where, 'tipo', valoresQuery(req.query, 'tipo_gasto'));
+        aplicarFiltroIn(where, 'metodo_pago', valoresQuery(req.query, 'metodo'));
+        aplicarFiltroIn(where, 'categoria', valoresQuery(req.query, 'categoria'));
         const gastos = await Gasto.findAll({
             where,
             include: [{ model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }],
@@ -728,15 +693,15 @@ export class ReporteController {
         });
         const filas = gastos.map((g: any) => [
             fmtFecha(g.fecha),
-            g.tipo === 'RETIRO_PERSONAL' ? 'Personal' : 'Empresa',
-            g.categoria || '-',
+            etiquetaTipoGasto(g.tipo),
+            etiquetaCategoriaMovimiento(g.categoria),
             g.concepto || '',
+            g.persona || '',
             toMoney(g.monto),
-            g.descontar_caja && g.id_caja ? 'Sí' : 'No',
             etiquetaMetodoDocumento(g),
             nombreVisible(g.usuario)
         ]);
-        const total = roundMoney(filas.reduce((acc, f) => acc + Number(f[4]), 0));
+        const total = roundMoney(filas.reduce((acc, f) => acc + Number(f[5]), 0));
         return {
             nombre: 'Egresos',
             titulo: 'Gastos y retiros',
@@ -790,10 +755,10 @@ export class ReporteController {
             const monto = toMoney(item.monto);
             return [
                 fmtFecha(item.fecha),
-                item.tipo,
-                etiquetaCategoria(item.categoria),
+                etiquetaTipoMovimiento(item.tipo),
+                etiquetaCategoriaMovimiento(item.categoria),
                 item.concepto || '',
-                etiquetaMetodo(item.metodo_pago),
+                etiquetaMetodoPago(item.metodo_pago),
                 monto,
                 nombreVisible(item.usuario)
             ];
@@ -808,7 +773,7 @@ export class ReporteController {
             : (saldoContado != null ? roundMoney(saldoContado - efectivoEsperado) : null);
         return [{
             nombre: 'Caja',
-            titulo: `Caja #${caja.get('id')} — ${caja.get('estado')}`,
+            titulo: `Caja #${caja.get('id')} — ${etiquetaEstadoCaja(String(caja.get('estado')))}`,
             subtitulo: `Apertura ${fmtFecha(caja.get('fecha_apertura') as Date)} · Cierre ${fmtFecha(caja.get('fecha_cierre') as Date | null)}`,
             resumen: [
                 { label: 'Saldo inicial (efectivo)', valor: saldoInicial },
@@ -888,12 +853,8 @@ export class ReporteController {
 
     private static async hojaCompras(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
         const where: any = hayPeriodoQuery(req.query) ? { fecha: { [Op.between]: [desde, hasta] } } : {};
-        if (typeof req.query.estado === 'string' && req.query.estado) {
-            where.estado = req.query.estado;
-        }
-        if (typeof req.query.id_proveedor === 'string' && req.query.id_proveedor) {
-            where.id_proveedor = Number(req.query.id_proveedor);
-        }
+        aplicarFiltroIn(where, 'estado', valoresQuery(req.query, 'estado'));
+        aplicarFiltroIn(where, 'id_proveedor', idsQuery(req.query, 'id_proveedor'));
         const comprasRaw = await Compra.findAll({
             where,
             include: [
@@ -903,9 +864,9 @@ export class ReporteController {
             order: [['fecha', 'ASC']],
             limit: 2000
         });
-        const tipoCompra = typeof req.query.tipo_compra === 'string' ? req.query.tipo_compra : '';
-        const compras = tipoCompra
-            ? comprasRaw.filter((c) => inferirTipoCompra(c.get({ plain: true })) === tipoCompra)
+        const tiposCompra = valoresQuery(req.query, 'tipo_compra');
+        const compras = tiposCompra.length
+            ? comprasRaw.filter((c) => tiposCompra.includes(inferirTipoCompra(c.get({ plain: true }))))
             : comprasRaw;
         const filas = compras.map((c: any) => {
             const total = toMoney(c.total);
@@ -918,7 +879,7 @@ export class ReporteController {
                 total,
                 roundMoney(total - pendiente),
                 pendiente,
-                c.estado
+                etiquetaEstadoVenta(c.estado)
             ];
         });
         const total = roundMoney(filas.reduce((acc, f) => acc + Number(f[4]), 0));
@@ -966,7 +927,7 @@ export class ReporteController {
         const hojas: HojaExport[] = [{
             nombre: 'Compra',
             titulo: `Comprobante de compra #${compra.id}`,
-            subtitulo: `${compra.proveedor?.nombre || 'Proveedor'} · ${fmtFecha(compra.fecha)} · ${compra.estado}`,
+            subtitulo: `${compra.proveedor?.nombre || 'Proveedor'} · ${fmtFecha(compra.fecha)} · ${etiquetaEstadoVenta(compra.estado)}`,
             resumen: [
                 { label: 'Total', valor: total },
                 { label: 'Pagado', valor: roundMoney(total - pendiente) },
@@ -995,12 +956,8 @@ export class ReporteController {
 
     private static async hojaCobranzas(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
         const where: any = hayPeriodoQuery(req.query) ? { fecha: { [Op.between]: [desde, hasta] } } : {};
-        if (typeof req.query.id_cliente === 'string' && req.query.id_cliente) {
-            where.id_cliente = Number(req.query.id_cliente);
-        }
-        if (typeof req.query.metodo === 'string' && req.query.metodo) {
-            where.metodo_pago = req.query.metodo;
-        }
+        aplicarFiltroIn(where, 'id_cliente', idsQuery(req.query, 'id_cliente'));
+        aplicarFiltroIn(where, 'metodo_pago', valoresQuery(req.query, 'metodo'));
         const cobranzas = await Cobranza.findAll({
             where,
             include: [
@@ -1035,12 +992,8 @@ export class ReporteController {
 
     private static async hojaPagos(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
         const where: any = hayPeriodoQuery(req.query) ? { fecha: { [Op.between]: [desde, hasta] } } : {};
-        if (typeof req.query.id_proveedor === 'string' && req.query.id_proveedor) {
-            where.id_proveedor = Number(req.query.id_proveedor);
-        }
-        if (typeof req.query.metodo === 'string' && req.query.metodo) {
-            where.metodo_pago = req.query.metodo;
-        }
+        aplicarFiltroIn(where, 'id_proveedor', idsQuery(req.query, 'id_proveedor'));
+        aplicarFiltroIn(where, 'metodo_pago', valoresQuery(req.query, 'metodo'));
         const pagos = await PagoProveedor.findAll({
             where,
             include: [
@@ -1075,21 +1028,21 @@ export class ReporteController {
 
     private static async consolidadoPorPagar(req: Request): Promise<{
         corte: string | null;
-        filas: { id: number; proveedor: string; saldo_bs: number; saldo_usd: number; fanegas: number }[];
-        totales: { saldo_bs: number; saldo_usd: number; fanegas: number };
+        filas: { id: number; proveedor: string; telefono: string; notas: number; compras_bs: number; pagos_bs: number; saldo_bs: number; saldo_usd: number; fanegas: number }[];
+        totales: { saldo_bs: number; saldo_usd: number; fanegas: number; compras_bs: number; pagos_bs: number };
     }> {
         const filtro = filtroCuentaDesdeQuery(req.query);
-        const idProveedor = Number(req.query.id_proveedor || 0);
-        const donde = idProveedor ? { id_proveedor: idProveedor } : {};
+        const idsProveedor = idsQuery(req.query, 'id_proveedor');
+        const donde = idsProveedor.length ? { id_proveedor: idsProveedor.length === 1 ? idsProveedor[0] : { [Op.in]: idsProveedor } } : {};
         const [proveedores, compras, pagos, acopios] = await Promise.all([
-            Proveedor.findAll({ where: idProveedor ? { id: idProveedor } : {}, order: [['nombre', 'ASC']] }),
+            Proveedor.findAll({ where: idsProveedor.length ? { id: idsProveedor.length === 1 ? idsProveedor[0] : { [Op.in]: idsProveedor } } : {}, order: [['nombre', 'ASC']] }),
             Compra.findAll({
                 where: donde,
                 include: [{ model: CompraDetalle, as: 'detalles', include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }] }]
             }),
             PagoProveedor.findAll({
                 where: donde,
-                include: [{ model: Compra, as: 'compra', attributes: ['id', 'tipo_compra', 'tipo_cambio', 'total_usd', 'ordenante'] }]
+                include: [{ model: Compra, as: 'compra', attributes: ['id', 'total', 'tipo_compra', 'tipo_cambio', 'total_usd', 'fanegas', 'boleta', 'ordenante'] }]
             }),
             Acopio.findAll({
                 where: donde,
@@ -1097,10 +1050,12 @@ export class ReporteController {
             })
         ]);
         const corte = filtro.hasta || null;
-        const filas: { id: number; proveedor: string; saldo_bs: number; saldo_usd: number; fanegas: number }[] = [];
+        const filas: { id: number; proveedor: string; telefono: string; notas: number; compras_bs: number; pagos_bs: number; saldo_bs: number; saldo_usd: number; fanegas: number }[] = [];
         let totalBs = 0;
         let totalUsd = 0;
         let totalFanegas = 0;
+        let totalCompras = 0;
+        let totalPagos = 0;
         for (const proveedor of proveedores) {
             const id = Number(proveedor.get('id'));
             const cuenta = armarCuentaProveedor(
@@ -1113,9 +1068,14 @@ export class ReporteController {
                 continue;
             }
             const fanegas = cuenta.kardex.reduce((acc, linea) => acc + Number(linea.fanegas || 0), 0);
+            const notas = cuenta.kardex.filter((linea) => linea.tipo === 'COMPRA' || linea.tipo === 'SERVICIO').length;
             filas.push({
                 id,
                 proveedor: String(proveedor.get('nombre')),
+                telefono: String(proveedor.get('telefono') || ''),
+                notas,
+                compras_bs: cuenta.resumen.compras,
+                pagos_bs: cuenta.resumen.pagado_compras,
                 saldo_bs: cuenta.resumen.saldo,
                 saldo_usd: cuenta.resumen.saldo_usd,
                 fanegas
@@ -1123,11 +1083,13 @@ export class ReporteController {
             totalBs = roundMoney(totalBs + cuenta.resumen.saldo);
             totalUsd = roundMoney(totalUsd + cuenta.resumen.saldo_usd);
             totalFanegas += fanegas;
+            totalCompras = roundMoney(totalCompras + cuenta.resumen.compras);
+            totalPagos = roundMoney(totalPagos + cuenta.resumen.pagado_compras);
         }
         return {
             corte: corte ? fmtFecha(corte) : null,
             filas,
-            totales: { saldo_bs: totalBs, saldo_usd: totalUsd, fanegas: totalFanegas }
+            totales: { saldo_bs: totalBs, saldo_usd: totalUsd, fanegas: totalFanegas, compras_bs: totalCompras, pagos_bs: totalPagos }
         };
     }
 
@@ -1145,7 +1107,7 @@ export class ReporteController {
             }),
             PagoProveedor.findAll({
                 where: { id_proveedor: id },
-                include: [{ model: Compra, as: 'compra', attributes: ['id', 'tipo_compra', 'tipo_cambio', 'total_usd', 'ordenante'] }],
+                include: [{ model: Compra, as: 'compra', attributes: ['id', 'total', 'tipo_compra', 'tipo_cambio', 'total_usd', 'fanegas', 'boleta', 'ordenante'] }],
                 order: [['fecha', 'ASC'], ['id', 'ASC']]
             }),
             Acopio.findAll({
@@ -1166,14 +1128,20 @@ export class ReporteController {
         const data = await ReporteController.consolidadoPorPagar(req);
         const filas: (string | number)[][] = data.filas.map((fila) => [
             fila.proveedor,
+            fila.telefono || '',
+            fila.notas,
+            fila.fanegas || '',
+            formatBs(fila.compras_bs),
+            formatBs(fila.pagos_bs),
             formatBs(fila.saldo_bs),
-            fila.saldo_usd ? formatUsd(fila.saldo_usd) : '',
-            fila.fanegas || ''
+            formatUsd(fila.saldo_usd)
         ]);
-        filas.push(['TOTAL', formatBs(data.totales.saldo_bs), data.totales.saldo_usd ? formatUsd(data.totales.saldo_usd) : '', data.totales.fanegas || '']);
+        filas.push(['TOTAL', '', '', data.totales.fanegas || '', formatBs(data.totales.compras_bs), formatBs(data.totales.pagos_bs), formatBs(data.totales.saldo_bs), formatUsd(data.totales.saldo_usd)]);
         const partes = [
             data.corte ? `Saldo al ${data.corte}` : 'Saldo a la fecha',
-            req.query.tipo_compra ? `Tipo ${String(req.query.tipo_compra)}` : '',
+            valoresQuery(req.query, 'tipo_compra').length
+                ? `Tipo ${valoresQuery(req.query, 'tipo_compra').map((t) => etiquetaTipoCompra(t)).join(', ')}`
+                : '',
             req.query.ordenante ? `Ordenante ${String(req.query.ordenante)}` : ''
         ].filter(Boolean);
         return {
@@ -1216,7 +1184,7 @@ export class ReporteController {
                 include: [{
                     model: Compra,
                     as: 'compra',
-                    attributes: ['id', 'tipo_compra', 'tipo_cambio', 'total_usd', 'ordenante'],
+                    attributes: ['id', 'total', 'tipo_compra', 'tipo_cambio', 'total_usd', 'fanegas', 'boleta', 'ordenante'],
                     include: [{ model: Productor, as: 'productor', attributes: ['id', 'nombre'] }]
                 }],
                 order: [['fecha', 'ASC'], ['id', 'ASC']]
@@ -1236,7 +1204,9 @@ export class ReporteController {
             filtro.desde || filtro.hasta
                 ? `Período ${filtro.desde ? fmtFecha(filtro.desde) : 'inicio'} a ${filtro.hasta ? fmtFecha(filtro.hasta) : 'hoy'}`
                 : '',
-            filtro.tipo_compra ? `Tipo ${etiquetaTipoCompra(filtro.tipo_compra)}` : '',
+            filtro.tipo_compra
+                ? `Tipo ${(Array.isArray(filtro.tipo_compra) ? filtro.tipo_compra : [filtro.tipo_compra]).map((t) => etiquetaTipoCompra(t)).join(', ')}`
+                : '',
             filtro.ordenante ? `Ordenante ${filtro.ordenante}` : ''
         ].filter(Boolean);
         const montoCuenta = (bs: number, usd?: number) => {
@@ -1267,7 +1237,7 @@ export class ReporteController {
                     ...cuenta.kardex.map((linea) => [
                         fmtFecha(linea.fecha),
                         linea.ordenante || '',
-                        linea.tipo,
+                        etiquetaTipoOperacionProveedor(linea.tipo),
                         linea.detalle,
                         linea.boleta || '',
                         linea.chofer || '',
@@ -1280,7 +1250,7 @@ export class ReporteController {
                         linea.abono ? formatBs(linea.abono) : '',
                         linea.abono_usd ? formatUsd(linea.abono_usd) : '',
                         formatBs(linea.saldo),
-                        linea.saldo_usd ? formatUsd(linea.saldo_usd) : ''
+                        formatUsd(linea.saldo_usd)
                     ]),
                     [
                         '',
@@ -1294,11 +1264,11 @@ export class ReporteController {
                         '',
                         '',
                         formatBs(r.cargo),
-                        '',
+                        r.compras_usd ? formatUsd(r.compras_usd) : '',
                         formatBs(r.abono),
-                        '',
+                        r.pagado_usd ? formatUsd(r.pagado_usd) : '',
                         formatBs(r.saldo),
-                        ''
+                        formatUsd(r.saldo_usd)
                     ]
                 ]
             },
@@ -1319,14 +1289,8 @@ export class ReporteController {
 
     private static async hojaInventario(req: Request): Promise<HojaExport> {
         const where: any = { eliminado: false };
-        const idCategoria = Number(req.query.id_categoria || 0);
-        if (idCategoria) {
-            where.id_categoria = idCategoria;
-        }
-        const disponible = String(req.query.disponible_en || '').toUpperCase();
-        if (disponible === 'COMPRAS' || disponible === 'VENTAS' || disponible === 'AMBOS') {
-            where.disponible_en = disponible;
-        }
+        aplicarFiltroIn(where, 'id_categoria', idsQuery(req.query, 'id_categoria'));
+        aplicarFiltroIn(where, 'disponible_en', valoresQuery(req.query, 'disponible_en'));
         const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
         if (q) {
             where.nombre = { [Op.like]: `%${q}%` };
@@ -1359,8 +1323,10 @@ export class ReporteController {
             titulo: 'Inventario de productos',
             subtitulo: [
                 `Generado ${fmtFecha(new Date())}`,
-                idCategoria ? `Categoría ${idCategoria}` : '',
-                disponible ? `Disponible en ${disponible}` : '',
+                valoresQuery(req.query, 'id_categoria').length ? `Categoría ${valoresQuery(req.query, 'id_categoria').join(', ')}` : '',
+                valoresQuery(req.query, 'disponible_en').length
+                    ? `Disponible en ${valoresQuery(req.query, 'disponible_en').map((d) => etiquetaDisponibleEn(d)).join(', ')}`
+                    : '',
                 q ? `Búsqueda ${q}` : ''
             ].filter(Boolean).join(' · '),
             resumen: [{ label: 'Productos', valor: String(productos.length) }],
@@ -1371,14 +1337,13 @@ export class ReporteController {
 
     private static async hojaClientes(req: Request): Promise<HojaExport> {
         const where: any = {};
-        if (req.query.activos === 'inactivos') {
+        const activos = valoresQuery(req.query, 'activos');
+        if (activos.length === 1 && activos[0] === 'inactivos') {
             where.activo = false;
-        } else if (req.query.activos && req.query.activos !== 'todos') {
+        } else if (activos.length === 1 && activos[0] === 'activos') {
             where.activo = true;
         }
-        if (typeof req.query.procedencia === 'string' && req.query.procedencia) {
-            where.procedencia = req.query.procedencia;
-        }
+        aplicarFiltroIn(where, 'procedencia', valoresQuery(req.query, 'procedencia'));
         const clientes = await Cliente.findAll({ where, order: [['nombre', 'ASC']], limit: 4000 });
         const filas = clientes.map((c: any) => [
             c.nombre,
@@ -1400,9 +1365,10 @@ export class ReporteController {
 
     private static async hojaProveedores(req: Request): Promise<HojaExport> {
         const where: any = {};
-        if (req.query.activos === 'inactivos') {
+        const activosProv = valoresQuery(req.query, 'activos');
+        if (activosProv.length === 1 && activosProv[0] === 'inactivos') {
             where.activo = false;
-        } else if (req.query.activos && req.query.activos !== 'todos') {
+        } else if (activosProv.length === 1 && activosProv[0] === 'activos') {
             where.activo = true;
         }
         const proveedores = await Proveedor.findAll({ where, order: [['nombre', 'ASC']], limit: 4000 });
@@ -1430,19 +1396,16 @@ export class ReporteController {
             order: [['nombre', 'ASC']],
             limit: 4000
         });
-        const estado = typeof req.query.estado === 'string' ? req.query.estado : '';
+        const estadosEmpaque = valoresQuery(req.query, 'estado');
         const bolsas = productos.filter((p: any) => {
             if (!esProductoEmpaque(p)) {
                 return false;
             }
             const bajo = Number(p.stock) <= Number(p.stock_minimo);
-            if (estado === 'BAJO') {
-                return bajo;
+            if (!estadosEmpaque.length) {
+                return true;
             }
-            if (estado === 'OK') {
-                return !bajo;
-            }
-            return true;
+            return estadosEmpaque.some((estado) => (estado === 'BAJO' ? bajo : estado === 'OK' ? !bajo : true));
         });
         const filas = bolsas.map((p: any) => {
             const stock = Number(p.stock);
@@ -1498,9 +1461,7 @@ export class ReporteController {
 
     private static async hojaCampanas(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
         const where: any = {};
-        if (typeof req.query.estado === 'string' && req.query.estado) {
-            where.estado = req.query.estado;
-        }
+        aplicarFiltroIn(where, 'estado', valoresQuery(req.query, 'estado'));
         if (hayPeriodoQuery(req.query)) {
             where.fecha_inicio = { [Op.between]: [ymd(desde), ymd(hasta)] };
         }
@@ -1515,7 +1476,7 @@ export class ReporteController {
             fmtFechaDia(c.fecha_inicio),
             c.fecha_fin ? fmtFechaDia(c.fecha_fin) : '-',
             Number(c.meta_cantidad || 0) || '-',
-            c.estado,
+            etiquetaEstadoVenta(c.estado),
             nombreVisible(c.usuario)
         ]);
         return {
@@ -1530,9 +1491,7 @@ export class ReporteController {
 
     private static async hojaCajas(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
         const where: any = {};
-        if (typeof req.query.estado === 'string' && req.query.estado) {
-            where.estado = req.query.estado;
-        }
+        aplicarFiltroIn(where, 'estado', valoresQuery(req.query, 'estado'));
         if (hayPeriodoQuery(req.query)) {
             where.fecha_apertura = { [Op.between]: [desde, hasta] };
         }
@@ -1571,7 +1530,7 @@ export class ReporteController {
                 c.saldo_esperado != null ? toMoney(c.saldo_esperado) : '-',
                 c.saldo_contado != null ? toMoney(c.saldo_contado) : '-',
                 c.diferencia != null ? toMoney(c.diferencia) : '-',
-                c.estado
+                etiquetaEstadoCaja(c.estado)
             ];
         });
         return {
@@ -1948,7 +1907,7 @@ export class ReporteController {
             metodo: etiquetaMetodoDocumento(mov),
             detalle,
             contraparteLabel: 'DOC',
-            contraparteNombre: etiquetaCategoria(mov.categoria),
+            contraparteNombre: etiquetaCategoriaMovimiento(mov.categoria),
             nitCi: '',
             lineas: [{
                 codigo: `${ingreso ? 'IN' : 'EG'} / ${String(mov.id).padStart(6, '0')}`,

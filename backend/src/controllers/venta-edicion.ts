@@ -1,15 +1,18 @@
 import { Request, Response } from 'express';
-import { BitacoraVenta, CategoriaProducto, Productos, ReservaVenta, Venta, VentaDetalle, sequelize } from '../models';
+import { BitacoraVenta, CategoriaProducto, Cliente, Cobranza, Productos, ReservaVenta, User, Venta, VentaDetalle, sequelize } from '../models';
 import { estadoVentaPorSaldo } from '../constants/venta.constants';
 import { ErrorDespacho, contadorReserva, reservarLinea } from '../servicios/despachos.servicio';
-import { getAuthUser } from '../utils/auth-user';
+import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
 import { resolverPlazoCredito } from '../utils/credito';
 import { esProductoEmpaque } from '../utils/empaque';
 import { aplicarStock, TIPO_INVENTARIO, toQty } from '../utils/inventario';
 import { roundMoney, toMoney } from '../utils/money';
 import { includesVenta, mapVenta } from '../controllers/venta.controller';
-import { obtenerCajaAbierta } from '../utils/caja-ingreso';
+import { obtenerCajaAbierta, registrarIngresosPartidos } from '../utils/caja-ingreso';
 import { handleError } from '../utils/error.handler';
+import { aplicarFiltroFecha } from '../utils/fecha';
+import { CATEGORIA_INGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
+import { camposPagoDocumento } from '../utils/metodo-pago';
 
 interface LineaEdicion {
     id?: number;
@@ -275,17 +278,61 @@ export async function editarVenta(req: Request, res: Response): Promise<void> {
             return;
         }
         const saldoNuevo = roundMoney(total - cobrado);
-        if (saldoNuevo > 0 && saldoAnterior <= 0 && !req.body?.a_credito) {
+        const cobrarDiferencia = Boolean(req.body?.cobrar_diferencia);
+        if (saldoNuevo > 0 && saldoAnterior <= 0 && !req.body?.a_credito && !cobrarDiferencia) {
             await transaction.rollback();
             res.status(409).json({ mensaje: 'El contado queda por encima de lo cobrado. Cobre la diferencia o pase la venta a crédito con plazo.' });
             return;
         }
+        let saldoFinal = saldoNuevo;
+        if (cobrarDiferencia && saldoNuevo > 0) {
+            const pagoDoc = camposPagoDocumento(req.body, saldoNuevo);
+            if (!pagoDoc.ok) {
+                await transaction.rollback();
+                res.status(400).json({ mensaje: pagoDoc.mensaje });
+                return;
+            }
+            const cliente = await Cliente.findByPk(Number(venta.get('id_cliente')), { transaction });
+            const cobranza = await Cobranza.create({
+                id_venta: idVenta,
+                id_cliente: Number(venta.get('id_cliente')),
+                id_caja: idCajaVenta,
+                monto: pagoDoc.monto,
+                metodo_pago: pagoDoc.metodo_pago,
+                monto_efectivo: pagoDoc.monto_efectivo,
+                monto_qr: pagoDoc.monto_qr,
+                referencia: req.body?.referencia || null,
+                observacion: `Diferencia por edición. ${motivo}`.slice(0, 250),
+                fecha: new Date(),
+                id_usuario: usuario.id
+            }, { transaction });
+            const ingreso = await registrarIngresosPartidos({
+                transaction,
+                idCaja: idCajaVenta,
+                idUsuario: usuario.id,
+                categoria: CATEGORIA_INGRESO.COBRANZA,
+                concepto: `Edición venta #${idVenta} - ${cliente?.get('nombre') || 'Cliente'}`,
+                monto: saldoNuevo,
+                metodoPago: pagoDoc.metodo_pago,
+                montoEfectivo: pagoDoc.monto_efectivo,
+                montoQr: pagoDoc.monto_qr,
+                referencia: req.body?.referencia || null,
+                origen: ORIGEN_MOVIMIENTO.VENTA,
+                origenId: cobranza.get('id') as number
+            });
+            if (!ingreso.ok) {
+                await transaction.rollback();
+                res.status(400).json({ mensaje: ingreso.mensaje });
+                return;
+            }
+            saldoFinal = 0;
+        }
         const fechaEnviada = req.body?.fecha_vencimiento ? String(req.body.fecha_vencimiento) : '';
         const diasEnviados = req.body?.plazo_dias != null && req.body.plazo_dias !== '' ? Number(req.body.plazo_dias) : 0;
-        const plazo = saldoNuevo <= 0
+        const plazo = saldoFinal <= 0
             ? resolverPlazoCredito(0)
             : (fechaEnviada || diasEnviados || saldoAnterior <= 0 || !venta.get('fecha_vencimiento'))
-                ? resolverPlazoCredito(saldoNuevo, diasEnviados || undefined, fechaEnviada || undefined, true)
+                ? resolverPlazoCredito(saldoFinal, diasEnviados || undefined, fechaEnviada || undefined, true)
                 : { ok: true as const, plazo_dias: venta.get('plazo_dias') != null ? Number(venta.get('plazo_dias')) : null, fecha_vencimiento: String(venta.get('fecha_vencimiento')) };
         if (!plazo.ok) {
             await transaction.rollback();
@@ -294,8 +341,8 @@ export async function editarVenta(req: Request, res: Response): Promise<void> {
         }
         await venta.update({
             total,
-            saldo_pendiente: saldoNuevo,
-            estado: estadoVentaPorSaldo(total, saldoNuevo),
+            saldo_pendiente: saldoFinal,
+            estado: estadoVentaPorSaldo(total, saldoFinal),
             plazo_dias: plazo.plazo_dias,
             fecha_vencimiento: plazo.fecha_vencimiento
         }, { transaction });
@@ -319,5 +366,57 @@ export async function editarVenta(req: Request, res: Response): Promise<void> {
             return;
         }
         handleError(res, error, 'Error al editar la venta');
+    }
+}
+
+function parseJson(valor: unknown): unknown {
+    if (valor == null) {
+        return null;
+    }
+    if (typeof valor !== 'string') {
+        return valor;
+    }
+    try {
+        return JSON.parse(valor);
+    } catch {
+        return valor;
+    }
+}
+
+export async function listarBitacora(req: Request, res: Response): Promise<void> {
+    try {
+        const where: Record<string, unknown> = {};
+        if (typeof req.query.id_venta === 'string' && req.query.id_venta) {
+            where.id_venta = Number(req.query.id_venta);
+        }
+        if (typeof req.query.accion === 'string' && req.query.accion) {
+            where.accion = req.query.accion;
+        }
+        if (typeof req.query.id_usuario === 'string' && req.query.id_usuario) {
+            where.id_usuario = Number(req.query.id_usuario);
+        }
+        aplicarFiltroFecha(where, req.query);
+        const filas = await BitacoraVenta.findAll({
+            where,
+            include: [
+                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] },
+                { model: Venta, as: 'venta', attributes: ['id'] }
+            ],
+            order: [['fecha', 'DESC'], ['id', 'DESC']],
+            limit: 500
+        });
+        res.status(200).json(filas.map((item: any) => ({
+            id: item.id,
+            id_venta: item.id_venta,
+            accion: item.accion,
+            motivo: item.motivo,
+            fecha: item.fecha,
+            id_caja: item.id_caja,
+            usuario: mapUsuarioResumen(item.usuario),
+            anterior: parseJson(item.anterior),
+            nuevo: parseJson(item.nuevo)
+        })));
+    } catch (error) {
+        handleError(res, error, 'Error al consultar la bitácora de ventas');
     }
 }

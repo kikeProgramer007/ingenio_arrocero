@@ -30,7 +30,9 @@ import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
                     <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Resumen de la caja actual</div>
                     <div class="text-muted-color">Movimientos de la caja principal abierta. La caja chica no entra en este resumen.</div>
                     <div class="text-sm text-muted-color" *ngIf="resumen?.caja?.fecha_apertura">
-                        Apertura {{ formatFechaCorta(resumen?.caja?.fecha_apertura) }} · consulta hasta {{ hasta || 'ahora' }}
+                        Caja #{{ resumen?.caja?.id }} · {{ resumen?.caja?.usuario_apertura?.nombre || resumen?.caja?.usuario_apertura?.username || 'Caja principal' }}
+                        · apertura {{ formatFechaCorta(resumen?.caja?.fecha_apertura) }}
+                        · consulta hasta {{ hasta || 'ahora' }}
                     </div>
                 </div>
             </div>

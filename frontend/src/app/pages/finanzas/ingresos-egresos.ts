@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ControlIngresosEgresos, MovimientoResumen } from '../caja/caja.models';
@@ -21,13 +21,14 @@ import { TooltipModule } from 'primeng/tooltip';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { TablaBusquedaComponent } from '../../shared/components/tabla-busqueda';
 import { FILAS_TABLA, filtrarTabla } from '../../shared/utils/tabla';
+import { coincideFiltro } from '../../shared/utils/filtro-lista';
 import { APP_ROUTES } from '../../core/constants/app-routes';
 import { ExportarService } from '../../shared/services/exportar.service';
 
 @Component({
     selector: 'app-ingresos-egresos',
     standalone: true,
-    imports: [CommonModule, FormsModule, RouterModule, ButtonModule, DatePickerModule, SelectModule, TableModule, TagModule, EstadoVacioComponent, KpiGridComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, TooltipModule, TablaBusquedaComponent],
+    imports: [CommonModule, FormsModule, RouterModule, ButtonModule, DatePickerModule, MultiSelectModule, TableModule, TagModule, EstadoVacioComponent, KpiGridComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, TooltipModule, TablaBusquedaComponent],
     template: `
         <div class="mb-6 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
             <div class="min-w-0">
@@ -52,15 +53,15 @@ import { ExportarService } from '../../shared/services/exportar.service';
             <div class="barra-listado">
                 <div class="campo">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Tipo <app-ayuda-campo texto="Ingreso: dinero que entra. Egreso: dinero que sale. Una venta a crédito no aparece hasta el cobro." posicion="bottom" /></label>
-                    <p-select [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="tiposFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-wide">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Origen <app-ayuda-campo texto="De dónde nació el movimiento: venta, cobranza, gasto, pago, manual, etc." posicion="bottom" /></label>
-                    <p-select [options]="origenesFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroOrigen" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="origenesFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroOrigen" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Método <app-ayuda-campo texto="En el libro, Mixto se parte: un asiento de efectivo y otro de QR." posicion="left" /></label>
-                    <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-buscar">
                     <label class="block font-bold mb-1 text-sm">Buscar</label>
@@ -158,9 +159,9 @@ export class IngresosEgresosPage implements OnInit {
     rango: Date[] | null = null;
     data: ControlIngresosEgresos | null = null;
     cargando = false;
-    filtroTipo = '';
-    filtroOrigen = '';
-    filtroMetodo = '';
+    filtroTipo: string[] = [];
+    filtroOrigen: string[] = [];
+    filtroMetodo: string[] = [];
     tiposFiltro = TIPOS_MOVIMIENTO_OPTIONS;
     origenesFiltro = ORIGEN_MOVIMIENTO_OPTIONS;
     metodosFiltro = METODOS_PAGO_OPTIONS;
@@ -202,20 +203,14 @@ export class IngresosEgresosPage implements OnInit {
 
     get movimientosFiltrados(): MovimientoResumen[] {
         return (this.data?.movimientos || []).filter((mov) => {
-            if (this.filtroTipo && mov.tipo !== this.filtroTipo) {
+            if (!coincideFiltro(mov.tipo, this.filtroTipo) || !coincideFiltro(mov.origen, this.filtroOrigen)) {
                 return false;
             }
-            if (this.filtroOrigen && mov.origen !== this.filtroOrigen) {
-                return false;
+            if (!this.filtroMetodo.length) {
+                return true;
             }
-            if (this.filtroMetodo === 'QR') {
-                if (!['QR', 'TRANSFERENCIA', 'OTRO'].includes(String(mov.metodo_pago))) {
-                    return false;
-                }
-            } else if (this.filtroMetodo && mov.metodo_pago !== this.filtroMetodo) {
-                return false;
-            }
-            return true;
+            const metodos = this.filtroMetodo.flatMap((m) => (m === 'QR' ? ['QR', 'TRANSFERENCIA', 'OTRO'] : [m]));
+            return metodos.includes(String(mov.metodo_pago));
         });
     }
 

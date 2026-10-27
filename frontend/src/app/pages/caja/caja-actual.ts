@@ -3,10 +3,12 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AvisoService } from '../../shared/services/aviso.service';
+import { coincideFiltro } from '../../shared/utils/filtro-lista';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -45,6 +47,7 @@ import { nombreUsuario } from '../../shared/utils/usuario';
         DialogModule,
         InputTextModule,
         SelectModule,
+        MultiSelectModule,
         SkeletonModule,
         TableModule,
         TagModule,
@@ -147,11 +150,11 @@ import { nombreUsuario } from '../../shared/utils/usuario';
                 <div class="barra-listado">
                     <div class="campo">
                         <label class="block font-bold mb-1 text-sm">Tipo</label>
-                        <p-select [options]="tipos" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                        <p-multiselect [options]="tipos" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                     </div>
                     <div class="campo">
                         <label class="block font-bold mb-1 text-sm">Método</label>
-                        <p-select [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                        <p-multiselect [options]="metodosFiltro" optionLabel="label" optionValue="value" [(ngModel)]="filtroMetodo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                     </div>
                     <div class="campo-buscar">
                         <label class="block font-bold mb-1 text-sm">Buscar</label>
@@ -308,8 +311,8 @@ export class CajaActual implements OnInit {
     dialogCierre = false;
     saldoContado = 0;
     observacionCierre = '';
-    filtroTipo = '';
-    filtroMetodo = '';
+    filtroTipo: string[] = [];
+    filtroMetodo: string[] = [];
     metodosFiltro = METODOS_DOCUMENTO_FILTRO;
     tipos = TIPOS_MOVIMIENTO_OPTIONS;
     categorias = CATEGORIAS_POR_TIPO[TIPO_MOVIMIENTO.INGRESO];
@@ -322,15 +325,7 @@ export class CajaActual implements OnInit {
     etiquetaMetodo = etiquetaMetodo;
 
     get movimientosFiltrados() {
-        return (this.caja?.movimientos || []).filter((mov) => {
-            if (this.filtroTipo && mov.tipo !== this.filtroTipo) {
-                return false;
-            }
-            if (this.filtroMetodo && mov.metodo_pago !== this.filtroMetodo) {
-                return false;
-            }
-            return true;
-        });
+        return (this.caja?.movimientos || []).filter((mov) => coincideFiltro(mov.tipo, this.filtroTipo) && coincideFiltro(mov.metodo_pago, this.filtroMetodo));
     }
 
     constructor(

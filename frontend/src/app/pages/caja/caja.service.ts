@@ -27,7 +27,7 @@ export class CajaService {
         return this.http.post<ApiMensaje<CajaDetalle>>(apiUrl('/api/cajas'), payload);
     }
 
-    historial(filtros?: { fecha_desde?: string; fecha_hasta?: string; estado?: string }): Observable<CajaDetalle[]> {
+    historial(filtros?: { fecha_desde?: string; fecha_hasta?: string; estado?: string | string[] }): Observable<CajaDetalle[]> {
         let params = new HttpParams();
         if (filtros?.fecha_desde) {
             params = params.set('fecha_desde', filtros.fecha_desde);
@@ -35,9 +35,10 @@ export class CajaService {
         if (filtros?.fecha_hasta) {
             params = params.set('fecha_hasta', filtros.fecha_hasta);
         }
-        if (filtros?.estado) {
-            params = params.set('estado', filtros.estado);
-        }
+        const estados = Array.isArray(filtros?.estado) ? filtros.estado : filtros?.estado ? [filtros.estado] : [];
+        estados.forEach((estado) => {
+            params = params.append('estado', estado);
+        });
         return this.http.get<CajaDetalle[]>(apiUrl('/api/cajas/historial'), { params });
     }
 

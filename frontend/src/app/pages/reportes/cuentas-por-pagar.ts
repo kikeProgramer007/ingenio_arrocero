@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { InputTextModule } from 'primeng/inputtext';
-import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { apiUrl } from '../../core/utils/api-url';
@@ -19,6 +19,10 @@ import { Proveedor } from '../compras/compras.models';
 interface FilaConsolidada {
     id: number;
     proveedor: string;
+    telefono?: string;
+    notas?: number;
+    compras_bs?: number;
+    pagos_bs?: number;
     saldo_bs: number;
     saldo_usd: number;
     fanegas: number;
@@ -46,7 +50,7 @@ interface LineaDetalle {
 interface RespuestaCuentas {
     corte: string | null;
     filas: FilaConsolidada[];
-    totales: { saldo_bs: number; saldo_usd: number; fanegas: number };
+    totales: { saldo_bs: number; saldo_usd: number; fanegas: number; compras_bs?: number; pagos_bs?: number };
     detalle: {
         proveedor: { id: number; nombre: string };
         resumen: { saldo_anterior: number; saldo: number; saldo_usd: number };
@@ -57,13 +61,13 @@ interface RespuestaCuentas {
 @Component({
     selector: 'app-cuentas-por-pagar',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, InputTextModule, SelectModule, TableModule, BotonesExportarComponent, EstadoVacioComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, InputTextModule, MultiSelectModule, TableModule, BotonesExportarComponent, EstadoVacioComponent],
     template: `
         <div class="card mb-4">
             <div class="flex flex-wrap items-end gap-3">
                 <div class="w-full sm:w-64">
                     <label class="block font-bold mb-1 text-sm">Proveedor</label>
-                    <p-select [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProveedor" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="proveedores" optionLabel="nombre" optionValue="id" [(ngModel)]="idProveedor" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="w-full sm:w-40">
                     <label class="block font-bold mb-1 text-sm">Desde</label>
@@ -75,7 +79,7 @@ interface RespuestaCuentas {
                 </div>
                 <div class="w-full sm:w-44">
                     <label class="block font-bold mb-1 text-sm">Tipo</label>
-                    <p-select [options]="tipos" optionLabel="label" optionValue="value" [(ngModel)]="tipoCompra" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="tipos" optionLabel="label" optionValue="value" [(ngModel)]="tipoCompra" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="w-full sm:w-52">
                     <label class="block font-bold mb-1 text-sm">Ordenante</label>
@@ -83,7 +87,7 @@ interface RespuestaCuentas {
                 </div>
                 <p-button label="Consultar" icon="pi pi-search" (onClick)="cargar()" [loading]="cargando" />
                 <app-botones-exportar tipo="cuentas_por_pagar" [idProveedor]="idProveedor" [fechaHasta]="ymd(hasta)" [tipoCompra]="tipoCompra" [ordenante]="ordenante" />
-                <app-botones-exportar *ngIf="idProveedor" tipo="cuenta_proveedor" [id]="idProveedor" [fechaDesde]="ymd(desde)" [fechaHasta]="ymd(hasta)" [tipoCompra]="tipoCompra" [ordenante]="ordenante" />
+                <app-botones-exportar *ngIf="idProveedor.length === 1" tipo="cuenta_proveedor" [id]="idProveedor[0]" [fechaDesde]="ymd(desde)" [fechaHasta]="ymd(hasta)" [tipoCompra]="tipoCompra" [ordenante]="ordenante" />
             </div>
             <p class="text-sm text-muted-color mt-3 mb-0">El consolidado es el saldo a la fecha de corte. El detalle, si elige un proveedor, muestra el movimiento y el saldo anterior cuando hay fecha desde. La deuda va en Bs; el USD es referencial.</p>
         </div>
@@ -94,34 +98,46 @@ interface RespuestaCuentas {
                 <ng-template #header>
                     <tr>
                         <th>Proveedor</th>
+                        <th>Teléfono</th>
+                        <th class="text-right">Notas</th>
+                        <th class="text-right">Fanegas</th>
+                        <th class="text-right">Compras Bs</th>
+                        <th class="text-right">Pagos Bs</th>
                         <th class="text-right">Saldo Bs</th>
                         <th class="text-right">Saldo USD ref.</th>
-                        <th class="text-right">Fanegas</th>
                     </tr>
                 </ng-template>
                 <ng-template #body let-fila>
                     <tr>
                         <td>{{ fila.proveedor }}</td>
-                        <td class="text-right">{{ formatBs(fila.saldo_bs) }}</td>
-                        <td class="text-right">{{ fila.saldo_usd ? formatUsd(fila.saldo_usd) : '-' }}</td>
+                        <td>{{ fila.telefono || '-' }}</td>
+                        <td class="text-right">{{ fila.notas || 0 }}</td>
                         <td class="text-right">{{ fila.fanegas || '-' }}</td>
+                        <td class="text-right">{{ formatBs(fila.compras_bs) }}</td>
+                        <td class="text-right">{{ formatBs(fila.pagos_bs) }}</td>
+                        <td class="text-right">{{ formatBs(fila.saldo_bs) }}</td>
+                        <td class="text-right">{{ formatUsd(fila.saldo_usd) }}</td>
                     </tr>
                 </ng-template>
                 <ng-template #footer>
                     <tr *ngIf="datos?.filas?.length">
                         <td class="font-semibold">TOTAL</td>
-                        <td class="text-right font-semibold">{{ formatBs(datos?.totales?.saldo_bs) }}</td>
-                        <td class="text-right font-semibold">{{ datos?.totales?.saldo_usd ? formatUsd(datos?.totales?.saldo_usd) : '-' }}</td>
+                        <td></td>
+                        <td></td>
                         <td class="text-right font-semibold">{{ datos?.totales?.fanegas || '-' }}</td>
+                        <td class="text-right font-semibold">{{ formatBs(datos?.totales?.compras_bs) }}</td>
+                        <td class="text-right font-semibold">{{ formatBs(datos?.totales?.pagos_bs) }}</td>
+                        <td class="text-right font-semibold">{{ formatBs(datos?.totales?.saldo_bs) }}</td>
+                        <td class="text-right font-semibold">{{ formatUsd(datos?.totales?.saldo_usd) }}</td>
                     </tr>
                 </ng-template>
                 <ng-template #emptymessage>
-                    <tr><td colspan="4"><app-estado-vacio icono="pi pi-wallet" titulo="Sin saldos" mensaje="No hay cuentas por pagar para estos filtros." /></td></tr>
+                    <tr><td colspan="8"><app-estado-vacio icono="pi pi-wallet" titulo="Sin saldos" mensaje="No hay cuentas por pagar para estos filtros." /></td></tr>
                 </ng-template>
             </p-table>
         </div>
 
-        <div class="card" *ngIf="idProveedor">
+        <div class="card" *ngIf="idProveedor.length === 1">
             <div class="font-semibold text-lg mb-1">Detalle de {{ datos?.detalle?.proveedor?.nombre || 'proveedor' }}</div>
             <p class="text-sm text-muted-color mb-3" *ngIf="datos?.detalle?.resumen">Saldo anterior {{ formatBs(datos?.detalle?.resumen?.saldo_anterior) }} · Saldo final {{ formatBs(datos?.detalle?.resumen?.saldo) }}</p>
             <p-table [value]="datos?.detalle?.kardex || []" responsiveLayout="scroll">
@@ -151,7 +167,7 @@ interface RespuestaCuentas {
                         <td class="text-right">{{ l.abono ? formatBs(l.abono) : '-' }}</td>
                         <td class="text-right">{{ l.abono_usd ? formatUsd(l.abono_usd) : '-' }}</td>
                         <td class="text-right">{{ formatBs(l.saldo) }}</td>
-                        <td class="text-right">{{ l.saldo_usd ? formatUsd(l.saldo_usd) : '-' }}</td>
+                        <td class="text-right">{{ formatUsd(l.saldo_usd) }}</td>
                     </tr>
                 </ng-template>
                 <ng-template #emptymessage>
@@ -163,10 +179,10 @@ interface RespuestaCuentas {
 })
 export class CuentasPorPagarPage implements OnInit {
     proveedores: Proveedor[] = [];
-    idProveedor: number | null = null;
+    idProveedor: number[] = [];
     desde: Date | null = null;
     hasta: Date | null = null;
-    tipoCompra = '';
+    tipoCompra: string[] = [];
     ordenante = '';
     cargando = false;
     datos: RespuestaCuentas | null = null;
@@ -205,9 +221,9 @@ export class CuentasPorPagarPage implements OnInit {
 
     cargar(): void {
         this.cargando = true;
-        const params: Record<string, string> = {};
-        if (this.idProveedor) {
-            params['id_proveedor'] = String(this.idProveedor);
+        const params: Record<string, string | string[]> = {};
+        if (this.idProveedor.length) {
+            params['id_proveedor'] = this.idProveedor.map(String);
         }
         const desde = this.ymd(this.desde);
         const hasta = this.ymd(this.hasta);
@@ -217,7 +233,7 @@ export class CuentasPorPagarPage implements OnInit {
         if (hasta) {
             params['fecha_hasta'] = hasta;
         }
-        if (this.tipoCompra) {
+        if (this.tipoCompra.length) {
             params['tipo_compra'] = this.tipoCompra;
         }
         if (this.ordenante.trim()) {

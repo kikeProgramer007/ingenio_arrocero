@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -7,6 +7,7 @@ import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
@@ -17,6 +18,7 @@ import { InputNumeroComponent } from '../../shared/components/input-numero';
 import { KpiGridComponent, KpiItem } from '../../shared/components/kpi-grid';
 import { AvisoService } from '../../shared/services/aviso.service';
 import { ymdDesdeRango, ymdHastaRango } from '../../shared/utils/fecha-filtro';
+import { parametrosLista } from '../../shared/utils/filtro-lista';
 import { formatBs, formatFecha } from './caja.utils';
 
 interface ResumenChica {
@@ -51,7 +53,7 @@ interface MovimientoChica {
 @Component({
     selector: 'app-caja-chica',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, TableModule, TagModule, TextareaModule, AyudaCampoComponent, EstadoVacioComponent, InputNumeroComponent, KpiGridComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, DialogModule, InputTextModule, SelectModule, MultiSelectModule, TableModule, TagModule, TextareaModule, AyudaCampoComponent, EstadoVacioComponent, InputNumeroComponent, KpiGridComponent],
     template: `
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
@@ -68,7 +70,7 @@ interface MovimientoChica {
             <div class="barra-listado">
                 <div class="campo">
                     <label class="block font-bold mb-1 text-sm">Tipo</label>
-                    <p-select [options]="tipos" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="tipos" optionLabel="label" optionValue="value" [(ngModel)]="filtroTipo" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-fecha">
                     <label class="block font-bold mb-1 text-sm">Período</label>
@@ -179,7 +181,7 @@ export class CajaChica implements OnInit {
     motivo = '';
     contado = 0;
     observacionArqueo = '';
-    filtroTipo = '';
+    filtroTipo: string[] = [];
     rango: Date[] | null = null;
     tipos = [
         { label: 'Ingresos', value: 'INGRESO' },
@@ -199,10 +201,12 @@ export class CajaChica implements OnInit {
     }
 
     get kpis(): KpiItem[] {
+        const ingresosPeriodo = this.movimientos.filter((m) => m.tipo === 'INGRESO').reduce((acc, m) => acc + Number(m.monto || 0), 0);
+        const salidasPeriodo = this.movimientos.filter((m) => m.tipo !== 'INGRESO').reduce((acc, m) => acc + Number(m.monto || 0), 0);
         return [
-            { label: 'Saldo', value: formatBs(this.resumen?.saldo || 0), icon: 'pi pi-wallet', tone: 'success' },
-            { label: 'Ingresos', value: formatBs(this.resumen?.ingresos || 0), icon: 'pi pi-arrow-down', tone: 'info' },
-            { label: 'Salidas', value: formatBs(this.resumen?.egresos || 0), icon: 'pi pi-arrow-up', tone: 'danger' }
+            { label: 'Saldo actual', value: formatBs(this.resumen?.saldo || 0), icon: 'pi pi-wallet', tone: 'success' },
+            { label: this.rango ? 'Ingresos del período' : 'Ingresos', value: formatBs(ingresosPeriodo), icon: 'pi pi-arrow-down', tone: 'info' },
+            { label: this.rango ? 'Salidas del período' : 'Salidas', value: formatBs(salidasPeriodo), icon: 'pi pi-arrow-up', tone: 'danger' }
         ];
     }
 
@@ -221,17 +225,15 @@ export class CajaChica implements OnInit {
     }
 
     cargarMovimientos(): void {
-        const params: Record<string, string> = {};
-        if (this.filtroTipo) {
-            params['tipo'] = this.filtroTipo;
-        }
+        let params = new HttpParams();
+        params = parametrosLista(params, 'tipo', this.filtroTipo);
         const desde = ymdDesdeRango(this.rango);
         const hasta = ymdHastaRango(this.rango);
         if (desde) {
-            params['fecha_desde'] = desde;
+            params = params.set('fecha_desde', desde);
         }
         if (hasta) {
-            params['fecha_hasta'] = hasta;
+            params = params.set('fecha_hasta', hasta);
         }
         this.http.get<MovimientoChica[]>(apiUrl('/api/caja-chica/movimientos'), { params }).subscribe({
             next: (data) => {

@@ -27,3 +27,8 @@ export const ESTADOS_ACTIVO_FILTRO = [
     { label: 'Activos', value: 'activos' },
     { label: 'Inactivos', value: 'inactivos' }
 ];
+
+export const ESTADOS_ACTIVO_MULTI = [
+    { label: 'Activos', value: 'activos' },
+    { label: 'Inactivos', value: 'inactivos' }
+];

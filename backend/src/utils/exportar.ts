@@ -24,18 +24,20 @@ export interface HojaExport {
     resumen?: { label: string; valor: Celda }[];
     columnas: string[];
     filas: Celda[][];
-    /** Totales al pie, alineados bajo la última celda de cada columna. */
+    /** Totales al pie: etiqueta a la izquierda y recuadro solo en las celdas numéricas. */
     pie?: Celda[][];
 }
 
-const PAD = 4;
-const FONT_SIZE = 7;
+const PAD_X = 2.5;
+const PAD_Y = 1.4;
+const FONT_SIZE = 8;
+const LINE_GAP = 0.35;
+const FILA_MIN = 13;
 const CARTA_EXCEL = 1;
 const COLOR_LINEA = '#000000';
 const COLOR_TEXTO = '#000000';
 const COLOR_CABECERA = '#000000';
 const COLOR_CABECERA_TEXTO = '#FFFFFF';
-const COLOR_PIE = '#F3F3F3';
 
 function esColumnaEntera(columna: string): boolean {
     return /nro|n[°º]|#|cantidad|cant\.?|atraso|d[ií]as|stock|m[ií]nimo|fanegas/i.test(columna);
@@ -46,13 +48,76 @@ function esColumnaMoneda(nombre: string): boolean {
 }
 
 function esColumnaSumable(nombre: string): boolean {
-    if (/nro|n[°º]|#|atraso|d[ií]as/i.test(nombre)) {
+    if (/nro|n[°º]|#|atraso|d[ií]as|precio|p\.\s*(venta|compra|unit)|m[ií]nimo|estado|vencimiento/i.test(nombre)) {
         return false;
     }
-    if (/cantidad|cant\.?/i.test(nombre)) {
+    if (/cantidad|cant\.?|fanegas|existencia|reservado|disponible|entrada|salida|merma|vendido|entregado|despachado/i.test(nombre)) {
         return true;
     }
-    return esColumnaMoneda(nombre);
+    return /monto|total|saldo|cobrado|pagado|ingreso|egreso|cargo|abono|compra|pago|subtotal|pendiente|efectivo|\bqr\b|diferencia|esperado|contado/i.test(nombre);
+}
+
+function esEtiquetaTotal(valor: Celda): boolean {
+    return /^(total|totales)(\b|\s|\(|$)/i.test(String(valor ?? '').trim());
+}
+
+function esFilaTotal(fila: Celda[]): boolean {
+    return fila.some(esEtiquetaTotal);
+}
+
+function extraerFilasPie(filas: Celda[][]): { filas: Celda[][]; pie: Celda[][] } {
+    const data: Celda[][] = [];
+    const pie: Celda[][] = [];
+    for (const fila of filas) {
+        if (esFilaTotal(fila)) {
+            pie.push(fila.map((v) => (esEtiquetaTotal(v) ? '' : v)));
+        } else {
+            data.push(fila);
+        }
+    }
+    return { filas: data, pie };
+}
+
+function celdaPieValiosa(valor: Celda, columna = ''): boolean {
+    if (esEtiquetaTotal(valor) || valor == null || valor === '') {
+        return false;
+    }
+    if (typeof valor === 'number') {
+        return true;
+    }
+    const t = celdaTexto(valor, columna).trim();
+    if (!t) {
+        return false;
+    }
+    if (/bs|usd|\$/i.test(t) && /\d/.test(t)) {
+        return true;
+    }
+    return /^-?\d/.test(t.replace(/\s/g, ''));
+}
+
+function rangoCeldasPie(fila: Celda[], columnas: string[]): { first: number; last: number } | null {
+    let first = -1;
+    let last = -1;
+    const n = Math.max(fila.length, columnas.length);
+    for (let i = 0; i < n; i++) {
+        if (celdaPieValiosa(fila[i], columnas[i] || '')) {
+            if (first < 0) {
+                first = i;
+            }
+            last = i;
+        }
+    }
+    return first < 0 ? null : { first, last };
+}
+
+function etiquetaPieTotales(columnas: string[], first: number, last: number): string {
+    const cols = columnas.slice(first, last + 1);
+    const hayUsd = cols.some((c) => /usd/i.test(c));
+    const hayBs = cols.some((c) => /\bbs\b|\(bs\)/i.test(c) || esColumnaMoneda(c));
+    if (hayBs && !hayUsd) {
+        return 'Totales (Bs)';
+    }
+    return 'Totales';
 }
 
 function textoNumero(valor: number, columna = ''): string {
@@ -67,9 +132,34 @@ function celdaTexto(valor: Celda, columna = ''): string {
         return '';
     }
     if (typeof valor === 'number') {
+        if (esColumnaEntera(columna) && Number.isInteger(valor)) {
+            return String(valor);
+        }
+        if (/usd/i.test(columna)) {
+            return `USD ${textoNumero(valor, columna)}`;
+        }
+        if (esColumnaMoneda(columna) || /\(bs\)|\bbs\b/i.test(columna)) {
+            return `Bs ${textoNumero(valor, columna)}`;
+        }
         return textoNumero(valor, columna);
     }
-    return String(valor);
+    const texto = String(valor);
+    if (/fecha/i.test(columna)) {
+        return texto.replace(/^(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2}(?::\d{2})?)/, '$1\n$2');
+    }
+    return texto;
+}
+
+function resumenTrasPie(
+    resumen: { label: string; valor: Celda }[],
+    hayPie: boolean
+): { label: string; valor: Celda }[] {
+    if (!hayPie || !resumen.length) {
+        return resumen;
+    }
+    return resumen.filter((item) => {
+        return !/^(total|vendido|cobrado( efectivo| qr)?|pagado|saldo( neto| pendiente)?|por pagar)(\b|$)/i.test(item.label.trim());
+    });
 }
 
 function recapValor(valor: Celda, label: string): string {
@@ -83,22 +173,25 @@ function recapValor(valor: Celda, label: string): string {
 }
 
 function pesoColumna(nombre: string): number {
-    const n = nombre.toLowerCase();
-    if (/concepto|descripci[oó]n|observaci|detalle/.test(n)) return 2.8;
-    if (/chofer|productor/.test(n)) return 1.6;
+    const n = nombre.toLowerCase().trim();
+    if (/concepto|descripci[oó]n|observaci|detalle|notas|direcci[oó]n/.test(n)) return 2.6;
+    if (/cliente|proveedor|productor|persona/.test(n)) return 2.2;
+    if (/categor[ií]a/.test(n)) return 1.65;
+    if (/origen|tipo de operaci/.test(n)) return 1.55;
+    if (/^tipo$/.test(n)) return 1.05;
+    if (/chofer/.test(n)) return 1.5;
+    if (/usuario/.test(n)) return 1.2;
+    if (/fecha/.test(n)) return 1.85;
+    if (/vencimiento/.test(n)) return 1.35;
+    if (/m[eé]todo/.test(n)) return 1.15;
+    if (/estado/.test(n)) return 1.15;
     if (/boleta|placa|fanegas/.test(n)) return 0.9;
-    if (/cliente|proveedor/.test(n)) return 2.2;
-    if (/categor[ií]a|origen/.test(n)) return 1.4;
-    if (/fecha/.test(n)) return 0.95;
-    if (/m[eé]todo/.test(n)) return 0.95;
-    if (/usuario|estado/.test(n)) return 0.9;
-    if (/^tipo$/.test(n)) return 0.85;
     if (/n[°º].*venta|venta/.test(n) && /n[°º]|nro/.test(n)) return 0.8;
-    if (/^n[°º]$|^#$|^nro$/.test(n.trim())) return 0.42;
+    if (/^n[°º]$|^#$|^nro$/.test(n)) return 0.42;
     if (/nro|n[°º]|#/.test(n)) return 0.7;
-    if (/atraso|d[ií]as/.test(n)) return 0.78;
-    if (/vencimiento/.test(n)) return 1.05;
-    if (/monto|total|precio|saldo|cobrado|pagado|ingreso|egreso|cantidad|cargo|abono|compra|\(bs\)/.test(n)) return 1.05;
+    if (/atraso|d[ií]as/.test(n)) return 0.85;
+    if (/tel[eé]fono|nit/.test(n)) return 1.15;
+    if (/monto|total|precio|saldo|cobrado|pagado|ingreso|egreso|cantidad|cargo|abono|compra|\(bs\)/.test(n)) return 1.55;
     return 1;
 }
 
@@ -107,7 +200,7 @@ function alinearColumna(nombre: string, valor: Celda): 'left' | 'right' | 'cente
         return 'right';
     }
     const n = nombre.toLowerCase();
-    if (/monto|total|precio|saldo|cobrado|pagado|ingreso|egreso|cantidad|p\.\s*unit|cant/.test(n)) {
+    if (/monto|total|precio|saldo|cobrado|pagado|ingreso|egreso|cantidad|p\.\s*unit|cant|compra|pago|fanegas|\(bs\)|usd|efectivo|\bqr\b/.test(n)) {
         return 'right';
     }
     if (/^tipo$|estado|m[eé]todo/.test(n)) {
@@ -116,16 +209,62 @@ function alinearColumna(nombre: string, valor: Celda): 'left' | 'right' | 'cente
     return 'left';
 }
 
-function anchosColumnas(columnas: string[], pageWidth: number): number[] {
-    const pesos = columnas.map(pesoColumna);
+function minimoColumna(nombre: string): number {
+    const n = nombre.toLowerCase().trim();
+    const rotulo = 12 + Math.ceil(nombre.length * 4.4);
+    if (/^n[°º]$|^#$|^nro$/.test(n)) return Math.max(22, rotulo);
+    if (/fecha/.test(n)) return Math.max(54, rotulo);
+    if (/ingreso|egreso|monto|total|precio|saldo|cobrado|pagado|\(bs\)/.test(n)) return Math.max(56, rotulo);
+    if (/concepto|descripci[oó]n|observaci|detalle|notas/.test(n)) return Math.max(78, rotulo);
+    if (/cliente|proveedor|productor|persona|usuario/.test(n)) return Math.max(52, rotulo);
+    if (/categor[ií]a|origen/.test(n)) return Math.max(60, rotulo);
+    if (/^tipo$/.test(n)) return Math.max(40, rotulo);
+    if (/m[eé]todo|estado/.test(n)) return Math.max(42, rotulo);
+    return Math.max(32, rotulo);
+}
+
+function anchosColumnas(columnas: string[], pageWidth: number, pesosFn = pesoColumna): number[] {
+    let minimos = columnas.map(minimoColumna);
+    const minTotal = minimos.reduce((acc, n) => acc + n, 0);
+    if (minTotal > pageWidth) {
+        const f = pageWidth / minTotal;
+        minimos = minimos.map((n) => n * f);
+    }
+    const pesos = columnas.map(pesosFn);
     const suma = pesos.reduce((acc, p) => acc + p, 0) || 1;
-    const raw = pesos.map((p) => (p / suma) * pageWidth);
+    const libre = Math.max(0, pageWidth - minimos.reduce((acc, n) => acc + n, 0));
+    const raw = minimos.map((min, i) => min + (pesos[i] / suma) * libre);
     const anchos = raw.map((n) => Math.floor(n * 10) / 10);
     const usados = anchos.slice(0, -1).reduce((acc, n) => acc + n, 0);
     if (anchos.length) {
         anchos[anchos.length - 1] = pageWidth - usados;
     }
     return anchos;
+}
+
+/** Misma plantilla formal para previsualización y documentos reales. */
+export function aplicarPlantillaFormal(hoja: HojaExport, consulta: { label: string; valor: string }[] = []): HojaExport {
+    hoja.plantilla = 'formal';
+    hoja.mostrarFirma = true;
+    if (!hoja.consulta?.length) {
+        hoja.consulta = consulta;
+    }
+    hoja.columnas = [...hoja.columnas];
+    const separado = extraerFilasPie(hoja.filas);
+    hoja.filas = separado.filas;
+    const pieOrigen = separado.pie.length ? separado.pie : (hoja.pie || []);
+    const primera = String(hoja.columnas[0] || '').toLowerCase().replace(/\s/g, '');
+    if (primera === 'nro' || primera === '#') {
+        hoja.columnas[0] = 'N°';
+        hoja.pie = pieOrigen;
+    } else if (hoja.columnas.length > 2 && !/^n[°º]$/.test(primera)) {
+        hoja.columnas = ['N°', ...hoja.columnas];
+        hoja.filas = hoja.filas.map((fila, i) => [i + 1, ...fila]);
+        hoja.pie = pieOrigen.map((fila) => ['', ...fila]);
+    } else {
+        hoja.pie = pieOrigen;
+    }
+    return hoja;
 }
 
 function nombreArchivo(base: string, ext: string): string {
@@ -171,37 +310,39 @@ function camposCabecera(hoja: HojaExport, empresa = datosEmpresa()): { label: st
     return campos.filter((c) => c.valor && c.valor !== '-');
 }
 
-function construirPie(hoja: HojaExport): Celda[][] {
-    if (hoja.plantilla === 'formal') {
-        return hoja.pie || [];
-    }
-    if (hoja.pie?.length) {
-        return hoja.pie;
-    }
-    if (!hoja.filas.length) {
+function construirTotales(filas: Celda[][], columnas: string[]): Celda[][] {
+    if (!filas.length) {
         return [];
     }
-    const tieneFlujo = hoja.columnas.some((c) => /cargo|abono|^pagos$/i.test(c));
+    const tieneFlujo = columnas.some((c) => /cargo|abono|^pagos$/i.test(c));
     let hayNumero = false;
-    const pie: Celda[] = hoja.columnas.map((col, i) => {
-        const valores = hoja.filas.map((f) => f[i]).filter((v) => typeof v === 'number') as number[];
+    const pie: Celda[] = columnas.map((col, i) => {
+        const valores = filas.map((f) => f[i]).filter((v) => typeof v === 'number') as number[];
         if (!valores.length || !esColumnaSumable(col)) {
             return '';
         }
         hayNumero = true;
-        if (/^saldo$/i.test(col) && tieneFlujo) {
+        if (/saldo/i.test(col) && tieneFlujo) {
             return valores[valores.length - 1];
         }
         return Math.round(valores.reduce((acc, n) => acc + n, 0) * 100) / 100;
     });
-    if (!hayNumero) {
-        return [];
+    return hayNumero ? [pie] : [];
+}
+
+function construirPie(hoja: HojaExport): Celda[][] {
+    const separado = extraerFilasPie(hoja.filas);
+    if (separado.pie.length) {
+        return separado.pie;
     }
-    const firstNum = pie.findIndex((v) => typeof v === 'number');
-    if (firstNum > 0 && pie[firstNum - 1] === '') {
-        pie[firstNum - 1] = 'Total';
+    if (hoja.pie?.length) {
+        return hoja.pie;
     }
-    return [pie];
+    const iEstado = hoja.columnas.findIndex((c) => /^estado$/i.test(c));
+    const filas = iEstado < 0
+        ? separado.filas
+        : separado.filas.filter((f) => !/anulad/i.test(String(f[iEstado] ?? '')));
+    return construirTotales(filas, hoja.columnas);
 }
 
 function bordeExcel(): Partial<ExcelJS.Borders> {
@@ -316,10 +457,11 @@ function pintarHojaExcelFormal(
         cell.alignment = { wrapText: true, vertical: 'middle', horizontal: alinearColumna(col, '') };
         cell.border = bordeExcel();
     });
-    headerRow.height = 18;
+    headerRow.height = 15;
     const filaHeader = fila;
     fila += 1;
-    for (const datos of hoja.filas) {
+    const separadoFormal = extraerFilasPie(hoja.filas);
+    for (const datos of separadoFormal.filas) {
         const row = sheet.getRow(fila);
         datos.forEach((valor, i) => {
             const cell = row.getCell(i + 1);
@@ -334,13 +476,18 @@ function pintarHojaExcelFormal(
             cell.alignment = { wrapText: true, vertical: 'middle', horizontal: alinearColumna(nombreCol, valor) };
             cell.border = bordeExcel();
         });
-        row.height = 16;
+        row.height = 13;
         fila += 1;
     }
-    if (hoja.resumen?.length) {
+    const piesFormal = separadoFormal.pie.length
+        ? separadoFormal.pie
+        : construirPie({ ...hoja, filas: separadoFormal.filas });
+    fila = pintarPieExcel(sheet, fila, hoja, piesFormal);
+    const resumenExcelFormal = resumenTrasPie(hoja.resumen || [], piesFormal.length > 0);
+    if (resumenExcelFormal.length) {
         fila += 1;
         const colLabel = Math.max(1, lastCol - 2);
-        for (const item of hoja.resumen) {
+        for (const item of resumenExcelFormal) {
             const pendiente = /pendiente/i.test(item.label);
             mergeExcel(sheet, fila, colLabel, lastCol - 1);
             const lab = sheet.getCell(fila, colLabel);
@@ -490,10 +637,11 @@ export async function enviarExcel(res: Response, baseNombre: string, hojas: Hoja
             cell.alignment = { wrapText: true, vertical: 'middle', horizontal: alinearColumna(col, '') };
             cell.border = bordeExcel();
         });
-        headerRow.height = 16;
+        headerRow.height = 15;
         const filaHeader = fila;
         fila += 1;
-        for (const datos of hoja.filas) {
+        const separadoExcel = extraerFilasPie(hoja.filas);
+        for (const datos of separadoExcel.filas) {
             const row = sheet.getRow(fila);
             datos.forEach((valor, i) => {
                 const cell = row.getCell(i + 1);
@@ -508,31 +656,17 @@ export async function enviarExcel(res: Response, baseNombre: string, hojas: Hoja
                 cell.alignment = { wrapText: true, vertical: 'middle', horizontal: alinearColumna(nombreCol, valor) };
                 cell.border = bordeExcel();
             });
-            row.height = 16;
+            row.height = 13;
             fila += 1;
         }
-        for (const datos of construirPie(hoja)) {
-            const row = sheet.getRow(fila);
-            hoja.columnas.forEach((nombreCol, i) => {
-                const cell = row.getCell(i + 1);
-                const valor = datos[i] ?? '';
-                if (typeof valor === 'number') {
-                    cell.value = valor;
-                    cell.numFmt = esColumnaEntera(nombreCol) ? '0' : '#,##0.00';
-                } else {
-                    cell.value = valor;
-                }
-                cell.font = { bold: true, size: 9 };
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F3F3' } };
-                cell.alignment = { wrapText: true, vertical: 'middle', horizontal: alinearColumna(nombreCol, valor) };
-                cell.border = bordeExcel();
-            });
-            row.height = 16;
+        const piesExcel = separadoExcel.pie.length
+            ? separadoExcel.pie
+            : construirPie({ ...hoja, filas: separadoExcel.filas });
+        fila = pintarPieExcel(sheet, fila, hoja, piesExcel);
+        const resumenExcel = resumenTrasPie(hoja.resumen || [], piesExcel.length > 0);
+        if (resumenExcel.length) {
             fila += 1;
-        }
-        if (hoja.resumen?.length) {
-            fila += 1;
-            for (const item of hoja.resumen) {
+            for (const item of resumenExcel) {
                 const pendiente = /pendiente/i.test(item.label);
                 sheet.getCell(fila, 1).value = `${item.label}:`;
                 sheet.getCell(fila, 1).font = { bold: pendiente || !formal, size: 9 };
@@ -594,7 +728,7 @@ function documentoReporte(hojas: HojaExport[], baseNombre: string, opciones: Opc
     const doc = new PDFDocument({
         size: 'LETTER',
         layout: 'portrait',
-        margin: 36,
+        margin: 42,
         bufferPages: true,
         info: {
             Title: hojas[0]?.titulo || baseNombre,
@@ -690,19 +824,20 @@ function dibujarCabeceraReporte(doc: PDFKit.PDFDocument, hoja: HojaExport): void
     let y = top + logoH + 10;
     const campos = camposCabecera(hoja, empresa);
     const colW = width / 2;
-    const lineH = 12;
     const mitad = Math.ceil(campos.length / 2);
     const filasMeta = Math.max(mitad, campos.length - mitad);
     for (let i = 0; i < filasMeta; i++) {
         const izq = campos[i];
         const der = campos[i + mitad];
+        const yFila = y;
         if (izq) {
-            pintarMeta(doc, left, y, colW - 8, izq.label, izq.valor);
+            pintarMeta(doc, left, yFila, colW - 8, izq.label, izq.valor);
         }
+        const yIzq = doc.y;
         if (der) {
-            pintarMeta(doc, left + colW, y, colW - 8, der.label, der.valor);
+            pintarMeta(doc, left + colW, yFila, colW - 8, der.label, der.valor);
         }
-        y += lineH;
+        y = Math.max(yFila + 13, yIzq, doc.y);
     }
     y += 6;
     doc.strokeColor(COLOR_LINEA).lineWidth(0.8);
@@ -713,25 +848,28 @@ function dibujarCabeceraReporte(doc: PDFKit.PDFDocument, hoja: HojaExport): void
 function pintarMeta(doc: PDFKit.PDFDocument, x: number, y: number, w: number, label: string, valor: string): void {
     const labelW = 62;
     doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR_TEXTO).text(`${label}:`, x, y, {
-        width: labelW,
-        lineBreak: false
+        width: labelW
     });
     doc.font('Helvetica').fontSize(8).text(valor, x + labelW, y, {
-        width: w - labelW,
-        lineBreak: false
+        width: Math.max(20, w - labelW)
     });
 }
 
 function anchoTexto(anchoCol: number): number {
-    return Math.max(8, anchoCol - PAD * 2);
+    return Math.max(10, anchoCol - PAD_X * 2);
+}
+
+function opcionesTexto(anchoCol: number, align: 'left' | 'right' | 'center' = 'left'): PDFKit.Mixins.TextOptions {
+    return {
+        width: anchoTexto(anchoCol),
+        align,
+        lineGap: LINE_GAP,
+        lineBreak: true
+    };
 }
 
 function alturaContenido(doc: PDFKit.PDFDocument, texto: string, anchoCol: number): number {
-    const lineGap = FONT_SIZE - doc.currentLineHeight(true);
-    return doc.heightOfString(texto || ' ', {
-        width: anchoTexto(anchoCol),
-        lineGap
-    });
+    return doc.heightOfString(texto || ' ', opcionesTexto(anchoCol));
 }
 
 function alturaBloque(doc: PDFKit.PDFDocument, fila: Celda[], columnas: string[], anchos: number[], negrita: boolean): number {
@@ -743,7 +881,7 @@ function alturaBloque(doc: PDFKit.PDFDocument, fila: Celda[], columnas: string[]
             maxH = h;
         }
     });
-    return maxH + PAD * 2;
+    return Math.max(FILA_MIN, Math.ceil(maxH + PAD_Y * 2));
 }
 
 type BloqueTabla = { fila: Celda[]; h: number; negrita?: boolean; fondo?: string; color?: string };
@@ -756,8 +894,7 @@ function dibujarGrilla(
     columnas: string[],
     anchos: number[],
     bloques: BloqueTabla[],
-    grosor = 0.7,
-    textoCompleto = false
+    grosor = 0.7
 ): number {
     let y = y0;
     bloques.forEach((bloque) => {
@@ -768,18 +905,13 @@ function dibujarGrilla(
         }
         let x = startX;
         doc.font(bloque.negrita ? 'Helvetica-Bold' : 'Helvetica').fontSize(FONT_SIZE);
-        const lineGap = FONT_SIZE - doc.currentLineHeight(true);
         columnas.forEach((col, i) => {
             const texto = celdaTexto(bloque.fila[i], col);
             const align = texto === 'Total' || texto === 'Totales' ? 'right' : alinearColumna(col, bloque.fila[i]);
-            const contentH = alturaContenido(doc, texto || ' ', anchos[i]);
-            const textY = y + (bloque.h - contentH) / 2;
-            doc.fillColor(bloque.color || COLOR_TEXTO).text(texto, x + PAD, textY, {
-                width: anchoTexto(anchos[i]),
-                align,
-                lineGap,
-                ...(textoCompleto ? {} : { height: contentH + 0.5 })
-            });
+            const opts = opcionesTexto(anchos[i], align);
+            const contentH = doc.heightOfString(texto || ' ', opts);
+            const textY = y + Math.max(PAD_Y, (bloque.h - contentH) / 2);
+            doc.fillColor(bloque.color || COLOR_TEXTO).text(texto, x + PAD_X, textY, opts);
             x += anchos[i];
         });
         y += bloque.h;
@@ -804,6 +936,108 @@ function dibujarGrilla(
     doc.x = startX;
     doc.y = y;
     return y;
+}
+
+function alturaPieCompacto(doc: PDFKit.PDFDocument, columnas: string[], anchos: number[], fila: Celda[]): number {
+    const rango = rangoCeldasPie(fila, columnas);
+    if (!rango) {
+        return 0;
+    }
+    doc.font('Helvetica-Bold').fontSize(FONT_SIZE);
+    let maxH = FONT_SIZE;
+    for (let i = rango.first; i <= rango.last; i++) {
+        const h = alturaContenido(doc, celdaTexto(fila[i], columnas[i]) || ' ', anchos[i]);
+        if (h > maxH) {
+            maxH = h;
+        }
+    }
+    return Math.max(FILA_MIN, Math.ceil(maxH + PAD_Y * 2));
+}
+
+function dibujarPieCompacto(
+    doc: PDFKit.PDFDocument,
+    startX: number,
+    columnas: string[],
+    anchos: number[],
+    fila: Celda[],
+    grosor = 0.4
+): number {
+    const rango = rangoCeldasPie(fila, columnas);
+    if (!rango) {
+        return doc.y;
+    }
+    const { first, last } = rango;
+    const h = alturaPieCompacto(doc, columnas, anchos, fila);
+    const xFirst = startX + anchos.slice(0, first).reduce((acc, n) => acc + n, 0);
+    const boxW = anchos.slice(first, last + 1).reduce((acc, n) => acc + n, 0);
+    const y = doc.y;
+    doc.font('Helvetica-Bold').fontSize(FONT_SIZE).fillColor(COLOR_TEXTO);
+    if (first > 0) {
+        const label = etiquetaPieTotales(columnas, first, last);
+        doc.text(label, startX, y + Math.max(PAD_Y, (h - FONT_SIZE) / 2), {
+            width: Math.max(24, xFirst - startX - 3),
+            align: 'right',
+            lineBreak: false
+        });
+    }
+    let x = xFirst;
+    for (let i = first; i <= last; i++) {
+        const col = columnas[i] || '';
+        const texto = celdaTexto(fila[i], col);
+        const align = alinearColumna(col, fila[i]);
+        const opts = opcionesTexto(anchos[i], align);
+        const contentH = doc.heightOfString(texto || ' ', opts);
+        const textY = y + Math.max(PAD_Y, (h - contentH) / 2);
+        doc.text(texto, x + PAD_X, textY, opts);
+        x += anchos[i];
+    }
+    doc.save();
+    doc.strokeColor(COLOR_LINEA).lineWidth(grosor);
+    doc.rect(xFirst, y, boxW, h).stroke();
+    x = xFirst;
+    for (let i = first; i < last; i++) {
+        x += anchos[i];
+        doc.moveTo(x, y).lineTo(x, y + h).stroke();
+    }
+    doc.restore();
+    doc.x = startX;
+    doc.y = y + h;
+    return doc.y;
+}
+
+function pintarPieExcel(sheet: ExcelJS.Worksheet, fila: number, hoja: HojaExport, pies: Celda[][]): number {
+    const negro = { argb: 'FF000000' as const };
+    for (const datos of pies) {
+        const rango = rangoCeldasPie(datos, hoja.columnas);
+        if (!rango) {
+            continue;
+        }
+        const row = sheet.getRow(fila);
+        if (rango.first > 0) {
+            mergeExcel(sheet, fila, 1, rango.first);
+            const lab = sheet.getCell(fila, 1);
+            lab.value = etiquetaPieTotales(hoja.columnas, rango.first, rango.last);
+            lab.font = { bold: true, size: 9, color: negro };
+            lab.alignment = { horizontal: 'right', vertical: 'middle' };
+        }
+        for (let i = rango.first; i <= rango.last; i++) {
+            const cell = row.getCell(i + 1);
+            const nombreCol = hoja.columnas[i] || '';
+            const valor = datos[i] ?? '';
+            if (typeof valor === 'number') {
+                cell.value = valor;
+                cell.numFmt = esColumnaEntera(nombreCol) ? '0' : '#,##0.00';
+            } else {
+                cell.value = valor;
+            }
+            cell.font = { bold: true, size: 9, color: negro };
+            cell.alignment = { wrapText: true, vertical: 'middle', horizontal: alinearColumna(nombreCol, valor) };
+            cell.border = bordeExcel();
+        }
+        row.height = 13;
+        fila += 1;
+    }
+    return fila;
 }
 
 function dibujarRecap(
@@ -845,8 +1079,8 @@ function dibujarHoja(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
     }
     const anchos = anchosColumnas(hoja.columnas, pageWidth);
     const headerH = alturaBloque(doc, hoja.columnas, hoja.columnas, anchos, true);
-    const pie = construirPie(hoja);
-    const filasTabla = [...hoja.filas.map((fila) => ({ fila, pie: false })), ...pie.map((fila) => ({ fila, pie: true }))];
+    const separado = extraerFilasPie(hoja.filas);
+    const pie = separado.pie.length ? separado.pie : construirPie({ ...hoja, filas: separado.filas });
 
     const encabezado = (): BloqueTabla => ({
         fila: hoja.columnas,
@@ -865,24 +1099,29 @@ function dibujarHoja(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
         bloques = [];
     };
 
-    filasTabla.forEach((item) => {
-        const rowH = alturaBloque(doc, item.fila, hoja.columnas, anchos, item.pie);
+    separado.filas.forEach((fila) => {
+        const rowH = alturaBloque(doc, fila, hoja.columnas, anchos, false);
         const usado = bloques.reduce((acc, b) => acc + b.h, 0);
         if (doc.y + usado + rowH > bottom) {
             flush();
             doc.addPage();
             bloques = [encabezado()];
         }
-        bloques.push({
-            fila: item.fila,
-            h: rowH,
-            negrita: item.pie,
-            fondo: item.pie ? COLOR_PIE : undefined
-        });
+        bloques.push({ fila, h: rowH });
     });
     flush();
-    if (hoja.resumen?.length) {
-        dibujarRecap(doc, hoja.resumen, startX, bottom);
+    pie.forEach((filaPie) => {
+        const pieH = alturaPieCompacto(doc, hoja.columnas, anchos, filaPie);
+        if (pieH && doc.y + pieH > bottom) {
+            doc.addPage();
+            bloques = [encabezado()];
+            flush();
+        }
+        dibujarPieCompacto(doc, startX, hoja.columnas, anchos, filaPie);
+    });
+    const recap = resumenTrasPie(hoja.resumen || [], pie.length > 0);
+    if (recap.length) {
+        dibujarRecap(doc, recap, startX, bottom);
     }
 }
 
@@ -891,32 +1130,19 @@ const FORMAL_LINEA = '#000000';
 const FIRMA_H = 54;
 
 function limiteContenido(doc: PDFKit.PDFDocument): number {
-    return doc.page.height - 36;
+    return doc.page.height - 44;
 }
 
 function pesoColumnaFormal(nombre: string): number {
     const n = nombre.toLowerCase().trim();
     if (n === 'despachado') return 1.45;
-    if (/^n[°º]$|^#$/.test(n)) return 0.4;
     if (/n[°º].*venta/.test(n)) return 0.85;
-    if (/^fecha$/.test(n)) return 1.05;
-    if (/cliente/.test(n)) return 2.5;
-    if (/total|cobrado|saldo/.test(n)) return 1.2;
-    if (/vencimiento/.test(n)) return 1.15;
-    if (/atraso|d[ií]as/.test(n)) return 1.15;
-    if (/estado/.test(n)) return 1.15;
+    if (/cliente/.test(n)) return 2.3;
     return pesoColumna(nombre);
 }
 
 function anchosFormal(columnas: string[], pageWidth: number): number[] {
-    const pesos = columnas.map(pesoColumnaFormal);
-    const suma = pesos.reduce((acc, p) => acc + p, 0) || 1;
-    const anchos = pesos.map((p) => Math.floor((p / suma) * pageWidth * 10) / 10);
-    const usados = anchos.slice(0, -1).reduce((acc, n) => acc + n, 0);
-    if (anchos.length) {
-        anchos[anchos.length - 1] = pageWidth - usados;
-    }
-    return anchos;
+    return anchosColumnas(columnas, pageWidth, pesoColumnaFormal);
 }
 
 function dibujarEncabezadoFormal(doc: PDFKit.PDFDocument, hoja: HojaExport, completo: boolean): void {
@@ -998,17 +1224,17 @@ function dibujarTotalesFormal(
     const labelW = 130;
     const valorW = 110;
     const xLabel = startX + pageWidth - labelW - valorW;
-    doc.y += 12;
+    doc.y += 8;
     resumen.forEach((item) => {
         const y = doc.y;
         const pendiente = /pendiente/i.test(item.label);
-        doc.font(pendiente ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor('#000000');
+        doc.font(pendiente ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor('#000000');
         doc.text(`${item.label}:`, xLabel, y, { width: labelW, align: 'right', lineBreak: false });
         const texto = typeof item.valor === 'number'
             ? `Bs ${textoNumero(item.valor, item.label)}`
             : String(item.valor ?? '');
         doc.text(texto, xLabel + labelW + 8, y, { width: valorW, align: 'right', lineBreak: false });
-        doc.y = y + 13;
+        doc.y = y + 11;
     });
 }
 
@@ -1021,13 +1247,16 @@ function dibujarConsultaFormal(
     if (!consulta.length) {
         return;
     }
-    doc.y += 14;
-    doc.font('Helvetica').fontSize(8).fillColor('#000000');
+    doc.y += 8;
+    doc.font('Helvetica').fontSize(7.5).fillColor('#000000');
     doc.text('Consulta:', startX, doc.y);
     consulta.forEach((item) => {
         const y = doc.y;
-        doc.text(`${item.label}: ${item.valor}`, startX, y, { lineBreak: textoCompleto, width: doc.page.width - startX - doc.page.margins.right });
-        doc.y = textoCompleto ? doc.y + 2 : y + 11;
+        doc.text(`${item.label}: ${item.valor}`, startX, y, {
+            width: doc.page.width - startX - doc.page.margins.right,
+            lineBreak: true
+        });
+        doc.y = Math.max(doc.y, y + 10);
     });
 }
 
@@ -1070,7 +1299,7 @@ function dibujarHojaFormal(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
         if (!bloques.length) {
             return;
         }
-        dibujarGrilla(doc, startX, doc.y, pageWidth, hoja.columnas, anchos, bloques, 0.4, hoja.textoCompleto);
+        dibujarGrilla(doc, startX, doc.y, pageWidth, hoja.columnas, anchos, bloques, 0.4);
         bloques = [];
     };
     const nuevaPagina = () => {
@@ -1080,7 +1309,8 @@ function dibujarHojaFormal(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
         bloques = [encabezado()];
     };
 
-    hoja.filas.forEach((fila) => {
+    const separado = extraerFilasPie(hoja.filas);
+    separado.filas.forEach((fila) => {
         const rowH = alturaBloque(doc, fila, hoja.columnas, anchos, false);
         const usado = bloques.reduce((acc, b) => acc + b.h, 0);
         if (doc.y + usado + rowH > bottom()) {
@@ -1089,11 +1319,20 @@ function dibujarHojaFormal(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
         bloques.push({ fila, h: rowH });
     });
     flush();
+    const pies = separado.pie.length ? separado.pie : construirPie({ ...hoja, filas: separado.filas });
+    pies.forEach((filaPie) => {
+        const pieH = alturaPieCompacto(doc, hoja.columnas, anchos, filaPie);
+        if (pieH && doc.y + pieH > bottom()) {
+            nuevaPagina();
+            flush();
+        }
+        dibujarPieCompacto(doc, startX, hoja.columnas, anchos, filaPie, 0.4);
+    });
 
     const consulta = hoja.consulta || [];
-    const resumen = hoja.resumen || [];
-    const totalesH = resumen.length ? 12 + resumen.length * 13 : 0;
-    const consultaH = consulta.length ? 14 + 12 + consulta.length * 11 : 0;
+    const resumen = resumenTrasPie(hoja.resumen || [], pies.length > 0);
+    const totalesH = resumen.length ? 8 + resumen.length * 11 : 0;
+    const consultaH = consulta.length ? 20 + consulta.length * 16 : 0;
     const firmaH = hoja.mostrarFirma ? 22 + FIRMA_H : 0;
 
     if (resumen.length) {

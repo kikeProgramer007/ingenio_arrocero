@@ -11,6 +11,7 @@ import { aplicarStock, TIPO_INVENTARIO, toQty } from '../utils/inventario';
 import { CATEGORIA_EGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { CrearAcopioDTO, CrearCampanaDTO } from '../dtos/campana.dto';
 import { camposPagoDocumento } from '../utils/metodo-pago';
+import { aplicarFiltroIn, valoresQuery } from '../utils/query';
 
 function mapAcopio(item: any) {
     return {
@@ -55,9 +56,7 @@ export class CampanaController {
     public static async listar(req: Request, res: Response): Promise<void> {
         try {
             const where: any = {};
-            if (typeof req.query.estado === 'string' && req.query.estado) {
-                where.estado = req.query.estado;
-            }
+            aplicarFiltroIn(where, 'estado', valoresQuery(req.query, 'estado'));
             const desde = typeof req.query.fecha_desde === 'string' ? req.query.fecha_desde.slice(0, 10) : '';
             const hasta = typeof req.query.fecha_hasta === 'string' ? req.query.fecha_hasta.slice(0, 10) : '';
             if (desde) {

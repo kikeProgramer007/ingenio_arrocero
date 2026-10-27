@@ -26,11 +26,11 @@ export interface Despacho {
     lineas: LineaDespacho[];
 }
 export interface FiltroDespachos {
-    id_cliente?: number;
+    id_cliente?: number | number[];
     numero?: number;
     fecha_desde?: string;
     fecha_hasta?: string;
-    estado_despacho?: string;
+    estado_despacho?: string | string[];
     sortField?: string;
     sortOrder?: 1 | -1;
 }
@@ -49,7 +49,14 @@ export class DespachosService {
     private params(filtros: object) {
         let params = new HttpParams();
         Object.entries(filtros).forEach(([k, v]) => {
-            if (v !== undefined && v !== null && v !== '') params = params.set(k, String(v));
+            if (v === undefined || v === null || v === '') return;
+            if (Array.isArray(v)) {
+                v.forEach((item) => {
+                    if (item !== undefined && item !== null && item !== '') params = params.append(k, String(item));
+                });
+                return;
+            }
+            params = params.set(k, String(v));
         });
         return params;
     }

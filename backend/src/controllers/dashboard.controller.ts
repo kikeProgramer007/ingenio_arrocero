@@ -50,21 +50,27 @@ export class DashboardController {
             const idCaja = cajaAbierta ? Number(cajaAbierta.get('id')) : 0;
             const desdeTxt = typeof req.query.fecha_desde === 'string' ? req.query.fecha_desde : '';
             const hastaTxt = typeof req.query.fecha_hasta === 'string' ? req.query.fecha_hasta : '';
-            let inicioConsulta = cajaAbierta?.get('fecha_apertura') ? new Date(cajaAbierta.get('fecha_apertura') as string) : inicioDia;
-            let finConsulta = new Date();
+            const aperturaCaja = cajaAbierta?.get('fecha_apertura') ? new Date(cajaAbierta.get('fecha_apertura') as string) : inicioDia;
+            const ahora = new Date();
+            let inicioConsulta = aperturaCaja;
+            let finConsulta = ahora;
             if (desdeTxt) {
                 const parsed = parseFechaLocal(desdeTxt);
                 if (!Number.isNaN(parsed.getTime())) {
                     parsed.setHours(0, 0, 0, 0);
-                    inicioConsulta = parsed;
+                    inicioConsulta = parsed < aperturaCaja ? aperturaCaja : parsed;
                 }
             }
             if (hastaTxt) {
                 const parsed = parseFechaLocal(hastaTxt);
                 if (!Number.isNaN(parsed.getTime())) {
                     parsed.setHours(23, 59, 59, 999);
-                    finConsulta = parsed;
+                    finConsulta = parsed > ahora ? ahora : parsed;
                 }
+            }
+            if (inicioConsulta > finConsulta) {
+                inicioConsulta = aperturaCaja;
+                finConsulta = ahora;
             }
             const dondeFecha = { [Op.between]: [inicioConsulta, finConsulta] };
             const whereHoy: Record<string, unknown> = idCaja
@@ -222,7 +228,7 @@ export class DashboardController {
 
             const flujo = resumirMovimientos(movimientos);
             const ingresos = flujo.ingresos;
-            const egresos = flujo.egresos;
+            const egresos = roundMoney(flujo.egresos - flujo.transferencias);
             const cobrado = flujo.cobrado_neto;
             const porCobrar = await Venta.sum('saldo_pendiente', {
                 where: { estado: { [Op.in]: [ESTADO_VENTA.PENDIENTE, ESTADO_VENTA.PARCIAL] } }

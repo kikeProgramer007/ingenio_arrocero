@@ -14,6 +14,7 @@ import {
 import { ESTADO_VENTA } from '../constants/venta.constants';
 import { ESTADO_COMPRA } from '../constants/compra.constants';
 import { resumirMovimientos } from '../utils/caja-resumen';
+import { aplicarFiltroIn, valoresQuery } from '../utils/query';
 import { registrarEgresosPartidos, registrarIngresosPartidos } from '../utils/caja-ingreso';
 import {
     AbrirCajaDTO,
@@ -102,15 +103,13 @@ export class CajaController {
     public static async historial(req: Request, res: Response): Promise<void> {
         try {
             const where: WhereOptions = { tipo: TIPO_CAJA.PRINCIPAL };
-            const { fecha_desde, fecha_hasta, estado } = req.query;
-
-            if (estado && typeof estado === 'string') {
-                if (estado !== ESTADO_CAJA.ABIERTA && estado !== ESTADO_CAJA.CERRADA) {
-                    res.status(400).json({ mensaje: 'El estado debe ser ABIERTA o CERRADA' });
-                    return;
-                }
-                where.estado = estado;
+            const { fecha_desde, fecha_hasta } = req.query;
+            const estados = valoresQuery(req.query, 'estado');
+            if (estados.some((estado) => estado !== ESTADO_CAJA.ABIERTA && estado !== ESTADO_CAJA.CERRADA)) {
+                res.status(400).json({ mensaje: 'El estado debe ser ABIERTA o CERRADA' });
+                return;
             }
+            aplicarFiltroIn(where as Record<string, unknown>, 'estado', estados);
 
             if (fecha_desde || fecha_hasta) {
                 const rango: { [Op.gte]?: Date; [Op.lte]?: Date } = {};
@@ -227,12 +226,8 @@ export class CajaController {
             }
 
             const where: any = { id_caja: req.params.id };
-            if (typeof req.query.tipo === 'string' && req.query.tipo) {
-                where.tipo = req.query.tipo;
-            }
-            if (typeof req.query.metodo === 'string' && req.query.metodo) {
-                where.metodo_pago = req.query.metodo;
-            }
+            aplicarFiltroIn(where, 'tipo', valoresQuery(req.query, 'tipo'));
+            aplicarFiltroIn(where, 'metodo_pago', valoresQuery(req.query, 'metodo'));
             const movimientos = await MovimientoCaja.findAll({
                 where,
                 include: [{ model: User, as: 'usuario', attributes: usuarioAtributos }],

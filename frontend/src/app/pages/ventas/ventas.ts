@@ -11,6 +11,7 @@ import { DialogModule } from 'primeng/dialog';
 import { DrawerModule } from 'primeng/drawer';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { TableModule } from 'primeng/table';
 import { PaginatorModule, PaginatorState } from 'primeng/paginator';
@@ -56,6 +57,7 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
         DrawerModule,
         InputTextModule,
         SelectModule,
+        MultiSelectModule,
         SelectButtonModule,
         TableModule,
         PaginatorModule,
@@ -97,7 +99,12 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
                     <label class="block font-bold mb-2">Motivo</label>
                     <textarea pTextarea class="w-full" rows="2" [(ngModel)]="motivoEditar" maxlength="250"></textarea>
                 </div>
-                <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="aCreditoEditar" /> Pasar el exceso a crédito</label>
+                <div class="text-sm text-muted-color">Total corregido {{ formatBs(totalEditar) }} · ya cobrado {{ formatBs(cobradoEditar) }}</div>
+                <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="cobrarDiferenciaEditar" (ngModelChange)="alCambiarExcesoEditar('cobrar')" /> Cobrar la diferencia ahora</label>
+                <div *ngIf="cobrarDiferenciaEditar">
+                    <app-metodo-pago [(ngModel)]="metodoEditar" [montoTotal]="diferenciaEditar" [(montoEfectivo)]="efectivoEditar" [(montoQr)]="qrEditar" />
+                </div>
+                <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="aCreditoEditar" (ngModelChange)="alCambiarExcesoEditar('credito')" /> Pasar el exceso a crédito</label>
                 <div *ngIf="aCreditoEditar">
                     <label class="block font-bold mb-2">Plazo en días</label>
                     <input class="p-inputtext w-full" type="number" min="1" [(ngModel)]="plazoEditar" />
@@ -123,11 +130,11 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
             <div class="barra-listado">
                 <div class="campo campo-sm">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Estado de pago <app-ayuda-campo texto="Pendiente o parcial: aún hay saldo. Pagada: cobrada. El estado de despacho se controla por separado." posicion="bottom" /></label>
-                    <p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Estado" fluid appendTo="body" />
+                    <p-multiselect [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="filtroEstado" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-wide">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Cliente <app-ayuda-campo texto="Filtra las ventas de un comprador. Déjalo en Todos para ver todos." posicion="bottom" /></label>
-                    <p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCliente" placeholder="Todos" [filter]="true" [showClear]="true" fluid appendTo="body" />
+                    <p-multiselect [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="filtroCliente" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" />
                 </div>
                 <div class="campo-fecha">
                     <label class="flex items-center gap-1 font-bold mb-1 text-sm">Período <app-ayuda-campo texto="Rango de fechas de la venta. La venta siempre se registra con la fecha de hoy." posicion="left" /></label>
@@ -446,8 +453,9 @@ import { esNombreEmpaque, esProductoEmpaque as productoEsEmpaque } from '../../s
                 <div class="text-muted-color" *ngIf="!detalle.cobranzas?.length">Aún no hay cobros registrados en esta venta.</div>
                 <div class="mt-4" *ngIf="detalle.bitacora?.length">
                     <div class="font-semibold mb-2">Bitácora</div>
-                    <div *ngFor="let b of detalle.bitacora" class="text-sm mb-2">
-                        {{ b.fecha | date:'dd/MM/yyyy HH:mm' }} · {{ b.usuario?.nombre || b.usuario?.username }} · {{ b.accion }} · {{ b.motivo }}
+                    <div *ngFor="let b of detalle.bitacora" class="text-sm mb-3">
+                        <div>{{ b.fecha | date:'dd/MM/yyyy HH:mm' }} · {{ b.usuario?.nombre || b.usuario?.username }} · {{ b.accion }}{{ b.id_caja ? ' · caja #' + b.id_caja : '' }} · {{ b.motivo }}</div>
+                        <div class="text-muted-color" *ngIf="b.anterior || b.nuevo">Antes: {{ resumenBitacora(b.anterior) }} → Ahora: {{ resumenBitacora(b.nuevo) }}</div>
                     </div>
                 </div>
             </ng-container>
@@ -719,6 +727,44 @@ export class VentasPage implements OnInit {
         { label: 'Retiro posterior', description: 'No se entrega ahora. El cliente retirará después.', icon: 'pi pi-home', value: 'POSTERIOR' }
     ];
     get tieneProductos() { return this.lineas.some(l => l.id_producto); }
+    get totalEditar(): number {
+        return this.lineasEditar.reduce((acc, l) => acc + Number(l.cantidad || 0) * Number(l.precio_unitario || 0), 0);
+    }
+    get cobradoEditar(): number {
+        return Number(this.detalle?.pagado || 0);
+    }
+    get diferenciaEditar(): number {
+        return Math.max(0, this.totalEditar - this.cobradoEditar);
+    }
+    resumenBitacora(valor: unknown): string {
+        if (!valor) {
+            return '-';
+        }
+        const dato = typeof valor === 'string' ? (() => { try { return JSON.parse(valor); } catch { return valor; } })() : valor;
+        if (typeof dato !== 'object') {
+            return String(dato);
+        }
+        const obj = dato as { total?: number; saldo_pendiente?: number; estado?: string; lineas?: { descripcion?: string; cantidad?: number; precio_unitario?: number }[] };
+        const partes = [
+            obj.total != null ? `total ${this.formatBs(obj.total)}` : '',
+            obj.saldo_pendiente != null ? `saldo ${this.formatBs(obj.saldo_pendiente)}` : '',
+            obj.estado || ''
+        ].filter(Boolean);
+        if (obj.lineas?.length) {
+            partes.push(obj.lineas.map((l) => `${l.descripcion || 'ítem'} ${l.cantidad} x ${l.precio_unitario}`).join(', '));
+        }
+        return partes.join(' · ') || '-';
+    }
+    alCambiarExcesoEditar(origen: 'cobrar' | 'credito'): void {
+        if (origen === 'cobrar' && this.cobrarDiferenciaEditar) {
+            this.aCreditoEditar = false;
+            this.efectivoEditar = this.diferenciaEditar;
+            this.qrEditar = 0;
+        }
+        if (origen === 'credito' && this.aCreditoEditar) {
+            this.cobrarDiferenciaEditar = false;
+        }
+    }
     get pendienteEntregaTexto() { return this.lineas.filter(l => l.id_producto).map(l => `${this.entrega === 'COMPLETA' ? 0 : this.entrega === 'POSTERIOR' ? l.cantidad : Math.max(0, Number(l.cantidad) - Number(l.entregar_ahora || 0))} ${this.unidadLinea(l)} de ${l.descripcion}`).join('; ') || 'No aplica'; }
     actualizarDespachos() { this.cargar(); this.cargarProductos(); if (this.detalle && this.dialogDetalle) this.ver(this.detalle); }
     filasTabla = FILAS_TABLA;
@@ -740,6 +786,10 @@ export class VentasPage implements OnInit {
     dialogEditar = false;
     motivoEditar = '';
     aCreditoEditar = false;
+    cobrarDiferenciaEditar = false;
+    metodoEditar = 'EFECTIVO';
+    efectivoEditar = 0;
+    qrEditar = 0;
     plazoEditar = 7;
     lineasEditar: { id?: number; descripcion: string; cantidad: number; precio_unitario: number; id_producto?: number | null; entregado?: number }[] = [];
     dialogDetalle = false;
@@ -755,11 +805,10 @@ export class VentasPage implements OnInit {
     cobroReferencia = '';
     clienteRapido = { nombre: '', nit_ci: '', telefono: '', procedencia: null as string | null };
     procedencias = [...PROCEDENCIAS_CLIENTE];
-    filtroEstado = '';
-    filtroCliente: number | null = null;
+    filtroEstado: string[] = [];
+    filtroCliente: number[] = [];
     rango: Date[] | null = null;
     estados = [
-        { label: 'Todas', value: '' },
         { label: 'Pendiente', value: 'PENDIENTE' },
         { label: 'Pago parcial', value: 'PARCIAL' },
         { label: 'Pagada', value: 'PAGADA' },
@@ -898,8 +947,8 @@ export class VentasPage implements OnInit {
     cargar(): void {
         this.cargando = true;
         this.ventasService.listar({
-            estado: this.filtroEstado || undefined,
-            id_cliente: this.filtroCliente || undefined,
+            estado: this.filtroEstado.length ? this.filtroEstado : undefined,
+            id_cliente: this.filtroCliente.length ? this.filtroCliente : undefined,
             fecha_desde: this.rango?.[0] ? this.ymd(this.rango[0]) : undefined,
             fecha_hasta: this.rango?.[1] || this.rango?.[0] ? this.ymd(this.rango[1] || this.rango[0]) : undefined
         }).subscribe({
@@ -931,6 +980,8 @@ export class VentasPage implements OnInit {
         this.filtroCategoriaId = null;
         this.busquedaProducto = '';
         this.dialogNueva = true;
+        this.dejarPendiente = false;
+        this.modoPendiente = 'PARCIAL';
         this.entrega = 'COMPLETA'; this.personaRetira = ''; this.claveVenta = crypto.randomUUID();
     }
 
@@ -1329,6 +1380,10 @@ export class VentasPage implements OnInit {
             }));
             this.motivoEditar = '';
             this.aCreditoEditar = false;
+            this.cobrarDiferenciaEditar = false;
+            this.metodoEditar = 'EFECTIVO';
+            this.efectivoEditar = 0;
+            this.qrEditar = 0;
             this.plazoEditar = data.plazo_dias || 7;
             this.dialogEditar = true;
         };
@@ -1352,7 +1407,11 @@ export class VentasPage implements OnInit {
             motivo: this.motivoEditar.trim(),
             lineas: this.lineasEditar,
             a_credito: this.aCreditoEditar,
-            plazo_dias: this.aCreditoEditar ? this.plazoEditar : undefined
+            plazo_dias: this.aCreditoEditar ? this.plazoEditar : undefined,
+            cobrar_diferencia: this.cobrarDiferenciaEditar,
+            metodo_pago: this.cobrarDiferenciaEditar ? this.metodoEditar : undefined,
+            monto_efectivo: this.cobrarDiferenciaEditar ? this.efectivoEditar : undefined,
+            monto_qr: this.cobrarDiferenciaEditar ? this.qrEditar : undefined
         }).subscribe({
             next: (res) => {
                 this.guardando = false;

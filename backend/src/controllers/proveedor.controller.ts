@@ -101,7 +101,7 @@ export class ProveedorController {
                         {
                             model: Compra,
                             as: 'compra',
-                            attributes: ['id', 'total', 'saldo_pendiente', 'estado', 'tipo_compra', 'tipo_cambio', 'total_usd', 'id_productor'],
+                            attributes: ['id', 'total', 'saldo_pendiente', 'estado', 'tipo_compra', 'tipo_cambio', 'total_usd', 'fanegas', 'boleta', 'ordenante', 'id_productor'],
                             include: [{ model: Productor, as: 'productor', attributes: ['id', 'nombre'] }]
                         },
                         { model: User, as: 'usuario', attributes: usuarioAtributos }

@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
-import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TableModule } from 'primeng/table';
 import { Table } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -18,7 +18,7 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
 @Component({
     selector: 'app-despachos',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, SelectModule, TableModule, TagModule, DatePickerModule, InputTextModule, DespachoFormComponent, TablaEsqueletoComponent],
+    imports: [CommonModule, FormsModule, ButtonModule, MultiSelectModule, TableModule, TagModule, DatePickerModule, InputTextModule, DespachoFormComponent, TablaEsqueletoComponent],
     template: ` <div class="flex flex-wrap justify-between gap-4 mb-6">
             <div>
                 <h1 class="text-2xl font-semibold m-0">Despachos</h1>
@@ -30,8 +30,8 @@ import { TablaEsqueletoComponent } from '../../shared/components/tabla-esqueleto
         </div>
         <div *ngIf="!habilitado" class="mb-4 text-muted-color">El registro de despachos está pendiente de activación.</div>
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(9rem,1fr)_minmax(15rem,1.4fr)_minmax(13rem,1.2fr)_minmax(8rem,1fr)_auto] gap-4 mb-5">
-            <div><label class="block font-bold mb-2">Cliente</label><p-select [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="cliente" [showClear]="true" [filter]="true" placeholder="Todos" fluid appendTo="body" /></div>
-            <div><label class="block font-bold mb-2">Estado de despacho</label><p-select [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="estado" fluid appendTo="body" /></div>
+            <div><label class="block font-bold mb-2">Cliente</label><p-multiselect [options]="clientes" optionLabel="nombre" optionValue="id" [(ngModel)]="cliente" [showClear]="true" [filter]="true" placeholder="Todos" display="chip" fluid appendTo="body" /></div>
+            <div><label class="block font-bold mb-2">Estado de despacho</label><p-multiselect [options]="estados" optionLabel="label" optionValue="value" [(ngModel)]="estado" placeholder="Todos" display="chip" [filter]="true" [showClear]="true" fluid appendTo="body" /></div>
             <div><label class="block font-bold mb-2">Fecha de venta</label><p-datepicker [(ngModel)]="rango" selectionMode="range" [showIcon]="true" dateFormat="dd/mm/yy" [showClear]="true" fluid appendTo="body" /></div>
             <div><label class="block font-bold mb-2">Número de venta</label><input pInputText type="number" min="1" class="w-full" [(ngModel)]="numero" (keyup.enter)="consultar()" /></div>
             <div class="flex items-end"><p-button label="Consultar" icon="pi pi-search" (onClick)="consultar()" /></div>
@@ -253,17 +253,17 @@ export class DespachosComponent implements OnInit {
     total = 0;
     cargando = false;
     habilitado = false;
-    cliente: number | null = null;
+    cliente: number[] = [];
     numero: number | null = null;
     rango: Date[] | null = null;
-    estado = 'ABIERTOS';
+    estado: string[] = ['PENDIENTE', 'PARCIAL'];
     primero = 0;
     limite = 10;
     expandedRows: Record<string, boolean> = {};
     @ViewChild('dt') tabla!: Table;
     sortField = 'fecha';
     sortOrder: 1 | -1 = -1;
-    filtros: FiltroDespachos = { estado_despacho: 'ABIERTOS' };
+    filtros: FiltroDespachos = { estado_despacho: ['PENDIENTE', 'PARCIAL'] };
     secuencia = 0;
     etiqueta = etiquetaDespacho;
     color = colorDespacho;
@@ -271,8 +271,6 @@ export class DespachosComponent implements OnInit {
         return this.ventas.length > 0 && this.ventas.every((venta) => this.expandedRows[String(venta.id)]);
     }
     estados = [
-        { label: 'Pendientes y parciales', value: 'ABIERTOS' },
-        { label: 'Todos', value: 'TODOS' },
         { label: 'Pendiente', value: 'PENDIENTE' },
         { label: 'Parcial', value: 'PARCIAL' },
         { label: 'Completo', value: 'COMPLETO' },
@@ -292,8 +290,8 @@ export class DespachosComponent implements OnInit {
     }
     consultar() {
         this.filtros = {
-            estado_despacho: this.estado,
-            id_cliente: this.cliente || undefined,
+            estado_despacho: this.estado.length ? this.estado : undefined,
+            id_cliente: this.cliente.length ? this.cliente : undefined,
             numero: this.numero || undefined,
             fecha_desde: this.rango?.[0] ? this.ymd(this.rango[0]) : undefined,
             fecha_hasta: this.rango?.[0] ? this.ymd(this.rango[1] || this.rango[0]) : undefined,

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { Beneficiario, CategoriaEgreso, Gasto, PagoGasto, sequelize, User } from '../models';
 import { aplicarFiltroFecha } from '../utils/fecha';
+import { aplicarFiltroIn, valoresQuery } from '../utils/query';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
@@ -73,21 +74,13 @@ export class GastoController {
     public static async listar(req: Request, res: Response): Promise<void> {
         try {
             const where: any = {};
-            if (typeof req.query.tipo === 'string' && req.query.tipo) {
-                where.tipo = req.query.tipo;
-            }
+            aplicarFiltroIn(where, 'tipo', valoresQuery(req.query, 'tipo'));
             if (typeof req.query.condicion === 'string' && req.query.condicion) {
                 where.condicion = req.query.condicion;
             }
-            if (typeof req.query.metodo === 'string' && req.query.metodo) {
-                where.metodo_pago = req.query.metodo;
-            }
-            if (typeof req.query.categoria === 'string' && req.query.categoria) {
-                where.categoria = req.query.categoria;
-            }
-            if (typeof req.query.persona === 'string' && req.query.persona.trim()) {
-                where.persona = req.query.persona.trim();
-            }
+            aplicarFiltroIn(where, 'metodo_pago', valoresQuery(req.query, 'metodo'));
+            aplicarFiltroIn(where, 'categoria', valoresQuery(req.query, 'categoria'));
+            aplicarFiltroIn(where, 'persona', valoresQuery(req.query, 'persona'));
             aplicarFiltroFecha(where, req.query);
             const gastos = await Gasto.findAll({
                 where,

@@ -12,25 +12,26 @@ export interface ParamsExport {
     formato: FormatoExport;
     fecha_desde?: string;
     fecha_hasta?: string;
-    id_cliente?: number | string;
-    estado?: string;
-    tipo_gasto?: string;
+    id_cliente?: number | string | Array<number | string>;
+    estado?: string | string[];
+    tipo_gasto?: string | string[];
     id_caja?: number | string;
     id?: number | string;
     q?: string;
     id_productor?: number | string;
-    tipo_compra?: string;
-    metodo?: string;
-    categoria?: string;
-    id_categoria?: string;
-    disponible_en?: string;
-    id_proveedor?: number | string;
+    tipo_compra?: string | string[];
+    metodo?: string | string[];
+    categoria?: string | string[];
+    id_categoria?: string | string[];
+    disponible_en?: string | string[];
+    id_proveedor?: number | string | Array<number | string>;
     ordenante?: string;
-    procedencia?: string;
-    activos?: string;
-    tipo_movimiento?: string;
-    origen?: string;
+    procedencia?: string | string[];
+    activos?: string | string[];
+    tipo_movimiento?: string | string[];
+    origen?: string | string[];
     rol?: string;
+    estado_despacho?: string | string[];
 }
 
 interface ArchivoExport {
@@ -124,9 +125,18 @@ export class ExportarService {
     private obtenerArchivo(params: ParamsExport): Observable<ArchivoExport> {
         let httpParams = new HttpParams();
         Object.entries(params).forEach(([key, value]) => {
-            if (value !== undefined && value !== null && value !== '') {
-                httpParams = httpParams.set(key, String(value));
+            if (value === undefined || value === null || value === '') {
+                return;
             }
+            if (Array.isArray(value)) {
+                value.forEach((item) => {
+                    if (item !== undefined && item !== null && item !== '') {
+                        httpParams = httpParams.append(key, String(item));
+                    }
+                });
+                return;
+            }
+            httpParams = httpParams.set(key, String(value));
         });
         return this.http
             .get(apiUrl('/api/reportes/exportar'), {

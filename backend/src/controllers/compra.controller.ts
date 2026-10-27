@@ -5,13 +5,14 @@ import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
 import { roundMoney, toMoney } from '../utils/money';
 import { obtenerCajaAbierta, registrarEgresosPartidos } from '../utils/caja-ingreso';
-import { aplicarStock, TIPO_INVENTARIO, toQty } from '../utils/inventario';
+import { aplicarStock, disponiblePara, TIPO_INVENTARIO, toQty } from '../utils/inventario';
 import { CATEGORIA_EGRESO, ORIGEN_MOVIMIENTO } from '../constants/caja.constants';
 import { ESTADO_COMPRA, estadoCompraPorSaldo, inferirTipoCompra, TIPO_CAMBIO_DEFAULT, TIPO_COMPRA } from '../constants/compra.constants';
 import { CrearCompraDTO, CrearPagoProveedorDTO } from '../dtos/compra.dto';
 import { camposPagoDocumento } from '../utils/metodo-pago';
 import { esCompraServicio } from '../utils/cuenta-proveedor';
 import { aplicarFiltroFecha, parseFechaLocal, ymdLocal } from '../utils/fecha';
+import { aplicarFiltroIn, idsQuery, valoresQuery } from '../utils/query';
 import { datosEmpresa, normalizarTipoCambio, refrescarEmpresa } from '../utils/empresa';
 import { esProductoEmpaque } from '../utils/empaque';
 import { MENSAJE_UNIDAD_MEDIDA, normalizarUnidadMedida, unidadMedidaInvalida } from '../utils/unidad-medida';
@@ -137,21 +138,17 @@ export class CompraController {
     public static async listar(req: Request, res: Response): Promise<void> {
         try {
             const where: any = {};
-            const { estado, id_proveedor, tipo_compra } = req.query;
-            if (typeof estado === 'string' && estado) {
-                where.estado = estado;
-            }
-            if (typeof id_proveedor === 'string' && id_proveedor) {
-                where.id_proveedor = Number(id_proveedor);
-            }
+            aplicarFiltroIn(where, 'estado', valoresQuery(req.query, 'estado'));
+            aplicarFiltroIn(where, 'id_proveedor', idsQuery(req.query, 'id_proveedor'));
             aplicarFiltroFecha(where, req.query);
             const compras = await Compra.findAll({
                 where,
                 include: includesCompra,
                 order: [['fecha', 'DESC'], ['id', 'DESC']]
             });
-            const filtradas = typeof tipo_compra === 'string' && tipo_compra
-                ? compras.filter((c) => inferirTipoCompra(c.get({ plain: true })) === tipo_compra)
+            const tiposCompra = valoresQuery(req.query, 'tipo_compra');
+            const filtradas = tiposCompra.length
+                ? compras.filter((c) => tiposCompra.includes(inferirTipoCompra(c.get({ plain: true }))))
                 : compras;
             res.status(200).json(filtradas.map(mapCompra));
         } catch (error) {
@@ -244,6 +241,11 @@ export class CompraController {
 
             let idProductor: number | null = null;
             const anticipada = Boolean(datos.anticipada);
+            if (anticipada && tipoCompra !== TIPO_COMPRA.BOLSAS) {
+                await transaction.rollback();
+                res.status(400).json({ mensaje: 'La compra anticipada solo aplica a bolsas y empaques' });
+                return;
+            }
 
             let cajaAbierta = null;
             if (pagoInicial > 0) {
@@ -302,6 +304,11 @@ export class CompraController {
                         include: [{ model: CategoriaProducto, as: 'categoria', attributes: ['id', 'nombre'] }]
                     });
                     if (producto) {
+                        if (!disponiblePara(producto, 'COMPRAS')) {
+                            await transaction.rollback();
+                            res.status(400).json({ mensaje: `${producto.get('nombre')} está disponible solo para ventas` });
+                            return;
+                        }
                         if (!linea.descripcion) {
                             linea.descripcion = String(producto.get('nombre'));
                         }
@@ -406,7 +413,9 @@ export class CompraController {
             const creada = await Compra.findByPk(idCompra, { include: includesCompra });
             res.status(201).json({ mensaje: 'Compra registrada', data: mapCompra(creada) });
         } catch (error) {
-            await transaction.rollback();
+            if (!(transaction as { finished?: string }).finished) {
+                await transaction.rollback();
+            }
             handleError(res, error, 'Error al registrar la compra');
         }
     }
@@ -519,6 +528,38 @@ export class CompraController {
             handleError(res, error, 'Error al registrar la recepción');
         }
     }
+
+    public static async recepciones(req: Request, res: Response): Promise<void> {
+        try {
+            const id = Number(req.params.id);
+            const [filas] = await sequelize.query(
+                `SELECT r.id, r.id_compra, r.id_detalle, r.cantidad, r.fecha, r.id_usuario,
+                        u.nombre AS usuario_nombre, u.username AS usuario_username,
+                        d.descripcion
+                 FROM recepciones_compra r
+                 LEFT JOIN user u ON u.id = r.id_usuario
+                 LEFT JOIN compra_detalles d ON d.id = r.id_detalle
+                 WHERE r.id_compra = :id
+                 ORDER BY r.fecha DESC, r.id DESC`,
+                { replacements: { id } }
+            );
+            res.status(200).json((filas as any[]).map((item) => ({
+                id: item.id,
+                id_compra: item.id_compra,
+                id_detalle: item.id_detalle,
+                cantidad: Number(item.cantidad),
+                fecha: item.fecha,
+                descripcion: item.descripcion || '',
+                usuario: mapUsuarioResumen({
+                    id: item.id_usuario,
+                    nombre: item.usuario_nombre,
+                    username: item.usuario_username
+                })
+            })));
+        } catch (error) {
+            handleError(res, error, 'Error al consultar las recepciones');
+        }
+    }
 }
 
 export class PagoProveedorController {
@@ -528,12 +569,8 @@ export class PagoProveedorController {
             if (typeof req.query.id_compra === 'string' && req.query.id_compra) {
                 where.id_compra = Number(req.query.id_compra);
             }
-            if (typeof req.query.id_proveedor === 'string' && req.query.id_proveedor) {
-                where.id_proveedor = Number(req.query.id_proveedor);
-            }
-            if (typeof req.query.metodo === 'string' && req.query.metodo) {
-                where.metodo_pago = req.query.metodo;
-            }
+            aplicarFiltroIn(where, 'id_proveedor', idsQuery(req.query, 'id_proveedor'));
+            aplicarFiltroIn(where, 'metodo_pago', valoresQuery(req.query, 'metodo'));
             aplicarFiltroFecha(where, req.query);
             const pagos = await PagoProveedor.findAll({
                 where,

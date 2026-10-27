@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { apiUrl } from '../../core/utils/api-url';
+import { comoLista, parametrosLista } from '../../shared/utils/filtro-lista';
 import { ApiMensaje, Compra, CrearCompraPayload, CuentaProveedor, PagoProveedor, Productor, Proveedor } from './compras.models';
 
 @Injectable({ providedIn: 'root' })
@@ -30,7 +31,7 @@ export class ProveedoresService {
         return this.http.put<ApiMensaje<Proveedor>>(apiUrl(`/api/proveedores/${id}`), payload);
     }
 
-    cuenta(id: number, filtros?: { fecha_desde?: string; fecha_hasta?: string; tipo_compra?: string; ordenante?: string }): Observable<CuentaProveedor> {
+    cuenta(id: number, filtros?: { fecha_desde?: string; fecha_hasta?: string; tipo_compra?: string | string[]; ordenante?: string }): Observable<CuentaProveedor> {
         let httpParams = new HttpParams();
         if (filtros?.fecha_desde) {
             httpParams = httpParams.set('fecha_desde', filtros.fecha_desde);
@@ -38,9 +39,7 @@ export class ProveedoresService {
         if (filtros?.fecha_hasta) {
             httpParams = httpParams.set('fecha_hasta', filtros.fecha_hasta);
         }
-        if (filtros?.tipo_compra) {
-            httpParams = httpParams.set('tipo_compra', filtros.tipo_compra);
-        }
+        httpParams = parametrosLista(httpParams, 'tipo_compra', comoLista(filtros?.tipo_compra));
         if (filtros?.ordenante) {
             httpParams = httpParams.set('ordenante', filtros.ordenante);
         }
@@ -86,17 +85,11 @@ export class ProductoresService {
 export class ComprasService {
     constructor(private http: HttpClient) {}
 
-    listar(filtros?: { estado?: string; id_proveedor?: number; tipo_compra?: string; fecha_desde?: string; fecha_hasta?: string }): Observable<Compra[]> {
+    listar(filtros?: { estado?: string | string[]; id_proveedor?: number | number[]; tipo_compra?: string | string[]; fecha_desde?: string; fecha_hasta?: string }): Observable<Compra[]> {
         let params = new HttpParams();
-        if (filtros?.estado) {
-            params = params.set('estado', filtros.estado);
-        }
-        if (filtros?.id_proveedor) {
-            params = params.set('id_proveedor', String(filtros.id_proveedor));
-        }
-        if (filtros?.tipo_compra) {
-            params = params.set('tipo_compra', filtros.tipo_compra);
-        }
+        params = parametrosLista(params, 'estado', comoLista(filtros?.estado));
+        params = parametrosLista(params, 'id_proveedor', comoLista(filtros?.id_proveedor));
+        params = parametrosLista(params, 'tipo_compra', comoLista(filtros?.tipo_compra));
         if (filtros?.fecha_desde) {
             params = params.set('fecha_desde', filtros.fecha_desde);
         }
@@ -114,21 +107,21 @@ export class ComprasService {
         return this.http.post<ApiMensaje<Compra>>(apiUrl('/api/compras'), payload);
     }
 
+    recepciones(id: number): Observable<{ fecha: string; descripcion: string; cantidad: number; usuario?: { nombre?: string; username?: string } }[]> {
+        return this.http.get<{ fecha: string; descripcion: string; cantidad: number; usuario?: { nombre?: string; username?: string } }[]>(apiUrl(`/api/compras/${id}/recepciones`));
+    }
+
     recibir(id: number, lineas: { id_detalle?: number; cantidad: number }[]): Observable<ApiMensaje<Compra>> {
         return this.http.post<ApiMensaje<Compra>>(apiUrl(`/api/compras/${id}/recepciones`), { lineas });
     }
 
-    listarPagos(filtros?: { id_compra?: number; id_proveedor?: number; metodo?: string; fecha_desde?: string; fecha_hasta?: string }): Observable<PagoProveedor[]> {
+    listarPagos(filtros?: { id_compra?: number; id_proveedor?: number | number[]; metodo?: string | string[]; fecha_desde?: string; fecha_hasta?: string }): Observable<PagoProveedor[]> {
         let params = new HttpParams();
         if (filtros?.id_compra) {
             params = params.set('id_compra', String(filtros.id_compra));
         }
-        if (filtros?.id_proveedor) {
-            params = params.set('id_proveedor', String(filtros.id_proveedor));
-        }
-        if (filtros?.metodo) {
-            params = params.set('metodo', filtros.metodo);
-        }
+        params = parametrosLista(params, 'id_proveedor', comoLista(filtros?.id_proveedor));
+        params = parametrosLista(params, 'metodo', comoLista(filtros?.metodo));
         if (filtros?.fecha_desde) {
             params = params.set('fecha_desde', filtros.fecha_desde);
         }
