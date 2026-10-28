@@ -86,7 +86,7 @@ import { SelectModule } from 'primeng/select';
                             </div>
                             <div class="col-span-12 md:col-span-6 flex flex-col gap-2">
                                 <label for="emp-telefono" class="font-medium">Teléfono</label>
-                                <input pInputText id="emp-telefono" [(ngModel)]="form.telefono" maxlength="80" placeholder="78508795 - 74164188" />
+                                <input pInputText id="emp-telefono" [(ngModel)]="form.telefono" maxlength="80" placeholder="Teléfono o celular" />
                             </div>
                             <div class="col-span-12 flex flex-col gap-2">
                                 <label for="emp-direccion" class="font-medium">Dirección</label>

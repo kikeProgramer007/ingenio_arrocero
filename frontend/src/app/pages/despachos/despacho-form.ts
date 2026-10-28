@@ -16,6 +16,13 @@ import { LineaVenta, Venta } from '../ventas/ventas.models';
 import { VentasService } from '../ventas/ventas.service';
 import { colorDespacho, Despacho, DespachosService, etiquetaDespacho } from './despachos.service';
 
+function fechaMaximaDespacho(desde = new Date()) {
+    const maximo = new Date(desde);
+    maximo.setDate(maximo.getDate() + 365);
+    maximo.setHours(23, 59, 59, 999);
+    return maximo;
+}
+
 @Component({
     selector: 'app-despacho-form',
     standalone: true,
@@ -28,7 +35,7 @@ import { colorDespacho, Despacho, DespachosService, etiquetaDespacho } from './d
                 ><p-tag [value]="venta.estado === 'PARCIAL' ? 'Pago parcial' : venta.estado" /><p-tag [value]="etiqueta(venta.estado_despacho)" [severity]="colorEstado(venta.estado_despacho)" />
             </div>
             <ng-container *ngIf="!historia">
-                <div class="mb-4"><label class="block font-bold mb-2">Fecha y hora</label><p-datepicker [(ngModel)]="fecha" [showTime]="true" hourFormat="24" [showIcon]="true" appendTo="body" [minDate]="fechaVenta" [maxDate]="hoy" /></div>
+                <div class="mb-4"><label class="block font-bold mb-2">Fecha y hora</label><p-datepicker [(ngModel)]="fecha" [showTime]="true" hourFormat="24" [showIcon]="true" appendTo="body" [minDate]="fechaVenta" [maxDate]="fechaMaxima" /></div>
                 <p-table [value]="lineas" responsiveLayout="scroll">
                     <ng-template #header
                         ><tr>
@@ -115,7 +122,7 @@ export class DespachoFormComponent {
     observacion = '';
     imprimir = true;
     fecha = new Date();
-    hoy = new Date();
+    fechaMaxima = fechaMaximaDespacho();
     fechaVenta = new Date();
     clave = '';
     textoEntrega(d: Despacho): string {
@@ -152,11 +159,12 @@ export class DespachoFormComponent {
         this.placa = '';
         this.observacion = '';
         this.fecha = new Date();
-        this.hoy = new Date();
+        this.fechaMaxima = fechaMaximaDespacho();
         this.ventas.obtener(venta.id).subscribe({
             next: (v) => {
                 this.venta = v;
                 this.fechaVenta = new Date(v.fecha);
+                if (!Number.isFinite(this.fechaVenta.getTime())) this.fechaVenta = new Date(0);
                 this.cargando = false;
                 this.lineas = (v.detalles || []).filter((l) => l.id_producto).map((l) => ({ ...l, entregar_ahora: Number(l.pendiente || 0) }));
                 if (historia) {

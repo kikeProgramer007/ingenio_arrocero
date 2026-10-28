@@ -12,6 +12,7 @@ import {
   VentaEntrega,
   Cliente,
 } from "../models";
+import { lineasDespacho } from "../models/despacho.model";
 import { includesVenta, mapVenta } from "./venta.controller";
 import {
   despachosHabilitados,
@@ -209,17 +210,22 @@ export class DespachoController {
   }
   static async historial(req: Request, res: Response) {
     try {
+      const filas = await Despacho.findAll({
+        where: { id_venta: Number(req.params.id) },
+        include: [
+          {
+            model: User,
+            as: "usuario",
+            attributes: ["id", "nombre", "username"],
+          },
+        ],
+        order: [["id", "DESC"]],
+      });
       res.json(
-        await Despacho.findAll({
-          where: { id_venta: Number(req.params.id) },
-          include: [
-            {
-              model: User,
-              as: "usuario",
-              attributes: ["id", "nombre", "username"],
-            },
-          ],
-          order: [["id", "DESC"]],
+        filas.map((d) => {
+          const json: any = d.toJSON();
+          json.lineas = lineasDespacho(json.lineas);
+          return json;
         }),
       );
     } catch (error) {
@@ -310,7 +316,7 @@ export function hojaNotaEntrega(d: any): HojaExport {
       },
     ].filter((item) => item.label === "Firma del chofer" || String(item.valor || "").trim()),
     columnas: COLUMNAS_DOCUMENTOS.nota_entrega,
-    filas: d.lineas.map((l: any) => [
+    filas: lineasDespacho(d.lineas ?? d.get?.("lineas")).map((l: any) => [
       l.descripcion,
       l.unidad,
       Number(l.cantidad) || 0,

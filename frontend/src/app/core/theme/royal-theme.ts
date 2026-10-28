@@ -1,7 +1,7 @@
 import { definePreset } from '@primeng/themes';
 import Aura from '@primeng/themes/aura';
 
-/** Rojo vino del logotipo Royal, sin saturar fondos. */
+/** Rojo vino de la paleta primaria, sin saturar fondos. */
 export const ROYAL_PRIMARY_PALETTE = {
     50: '#fdf6f5',
     100: '#f9e8e6',

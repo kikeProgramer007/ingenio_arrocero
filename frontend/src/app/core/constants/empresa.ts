@@ -23,9 +23,9 @@ export const FORMATOS_NOTA: { label: string; value: FormatoNota }[] = [
 
 export const EMPRESA_FALLBACK: Empresa = {
     id: 0,
-    nombre: 'Ingenio Arrocero Royal',
-    nombre_corto: 'Royal Alimentos',
-    slogan: 'Ingenio arrocero',
+    nombre: 'Comercial Demo',
+    nombre_corto: 'Empresa Demo',
+    slogan: 'Sistema de gestión comercial',
     titular: '',
     nit: '',
     direccion: '',

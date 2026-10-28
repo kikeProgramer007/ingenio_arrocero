@@ -6,6 +6,21 @@ const timestamps = {
   createdAt: "created_at",
   updatedAt: "updated_at",
 };
+
+/** MariaDB guarda JSON como LONGTEXT; Sequelize entrega string si no se parsea. */
+export function lineasDespacho(valor: unknown): any[] {
+  if (Array.isArray(valor)) return valor;
+  if (Buffer.isBuffer(valor)) valor = valor.toString("utf8");
+  if (typeof valor === "string" && valor.trim()) {
+    try {
+      const parsed = JSON.parse(valor);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 export const VentaEntrega = sequelize.define(
   "venta_entrega",
   {
@@ -97,7 +112,13 @@ export const Despacho = sequelize.define(
     placa: { type: DataTypes.STRING(30), allowNull: true },
     observacion: { type: DataTypes.TEXT, allowNull: true },
     solicitud: { type: DataTypes.TEXT, allowNull: false },
-    lineas: { type: DataTypes.JSON, allowNull: false },
+    lineas: {
+      type: DataTypes.JSON,
+      allowNull: false,
+      get() {
+        return lineasDespacho(this.getDataValue("lineas"));
+      },
+    },
   },
   {
     ...timestamps,

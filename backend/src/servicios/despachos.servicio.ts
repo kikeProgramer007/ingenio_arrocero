@@ -174,10 +174,15 @@ export async function registrarDespacho(
       "Venta anterior: requiere revision separada; no se puede volver a descontar stock",
     );
   const fecha = datos.fecha ? new Date(datos.fecha) : new Date();
+  const fechaVenta = new Date(venta.get("fecha") as string | Date);
+  const maximo = new Date();
+  maximo.setDate(maximo.getDate() + 365);
+  maximo.setHours(23, 59, 59, 999);
   if (
     !Number.isFinite(fecha.getTime()) ||
-    fecha < new Date(venta.get("fecha") as string) ||
-    fecha.getTime() > Date.now() + 60000
+    !Number.isFinite(fechaVenta.getTime()) ||
+    fecha < fechaVenta ||
+    fecha > maximo
   )
     throw new ErrorDespacho("Fecha de despacho invalida", 400);
   const reservas = await ReservaVenta.findAll({

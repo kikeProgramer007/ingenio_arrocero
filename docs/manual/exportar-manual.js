@@ -147,7 +147,7 @@ function buildHtml(body) {
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Manual de usuario — Royal Alimentos</title>
+<title>Manual de usuario — Empresa Demo</title>
 <style>${css}</style>
 </head>
 <body>

@@ -41,9 +41,9 @@ function textoEnv(clave: string, respaldo = ''): string {
 export function datosEmpresaFallback(): EmpresaDatos {
     return {
         id: 0,
-        nombre: textoEnv('EMPRESA_NOMBRE', 'Ingenio Arrocero Royal'),
-        nombre_corto: textoEnv('EMPRESA_NOMBRE_CORTO', 'Royal Alimentos'),
-        slogan: textoEnv('EMPRESA_SLOGAN', 'Ingenio arrocero'),
+        nombre: textoEnv('EMPRESA_NOMBRE', 'Comercial Demo'),
+        nombre_corto: textoEnv('EMPRESA_NOMBRE_CORTO', 'Empresa Demo'),
+        slogan: textoEnv('EMPRESA_SLOGAN', 'Sistema de gestión comercial'),
         titular: textoEnv('EMPRESA_TITULAR'),
         nit: textoEnv('EMPRESA_NIT'),
         direccion: textoEnv('EMPRESA_DIRECCION'),
