@@ -482,3 +482,9 @@ TO 'royal_local'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE
 ON db_farmacia.*
 TO 'royal_local'@'%';
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON db_demo_ingenio_arrocero.*
+TO 'royal_local'@'%';
+
+GRANT CREATE, ALTER, DROP, INDEX ON db_demo_ingenio_arrocero.* TO 'royal_local'@'%'; FLUSH PRIVILEGES;
