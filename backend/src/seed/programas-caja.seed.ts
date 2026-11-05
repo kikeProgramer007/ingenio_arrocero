@@ -3,6 +3,7 @@ import { PROGRAMAS_SEED } from '../constants/app-rutas';
 import Perfil from '../models/perfil.model';
 import PerfilProgramas from '../models/perfil_programas.model';
 import Programas from '../models/programas.model';
+import { esProgramaProduccion, permisosInicialesProduccion } from '../constants/produccion.constants';
 
 const URLS_VALIDAS: string[] = PROGRAMAS_SEED.map((item) => item.url);
 
@@ -20,7 +21,10 @@ export async function seedProgramasCaja(): Promise<void> {
             class_icon: programa.class_icon,
             es_expandible: programa.es_expandible,
             nro_posicion: programa.nro_posicion,
-            eliminado: false
+            eliminado: false,
+            ...(esProgramaProduccion(programa.url) ? {
+                id_padre: programa.url === '/produccion' ? null : programasCreados.find(p => p.get('url') === '/produccion')?.get('id') || null
+            } : {})
         });
 
         programasCreados.push(registro);
@@ -39,9 +43,9 @@ export async function seedProgramasCaja(): Promise<void> {
                 defaults: {
                     id_perfil: idPerfil,
                     id_programa: idPrograma,
-                    permiso_lectura: true,
-                    permiso_escritura: true,
-                    permiso_modificacion: true
+                    ...(esProgramaProduccion(String(programa.get('url')))
+                        ? permisosInicialesProduccion(perfil.get('nombre'))
+                        : { permiso_lectura: true, permiso_escritura: true, permiso_modificacion: true })
                 }
             });
         }

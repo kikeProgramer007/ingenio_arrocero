@@ -4,6 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "test:produccion:integral": "npm run build && node dist/scripts/verificar-produccion-integral.js",
+    "migrate:transformaciones": "npm run build && node dist/scripts/migrar-transformaciones.js",
+    "migrate:secados-guardados": "npm run build && node dist/scripts/migrar-secados-guardados.js",
+    "migrate:descarguios": "npm run build && node dist/scripts/migrar-descarguios.js",
+    "migrate:produccion": "npm run build && node dist/scripts/migrar-produccion.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
     "test:despachos": "npm run build && node tests/despachos.rules.cjs && node tests/despachos.env.cjs && node tests/despachos.api.env.cjs",

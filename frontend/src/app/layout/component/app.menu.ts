@@ -13,6 +13,7 @@ interface Programa {
     classIcon: string;
     esExpandible: boolean;
     nroPosicion: number;
+    permisos?: { lectura: boolean; escritura: boolean; modificacion: boolean };
 }
 
 @Component({
@@ -60,6 +61,14 @@ export class AppMenu {
             items
         });
 
+        const produccion = [
+            ['resumen', 'Resumen', 'pi pi-chart-bar'], ['descarguios', 'Descarguíos', 'pi pi-download'],
+            ['secados', 'Secados', 'pi pi-sun'], ['guardados', 'Guardados', 'pi pi-warehouse'],
+            ['procesados', 'Procesados', 'pi pi-cog'], ['envasados', 'Envasados', 'pi pi-box'],
+            ['lotes', 'Lotes y trazabilidad', 'pi pi-sitemap']
+        ].filter(([ruta]) => byUrl.get(`${APP_ROUTES.produccion}/${ruta}`)?.permisos?.lectura)
+            .map(([ruta, label, icon]) => link(`${APP_ROUTES.produccion}/${ruta}`, label, icon));
+
         return [
             {
                 label: 'Inicio',
@@ -105,6 +114,7 @@ export class AppMenu {
                 items: [
                     link(APP_ROUTES.inventario, 'Inventario', 'pi pi-th-large'),
                     ...(byUrl.has(APP_ROUTES.despachos) ? [link(APP_ROUTES.despachos, 'Despachos', 'pi pi-truck')] : []),
+                    ...(produccion.length ? [submenu('Producción', 'pi pi-cog', produccion)] : []),
                     link(APP_ROUTES.empaques, 'Bolsas y empaques', 'pi pi-inbox')
                 ]
             },

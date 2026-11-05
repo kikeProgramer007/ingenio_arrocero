@@ -14,6 +14,7 @@ import routeGastos from '../routes/gasto.routes';
 import routeProductos from '../routes/producto.routes';
 import routeCampanas from '../routes/campana.routes';
 import routeProduccion from '../routes/produccion.routes';
+import routeProduccionBase from '../routes/produccion-base.routes';
 import routeReportes from '../routes/reporte.routes';
 import routeUploads from '../routes/upload.routes';
 import routeEmpresa from '../routes/empresa.routes';
@@ -65,6 +66,7 @@ class Server {
         this.app.use('/api/productos', routeProductos);
         this.app.use('/api/campanas', routeCampanas);
         this.app.use('/api/producciones', routeProduccion);
+        this.app.use('/api/produccion', routeProduccionBase);
         this.app.use('/api/reportes', routeReportes);
         this.app.use('/api/uploads', routeUploads);
         this.app.use('/api/empresa', routeEmpresa);

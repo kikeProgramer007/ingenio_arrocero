@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router,RouterModule } from '@angular/router';
 import { APP_ROUTES } from '../../core/constants/app-routes';
 import { esProductoEmpaque } from '../../shared/utils/empaque';
 import { AvisoService } from '../../shared/services/aviso.service';
@@ -35,10 +35,12 @@ import { ProductosService } from './productos.service';
 import { DespachosService } from '../despachos/despachos.service';
 import { DrawerModule } from 'primeng/drawer';
 
+import { permisoEtapa } from '../produccion/produccion-permisos';
+
 @Component({
     selector: 'app-inventario',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DialogModule, IconFieldModule, InputIconModule, InputTextModule, SelectModule, MultiSelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule, MenuModule, TablaBusquedaComponent, DrawerModule],
+    imports: [RouterModule, CommonModule, FormsModule, ButtonModule, DialogModule, IconFieldModule, InputIconModule, InputTextModule, SelectModule, MultiSelectModule, TableModule, TagModule, TextareaModule, ImagenCampoComponent, BotonesExportarComponent, TablaEsqueletoComponent, AyudaCampoComponent, InputNumeroComponent, TooltipModule, MenuModule, TablaBusquedaComponent, DrawerModule],
     template: `
         <p-drawer [(visible)]="dialogReservas" position="right" [header]="'Reservas · ' + (productoReservas?.nombre || '')" styleClass="!w-full md:!w-[32rem]">
             <div *ngIf="productoReservas" class="flex flex-wrap gap-4 mb-4"><span>Físico: {{productoReservas.stock}}</span><span>Reservado: {{productoReservas.reservado || 0}}</span><strong>Disponible: {{productoReservas.disponible ?? productoReservas.stock}} {{productoReservas.unidad_medida}}</strong></div>
@@ -50,7 +52,7 @@ import { DrawerModule } from 'primeng/drawer';
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Inventario</div>
                 <div class="text-muted-color">Productos, stock mínimo y ajustes</div>
             </div>
-            <p-button label="Nuevo producto" icon="pi pi-plus" (onClick)="abrirNuevo()" />
+            <div class="flex flex-wrap gap-2"><p-button *ngIf="puedeConsultarLotes" label="Existencias por lote y propietario" icon="pi pi-sitemap" [outlined]="true" routerLink="/produccion/lotes" /><p-button label="Nuevo producto" icon="pi pi-plus" (onClick)="abrirNuevo()" /></div>
         </div>
         <div class="card mb-4" *ngIf="unidadesInvalidas.length">
             <div class="font-semibold mb-1">Unidades de medida inválidas</div>
@@ -204,6 +206,7 @@ import { DrawerModule } from 'primeng/drawer';
     `
 })
 export class InventarioPage implements OnInit {
+    puedeConsultarLotes=permisoEtapa('lotes','lectura');
     filasTabla = FILAS_TABLA;
     filtrarTabla = filtrarTabla;
     productos: any[] = [];

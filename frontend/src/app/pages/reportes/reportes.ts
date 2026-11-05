@@ -13,10 +13,13 @@ import { BotonesExportarComponent } from '../../shared/components/botones-export
 import { CuentasPorCobrarPage } from './cuentas-por-cobrar';
 import { CuentasPorPagarPage } from './cuentas-por-pagar';
 
+import { ProduccionConsultasPage } from '../produccion/produccion-consultas';
+import { permisoEtapa } from '../produccion/produccion-permisos';
+
 @Component({
     selector: 'app-reportes',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, MenubarModule, BotonesExportarComponent, CuentasPorCobrarPage, CuentasPorPagarPage],
+    imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, MenubarModule, BotonesExportarComponent, CuentasPorCobrarPage, CuentasPorPagarPage, ProduccionConsultasPage],
     template: `
      
         <p-menubar [model]="menuReportes"/>
@@ -25,6 +28,7 @@ import { CuentasPorPagarPage } from './cuentas-por-pagar';
             <div class="font-semibold text-2xl mb-3">{{ tituloReporte }}</div>
         </div>
      
+        <app-produccion-consultas *ngIf="tipo === 'produccion'" [reportes]="true" />
         <app-cuentas-por-cobrar *ngIf="tipo === 'cuentas_por_cobrar'" />
         <app-cuentas-por-pagar *ngIf="tipo === 'cuentas_por_pagar'" />
         <ng-container *ngIf="tipo === 'resumen'">
@@ -67,6 +71,7 @@ export class ReportesPage implements OnInit {
     }
 
     get tituloReporte(): string {
+        if (this.tipo === 'produccion') return 'Reportes de producción';
         if (this.tipo === 'cuentas_por_cobrar') {
             return 'Cuentas por cobrar';
         }
@@ -83,6 +88,7 @@ export class ReportesPage implements OnInit {
 
     private armarMenu(): void {
         this.menuReportes = [
+            ...(['descarguios','secados','guardados','procesados','envasados','lotes'].some(r=>permisoEtapa(r,'lectura')) ? [{label:'Producción',icon:'pi pi-cog',command:()=>this.elegir('produccion')}] : []),
             {
                 label: 'Operación',
                 icon: 'pi pi-chart-bar',

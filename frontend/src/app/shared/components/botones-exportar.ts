@@ -59,6 +59,11 @@ export class BotonesExportarComponent {
     @Input() rol?: string;
     @Input() estadoDespacho?: string | string[];
     @Input() disabled = false;
+    @Input() idProductor?: number | null;
+    @Input() modalidad?: string;
+    @Input() variedad?: string;
+    @Input() orden?: string;
+    @Input() direccion?: number;
 
     cargando: FormatoExport | null = null;
 
@@ -79,6 +84,11 @@ export class BotonesExportarComponent {
         this.cargando = formato;
         const params: ParamsExport = {
             tipo: this.tipo,
+            id_productor: this.idProductor || undefined,
+            modalidad: this.modalidad || undefined,
+            variedad: this.variedad || undefined,
+            orden: this.orden,
+            direccion: this.direccion,
             formato,
             fecha_desde: this.fechaDesde,
             fecha_hasta: this.fechaHasta,

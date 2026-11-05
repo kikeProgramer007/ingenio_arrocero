@@ -5,10 +5,15 @@ import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { apiUrl } from '../../core/utils/api-url';
 
 export type FormatoExport = 'pdf' | 'xlsx';
-export type TipoExport = 'resumen' | 'movimientos' | 'ventas' | 'egresos' | 'caja' | 'venta' | 'compras' | 'compra' | 'pago' | 'cobranza' | 'movimiento' | 'gasto' | 'cobranzas' | 'pagos' | 'inventario' | 'cuenta_proveedor' | 'cuentas_por_cobrar' | 'cuentas_por_pagar' | 'clientes' | 'proveedores' | 'empaques' | 'produccion' | 'campanas' | 'cajas';
+export type TipoExport = 'reporte_produccion' | 'lotes_produccion' | 'procesados' | 'envasados' | 'secados' | 'guardados' | 'descarguios' | 'resumen' | 'movimientos' | 'ventas' | 'egresos' | 'caja' | 'venta' | 'compras' | 'compra' | 'pago' | 'cobranza' | 'movimiento' | 'gasto' | 'cobranzas' | 'pagos' | 'inventario' | 'cuenta_proveedor' | 'cuentas_por_cobrar' | 'cuentas_por_pagar' | 'clientes' | 'proveedores' | 'empaques' | 'produccion' | 'campanas' | 'cajas';
 
 export interface ParamsExport {
     tipo: TipoExport;
+    reporte?: string;
+    columna?: number;
+    propiedad?: string;
+    clasificacion?: string;
+    estado_fisico?: string;
     formato: FormatoExport;
     fecha_desde?: string;
     fecha_hasta?: string;
@@ -19,6 +24,14 @@ export interface ParamsExport {
     id?: number | string;
     q?: string;
     id_productor?: number | string;
+    modalidad?: string;
+    variedad?: string;
+    secadora?: string;
+    ubicacion?: string;
+    id_producto?: number | string;
+    presentacion?: string;
+    orden?: string;
+    direccion?: number;
     tipo_compra?: string | string[];
     metodo?: string | string[];
     categoria?: string | string[];
@@ -139,7 +152,7 @@ export class ExportarService {
             httpParams = httpParams.set(key, String(value));
         });
         return this.http
-            .get(apiUrl('/api/reportes/exportar'), {
+            .get(apiUrl(params.tipo==='reporte_produccion'?'/api/produccion/reportes/'+encodeURIComponent(params.reporte||'')+'/exportar':params.tipo==='lotes_produccion'?'/api/produccion/lotes/exportar':['descarguios','secados','guardados','procesados','envasados'].includes(params.tipo) ? '/api/produccion/' + params.tipo + '/exportar' : '/api/reportes/exportar'), {
                 params: httpParams,
                 responseType: 'blob',
                 observe: 'response'

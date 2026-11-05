@@ -11,7 +11,14 @@ function empresaPdf(doc: PDFKit.PDFDocument) { return contextosPdf.get(doc)?.emp
 export type Celda = string | number;
 
 export interface HojaExport {
+    orientacion?: 'portrait' | 'landscape';
+    formatosNumericos?: Record<string, string>;
+    mostrarTotalesAutomaticos?: boolean;
     textoCompleto?: boolean;
+    /** Proporciones optativas por etiqueta; no altera otros reportes. */
+    proporcionesColumnas?: Record<string, number>;
+    /** Cabecera monocroma y filtros arriba, exclusiva de reportes operativos. */
+    cabeceraReporte?: boolean;
     nombre: string;
     titulo: string;
     tituloSecundario?: string;
@@ -407,6 +414,7 @@ function construirTotales(filas: Celda[][], columnas: string[]): Celda[][] {
 }
 
 function construirPie(hoja: HojaExport): Celda[][] {
+    if (hoja.mostrarTotalesAutomaticos === false) return hoja.pie || [];
     const separado = extraerFilasPie(hoja.filas);
     if (separado.pie.length) {
         return separado.pie;
@@ -776,6 +784,7 @@ export async function enviarExcel(res: Response, baseNombre: string, hojas: Hoja
         };
     }
 
+    workbook.worksheets.forEach((sheet, i) => configurarHojaExcel(sheet, hojas[i]));
     const filename = nombreArchivo(baseNombre, 'xlsx');
     cabecerasDescarga(res, filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     await workbook.xlsx.write(res);
@@ -791,10 +800,18 @@ export function enviarPdf(res: Response, baseNombre: string, hojas: HojaExport[]
     doc.end();
 }
 
+function configurarHojaExcel(sheet: ExcelJS.Worksheet, hoja: HojaExport): void {
+    if (hoja.orientacion) sheet.pageSetup.orientation = hoja.orientacion;
+    for (const [columna, formato] of Object.entries(hoja.formatosNumericos || {})) {
+        const index = hoja.columnas.indexOf(columna);
+        if (index >= 0) sheet.getColumn(index + 1).eachCell(cell => { if (typeof cell.value === 'number') cell.numFmt = formato; });
+    }
+}
+
 function documentoReporte(hojas: HojaExport[], baseNombre: string, opciones: OpcionesPdfReporte = {}) {
     const doc = new PDFDocument({
         size: 'LETTER',
-        layout: 'portrait',
+        layout: hojas[0]?.orientacion || 'portrait',
         margin: 42,
         bufferPages: true,
         info: {
@@ -962,7 +979,8 @@ function dibujarGrilla(
     columnas: string[],
     anchos: number[],
     bloques: BloqueTabla[],
-    grosor = 0.7
+    grosor = 0.7,
+    numericas: string[] = []
 ): number {
     let y = y0;
     bloques.forEach((bloque) => {
@@ -975,7 +993,7 @@ function dibujarGrilla(
         doc.font(bloque.negrita ? 'Helvetica-Bold' : 'Helvetica').fontSize(FONT_SIZE);
         columnas.forEach((col, i) => {
             const texto = celdaTexto(bloque.fila[i], col);
-            const align = texto === 'Total' || texto === 'Totales' ? 'right' : alinearColumna(col, bloque.fila[i]);
+            const align = numericas.includes(col) || texto === 'Total' || texto === 'Totales' ? 'right' : alinearColumna(col, bloque.fila[i]);
             const opts = opcionesTexto(anchos[i], align);
             const contentH = doc.heightOfString(texto || ' ', opts);
             const textY = y + Math.max(PAD_Y, (bloque.h - contentH) / 2);
@@ -1213,6 +1231,20 @@ function dibujarEncabezadoFormal(doc: PDFKit.PDFDocument, hoja: HojaExport, comp
     const top = doc.page.margins.top;
     const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const empresa = empresaPdf(doc);
+    if (hoja.cabeceraReporte) {
+        doc.fillColor('#000000').font('Helvetica').fontSize(8);
+        doc.text(empresa.nombre, left, top, {width:width*0.38});
+        doc.font('Helvetica-Bold').fontSize(11);
+        doc.text(hoja.titulo, left+width*0.4, top, {width:width*0.6,align:'right'});
+        doc.y = Math.max(doc.y,top+28);
+        doc.font('Helvetica').fontSize(7.5);
+        doc.text('Generado: '+new Date().toLocaleString('es-BO',{timeZone:'America/La_Paz'}),left,doc.y,{width,align:'right'});
+        if (hoja.consulta?.length) {
+            for (const filtro of hoja.consulta) doc.text(filtro.label+': '+filtro.valor,left,doc.y,{width,align:'right'});
+        }
+        doc.y+=12;
+        return;
+    }
     if (!completo) {
         doc.font('Helvetica').fontSize(8).fillColor('#000000');
         doc.text(empresa.nombre, left, top, { width: width / 2, lineBreak: false });
@@ -1282,9 +1314,10 @@ function dibujarTotalesFormal(
     doc: PDFKit.PDFDocument,
     resumen: { label: string; valor: Celda }[],
     startX: number,
-    pageWidth: number
+    pageWidth: number,
+    amplio = false
 ): void {
-    const labelW = 130;
+    const labelW = amplio ? pageWidth - 125 : 130;
     const valorW = 110;
     const xLabel = startX + pageWidth - labelW - valorW;
     doc.y += 8;
@@ -1346,7 +1379,10 @@ function dibujarHojaFormal(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
     if (!hoja.columnas.length) {
         return;
     }
-    const anchos = anchosFormal(hoja.columnas, pageWidth);
+    const proporciones = hoja.proporcionesColumnas;
+    const pesos = proporciones ? hoja.columnas.map(c => proporciones[c] || 50) : null;
+    const sumaPesos = pesos?.reduce((a,b) => a+b,0) || 1;
+    const anchos = pesos ? pesos.map(p => pageWidth*p/sumaPesos) : anchosFormal(hoja.columnas, pageWidth);
     const headerH = alturaBloque(doc, hoja.columnas, hoja.columnas, anchos, true);
     const encabezado = (): BloqueTabla => ({
         fila: hoja.columnas,
@@ -1362,7 +1398,7 @@ function dibujarHojaFormal(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
         if (!bloques.length) {
             return;
         }
-        dibujarGrilla(doc, startX, doc.y, pageWidth, hoja.columnas, anchos, bloques, 0.4);
+        dibujarGrilla(doc, startX, doc.y, pageWidth, hoja.columnas, anchos, bloques, 0.4, hoja.cabeceraReporte ? hoja.columnas.filter(c=>/\(kg\)|\(%\)|cantidad|disponible|inicial|envases|consumida|duración/i.test(c)) : []);
         bloques = [];
     };
     const nuevaPagina = () => {
@@ -1392,7 +1428,7 @@ function dibujarHojaFormal(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
         dibujarPieCompacto(doc, startX, hoja.columnas, anchos, filaPie, 0.4);
     });
 
-    const consulta = hoja.consulta || [];
+    const consulta = hoja.cabeceraReporte ? [] : hoja.consulta || [];
     const resumen = resumenTrasPie(hoja.resumen || [], pies.length > 0);
     const totalesH = resumen.length ? 8 + resumen.length * 11 : 0;
     const consultaH = consulta.length ? 20 + consulta.length * 16 : 0;
@@ -1403,7 +1439,7 @@ function dibujarHojaFormal(doc: PDFKit.PDFDocument, hoja: HojaExport): void {
             doc.addPage();
             dibujarEncabezadoFormal(doc, hoja, false);
         }
-        dibujarTotalesFormal(doc, resumen, startX, pageWidth);
+        dibujarTotalesFormal(doc, resumen, startX, pageWidth, hoja.cabeceraReporte);
     }
     if (consulta.length) {
         if (doc.y + consultaH > bottom()) {

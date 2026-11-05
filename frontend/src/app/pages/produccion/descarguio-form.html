@@ -1,0 +1,93 @@
+<div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+    <div><div class="text-muted-color text-sm mb-2">Operaciones / Producción / Descarguíos</div>
+        <h1 class="text-2xl font-semibold m-0 mb-1">{{ documento ? documento.codigo : 'Nuevo descarguío' }}</h1>
+        <p class="text-muted-color m-0">{{ soloLectura ? 'Consulta del registro de recepción.' : 'Registre el arroz recibido, su procedencia y propietario.' }}</p></div>
+    <p-button label="Volver al listado" icon="pi pi-arrow-left" [outlined]="true" routerLink="/produccion/descarguios" [disabled]="guardando || anulando" />
+</div>
+<div *ngIf="cargando" class="card grid grid-cols-1 sm:grid-cols-2 gap-6" aria-label="Cargando descarguío">
+    <p-skeleton *ngFor="let i of [0,1,2,3,4,5]" width="100%" height="4rem" />
+</div>
+<div *ngIf="errorCarga" class="card text-red-600" role="alert">{{ errorCarga }}</div>
+<ng-container *ngIf="!cargando && !errorCarga">
+    <div class="card !py-3 !mb-4 flex flex-wrap gap-4 items-center" *ngIf="documento">
+        <p-tag [value]="documento.estado === 'BORRADOR' ? 'Borrador' : documento.estado === 'CONFIRMADO' ? 'Confirmado' : 'Anulado'" [severity]="documento.estado === 'CONFIRMADO' ? 'success' : documento.estado === 'BORRADOR' ? 'warn' : 'secondary'" />
+        <span *ngIf="documento.lote_codigo">Lote: <strong>{{ documento.lote_codigo }}</strong></span>
+        <span class="text-muted-color text-sm" *ngIf="documento.motivo_anulacion">Motivo: {{ documento.motivo_anulacion }}</span>
+    </div>
+    <div class="card !mb-4">
+        <h2 class="text-lg font-semibold mt-0 mb-4">Propiedad y origen</h2>
+        <label class="etiqueta" for="d-modalidad">Modalidad *</label>
+        <p-select inputId="d-modalidad" [(ngModel)]="form.modalidad" [options]="modalidades" optionLabel="label" optionValue="value" [disabled]="soloLectura || guardando" (onChange)="cambiarModalidad()" appendTo="body" fluid />
+        <small class="campo-error" *ngIf="campos['modalidad']">{{ campos['modalidad'] }}</small>
+        <p class="text-sm text-muted-color mb-0">Propietario del arroz: <strong>{{ nombrePropietario }}</strong>. {{ form.modalidad === 'SERVICIO' ? 'El lote pertenece al productor y se mantiene separado del stock propio.' : 'El lote se vincula con el stock ya recibido desde Compras.' }}</p>
+    </div>
+    <div class="card !mb-4">
+        <h2 class="text-lg font-semibold mt-0 mb-4">Datos generales</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div><label class="etiqueta">Código D</label><input pInputText class="w-full" [value]="documento?.codigo || 'Automático al guardar'" readonly /></div>
+            <div><label for="d-fecha" class="etiqueta">Fecha y hora *</label><p-datepicker inputId="d-fecha" [(ngModel)]="form.fecha" dateFormat="dd/mm/yy" [showTime]="true" hourFormat="24" [showIcon]="true" [disabled]="soloLectura || guardando" appendTo="body" fluid /><small class="campo-error" *ngIf="campos['fecha']">{{ campos['fecha'] }}</small></div>
+            <div><label for="d-boleta" class="etiqueta">Boleta * <app-ayuda-campo texto="Número de la boleta externa que identifica el arroz recibido." /></label><input pInputText id="d-boleta" class="w-full" [(ngModel)]="form.boleta" maxlength="80" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['boleta']">{{ campos['boleta'] }}</small></div>
+            <div class="sm:col-span-2"><label for="d-productor" class="etiqueta">{{ form.modalidad === 'SERVICIO' ? 'Productor propietario *' : 'Productor de origen *' }}</label>
+                <div class="flex gap-2"><p-autocomplete inputId="d-productor" class="flex-1 min-w-0" [(ngModel)]="productor" [suggestions]="sugerencias['productores'] || []" optionLabel="nombre" [forceSelection]="true" [dropdown]="true" [disabled]="soloLectura || guardando" (completeMethod)="opciones('productores',$event.query)" appendTo="body" fluid />
+                    <p-button *ngIf="!soloLectura && puedeCrear" label="Nuevo" icon="pi pi-plus" [outlined]="true" [disabled]="guardando" (onClick)="nuevoProductor=true" /></div><small class="campo-error" *ngIf="campos['id_productor']">{{ campos['id_productor'] }}</small></div>
+            <div><label for="d-campana" class="etiqueta">Campaña (opcional)</label><p-autocomplete inputId="d-campana" [(ngModel)]="campana" [suggestions]="sugerencias['campanas'] || []" optionLabel="nombre" [forceSelection]="true" [dropdown]="true" [showClear]="true" [disabled]="soloLectura || guardando" (completeMethod)="opciones('campanas',$event.query)" appendTo="body" fluid /><small class="campo-error" *ngIf="campos['id_campana']">{{ campos['id_campana'] }}</small></div>
+            <div class="sm:col-span-2" *ngIf="form.modalidad === 'COMPRA'"><label for="d-compra" class="etiqueta">Compra asociada * <app-ayuda-campo texto="Seleccione la línea de arroz que ya se recibió. Si la compra está pendiente de recepción, regístrela primero desde Compras. Vincular el descarguío no vuelve a sumar stock." /></label>
+                <p-autocomplete inputId="d-compra" [(ngModel)]="compra" [suggestions]="sugerencias['compras'] || []" optionLabel="etiqueta" [forceSelection]="true" [dropdown]="true" [showClear]="true" [disabled]="soloLectura || guardando" (completeMethod)="opciones('compras',$event.query)" (onSelect)="seleccionarCompra($event.value)" (onClear)="limpiarCompra()" appendTo="body" fluid />
+                <small class="campo-error" *ngIf="campos['id_compra_detalle']">{{ campos['id_compra_detalle'] }}</small>
+                <small class="text-muted-color block mt-2" *ngIf="compraSeleccionada">Recibido: {{ numero(compraSeleccionada.cantidad_recibida) }} · Sin vincular: {{ numero(compraSeleccionada.disponible) }} {{ compraSeleccionada.unidad || compraSeleccionada.unidad_medida }}.</small></div>
+            <div *ngIf="form.modalidad === 'COMPRA' && recepciones.length"><label for="d-recepcion" class="etiqueta">Recepción específica (opcional)</label><p-select inputId="d-recepcion" [(ngModel)]="form.id_recepcion_compra" [options]="recepciones" optionLabel="etiqueta" optionValue="id" placeholder="Sin recepción específica" [showClear]="true" [disabled]="soloLectura || guardando" appendTo="body" fluid /><small class="campo-error" *ngIf="campos['id_recepcion_compra']">{{ campos['id_recepcion_compra'] }}</small></div>
+        </div>
+    </div>
+    <div class="card !mb-4">
+        <h2 class="text-lg font-semibold mt-0 mb-4">Transporte</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div><label for="d-chofer" class="etiqueta">Chofer</label><input pInputText id="d-chofer" class="w-full" [(ngModel)]="form.chofer" maxlength="150" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['chofer']">{{ campos['chofer'] }}</small></div>
+            <div><label for="d-placa" class="etiqueta">Placa</label><input pInputText id="d-placa" class="w-full" [(ngModel)]="form.placa" maxlength="30" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['placa']">{{ campos['placa'] }}</small></div>
+            <div><label for="d-procedencia" class="etiqueta">Procedencia</label><input pInputText id="d-procedencia" class="w-full" [(ngModel)]="form.procedencia" maxlength="200" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['procedencia']">{{ campos['procedencia'] }}</small></div>
+            <div><label for="d-localidad" class="etiqueta">Localidad</label><input pInputText id="d-localidad" class="w-full" [(ngModel)]="form.localidad" maxlength="200" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['localidad']">{{ campos['localidad'] }}</small></div>
+        </div>
+    </div>
+    <div class="card !mb-4">
+        <h2 class="text-lg font-semibold mt-0 mb-4">Información del arroz</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div class="sm:col-span-2"><label for="d-producto" class="etiqueta">Producto de inventario *</label><p-autocomplete inputId="d-producto" [(ngModel)]="producto" [suggestions]="sugerencias['productos'] || []" optionLabel="nombre" [forceSelection]="true" [dropdown]="true" [disabled]="soloLectura || guardando || (form.modalidad === 'COMPRA' && !!compraSeleccionada)" (completeMethod)="opciones('productos',$event.query)" (onSelect)="seleccionarProducto($event.value)" appendTo="body" fluid /><small class="campo-error" *ngIf="campos['id_producto']">{{ campos['id_producto'] }}</small></div>
+            <div><label for="d-variedad" class="etiqueta">Variedad * <app-ayuda-campo texto="Puede escribir la variedad del arroz, aunque no figure entre las sugerencias." /></label><p-autocomplete inputId="d-variedad" [(ngModel)]="form.variedad" [suggestions]="variedades" [dropdown]="true" [disabled]="soloLectura || guardando" (completeMethod)="opciones('variedades',$event.query)" appendTo="body" fluid /><small class="campo-error" *ngIf="campos['variedad']">{{ campos['variedad'] }}</small></div>
+            <div><label for="d-unidad" class="etiqueta">Unidad *</label><p-select inputId="d-unidad" [(ngModel)]="form.unidad" [options]="unidades" [disabled]="soloLectura || guardando" appendTo="body" fluid /><small class="campo-error" *ngIf="campos['unidad']">{{ campos['unidad'] }}</small></div>
+            <div><label class="etiqueta">Cantidad *</label><app-input-numero tipo="cantidad" [(ngModel)]="form.cantidad" [min]="0" [maxFractionDigits]="3" placeholder="Cantidad recibida" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['cantidad']">{{ campos['cantidad'] }}</small></div>
+            <div><label class="etiqueta">Humedad de entrada (%)</label><app-input-numero tipo="cantidad" [(ngModel)]="form.humedad_entrada" [min]="0" [maxFractionDigits]="2" placeholder="No medida" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['humedad_entrada']">{{ campos['humedad_entrada'] }}</small></div>
+            <div><label class="etiqueta">Impurezas de entrada (%)</label><app-input-numero tipo="cantidad" [(ngModel)]="form.impurezas_entrada" [min]="0" [maxFractionDigits]="2" placeholder="No medidas" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['impurezas_entrada']">{{ campos['impurezas_entrada'] }}</small></div>
+            <div><label class="etiqueta">Impurezas de salida (%)</label><app-input-numero tipo="cantidad" [(ngModel)]="form.impurezas_salida" [min]="0" [maxFractionDigits]="2" placeholder="No medidas" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['impurezas_salida']">{{ campos['impurezas_salida'] }}</small></div>
+            <div><label class="etiqueta">Peso medido (kg) <app-ayuda-campo texto="Opcional. Registre el peso real de báscula, si lo conoce. No se calcula desde las fanegas ni desde la humedad." /></label><app-input-numero tipo="cantidad" [(ngModel)]="form.peso_real_kg" [min]="0" [maxFractionDigits]="3" placeholder="No medido" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['peso_real_kg']">{{ campos['peso_real_kg'] }}</small></div>
+        </div>
+    </div>
+    <div class="card !mb-4">
+        <h2 class="text-lg font-semibold mt-0 mb-4">Descarga</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div><label for="d-ubicacion" class="etiqueta">Silo / ubicación <app-ayuda-campo texto="Seleccione una ubicación o escriba el nombre. Si es nueva, se incorporará al confirmar el descarguío." /></label><p-autocomplete inputId="d-ubicacion" [(ngModel)]="ubicacion" [suggestions]="sugerencias['ubicaciones'] || []" optionLabel="nombre" [dropdown]="true" [disabled]="soloLectura || guardando" (completeMethod)="opciones('ubicaciones',$event.query)" appendTo="body" fluid /><small class="campo-error" *ngIf="campos['id_ubicacion'] || campos['punto_descarga']">{{ campos['id_ubicacion'] || campos['punto_descarga'] }}</small></div>
+            <div><label for="d-detalle" class="etiqueta">Ubicación específica</label><input pInputText id="d-detalle" class="w-full" [(ngModel)]="form.ubicacion_detalle" maxlength="200" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['ubicacion_detalle']">{{ campos['ubicacion_detalle'] }}</small></div>
+            <div><label for="d-responsable" class="etiqueta">Responsable</label><input pInputText id="d-responsable" class="w-full" [(ngModel)]="form.responsable" maxlength="150" [disabled]="soloLectura || guardando" /><small class="campo-error" *ngIf="campos['responsable']">{{ campos['responsable'] }}</small></div>
+            <div class="sm:col-span-2 xl:col-span-3"><label for="d-observacion" class="etiqueta">Observaciones</label><textarea pTextarea id="d-observacion" class="w-full" [(ngModel)]="form.observacion" rows="2" maxlength="5000" [disabled]="soloLectura || guardando"></textarea><small class="campo-error" *ngIf="campos['observacion']">{{ campos['observacion'] }}</small></div>
+        </div>
+        <p class="text-muted-color text-sm mb-0" *ngIf="!soloLectura">Los campos con * son necesarios para confirmar. Puede guardar un borrador con información pendiente.</p>
+    </div>
+    <div class="card !py-3 !mb-4" *ngIf="errorGuardar" role="alert"><p class="text-red-600 m-0">{{ errorGuardar }}</p></div>
+    <div class="card flex flex-wrap gap-2 justify-between items-center !py-4">
+        <p-button *ngIf="documento && documento.estado !== 'ANULADO' && puedeModificar" label="Anular" icon="pi pi-ban" severity="danger" [outlined]="true" [disabled]="guardando" (onClick)="dialogAnular=true;errorAnular=''" />
+        <div class="flex flex-wrap gap-2 ml-auto"><p-button [label]="soloLectura ? 'Cerrar' : 'Cancelar'" severity="secondary" [outlined]="true" routerLink="/produccion/descarguios" [disabled]="guardando" />
+            <p-button *ngIf="!soloLectura" label="Guardar borrador" icon="pi pi-save" [outlined]="true" [loading]="guardando" (onClick)="guardar()" />
+            <p-button *ngIf="permiteConfirmar" label="Confirmar descarguío" icon="pi pi-check" [loading]="guardando" (onClick)="guardar(true)" /></div>
+    </div>
+    <div class="card" *ngIf="documento?.historial?.length"><h2 class="text-lg font-semibold mt-0 mb-4">Historial del registro</h2>
+        <div *ngFor="let h of documento?.historial" class="py-2 border-b border-surface-200 dark:border-surface-700 last:border-0"><div class="flex flex-wrap justify-between gap-2"><strong>{{ evento(h.evento) }}</strong><span class="text-muted-color text-sm">{{ h.fecha | date:'dd/MM/yyyy HH:mm' }} · {{ h.usuario }}</span></div><p *ngIf="h.motivo" class="text-sm m-0 mt-1">{{ h.motivo }}</p></div>
+    </div>
+</ng-container>
+<p-dialog header="Nuevo productor" [(visible)]="nuevoProductor" [modal]="true" [style]="{width:'32rem'}" [breakpoints]="{'640px':'95vw'}" [closable]="!creandoProductor">
+    <div class="flex flex-col gap-4"><div><label for="dp-nombre" class="etiqueta">Nombre *</label><input pInputText id="dp-nombre" class="w-full" [(ngModel)]="productorForm.nombre" maxlength="150" /></div><div><label for="dp-ci" class="etiqueta">NIT / CI (opcional)</label><input pInputText id="dp-ci" class="w-full" [(ngModel)]="productorForm.nit_ci" maxlength="30" /></div><div><label for="dp-telefono" class="etiqueta">Teléfono (opcional)</label><input pInputText id="dp-telefono" class="w-full" [(ngModel)]="productorForm.telefono" maxlength="30" /></div><p *ngIf="errorProductor" class="text-red-600 text-sm m-0" role="alert">{{ errorProductor }}</p></div>
+    <ng-template #footer><p-button label="Cancelar" [text]="true" (onClick)="nuevoProductor=false" [disabled]="creandoProductor" /><p-button label="Guardar productor" (onClick)="crearProductor()" [loading]="creandoProductor" /></ng-template>
+</p-dialog>
+<p-dialog header="Anular descarguío" [(visible)]="dialogAnular" [modal]="true" [style]="{width:'34rem'}" [breakpoints]="{'640px':'95vw'}" [closable]="!anulando">
+    <p>Se conservará el registro y se revertirá la entrada del lote, si existe. Un lote con procesos relacionados no puede anularse desde aquí.</p>
+    <p *ngIf="form.modalidad === 'COMPRA'" class="text-muted-color text-sm">La compra y su stock recibido se conservan; esta acción anula su vinculación al lote.</p>
+    <label for="d-motivo" class="etiqueta">Motivo *</label><textarea pTextarea id="d-motivo" class="w-full" [(ngModel)]="motivo" rows="3" maxlength="1000" [disabled]="anulando"></textarea><p *ngIf="errorAnular" class="text-red-600 text-sm" role="alert">{{ errorAnular }}</p>
+    <ng-template #footer><p-button label="Cancelar" [text]="true" (onClick)="dialogAnular=false" [disabled]="anulando" /><p-button label="Anular descarguío" severity="danger" (onClick)="anular()" [loading]="anulando" /></ng-template>
+</p-dialog>

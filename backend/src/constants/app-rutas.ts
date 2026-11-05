@@ -1,3 +1,5 @@
+import { PROGRAMAS_PRODUCCION } from './produccion.constants';
+
 /**
  * URLs de programas/menú. Deben coincidir con frontend APP_ROUTES.
  */
@@ -27,6 +29,7 @@ export const APP_RUTAS = {
 } as const;
 
 export const PROGRAMAS_SEED = [
+    ...PROGRAMAS_PRODUCCION,
     { nombre_programa: 'Plantillas de documentos', url: APP_RUTAS.PLANTILLAS_DOCUMENTOS, class_icon: 'pi pi-file-pdf', es_expandible: false, nro_posicion: 92 },
     { nombre_programa: 'Despachos', url: APP_RUTAS.DESPACHOS, class_icon: 'pi pi-truck', es_expandible: false, nro_posicion: 62 },
     {
