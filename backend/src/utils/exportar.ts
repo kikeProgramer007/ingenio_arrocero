@@ -873,6 +873,8 @@ function numerarPaginas(doc: PDFKit.PDFDocument, opts?: { linea?: boolean }): vo
         doc.restore();
         doc.page.margins.bottom = margenInferior;
     }
+    // Evita página en blanco extra al cerrar tras switchToPage.
+    if (range.count > 0) doc.switchToPage(range.start + range.count - 1);
 }
 
 function dibujarLogo(doc: PDFKit.PDFDocument, x: number, y: number, maxW: number, maxH: number): number {

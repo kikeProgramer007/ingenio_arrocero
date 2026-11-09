@@ -1,14 +1,57 @@
 import fs from 'fs';
 import PDFDocument from 'pdfkit';
 import { Response } from 'express';
+import { PDFArray, PDFDocument as PDFLibDocument, PDFName, PDFStream } from 'pdf-lib';
 import { ControlOriginal, columnasOriginales, datosControlOriginal } from './produccion-controles-excel.servicio';
 import { datosEmpresa, EmpresaDatos, rutaLogotipo } from '../utils/empresa';
 
+/** PDFKit deja a veces una página extra al numerar con switchToPage; se descarta si no tiene contenido útil. */
+function bytesContenidoPagina(doc: PDFLibDocument, pageIndex: number): number {
+    const page = doc.getPage(pageIndex);
+    const contents = page.node.lookup(PDFName.of('Contents'));
+    if (!contents) return 0;
+    if (contents instanceof PDFStream) return contents.getContents().length;
+    if (contents instanceof PDFArray) {
+        let n = 0;
+        for (let i = 0; i < contents.size(); i++) {
+            const part = contents.lookup(i);
+            if (part instanceof PDFStream) n += part.getContents().length;
+        }
+        return n;
+    }
+    return 0;
+}
+
+async function bufferSinPaginasVacias(buffer: Buffer): Promise<Buffer> {
+    const doc = await PDFLibDocument.load(buffer);
+    // Solo se eliminan páginas finales casi vacías (pie de página / artefacto de PDFKit).
+    while (doc.getPageCount() > 1 && bytesContenidoPagina(doc, doc.getPageCount() - 1) < 700) {
+        doc.removePage(doc.getPageCount() - 1);
+    }
+    return Buffer.from(await doc.save());
+}
+
+function cerrarPdfNumerado(
+    doc: PDFKit.PDFDocument,
+    drawFooter: (pageIndex: number, pageCount: number) => void
+): number {
+    const range = doc.bufferedPageRange();
+    const count = range.count;
+    for (let i = 0; i < count; i++) {
+        doc.switchToPage(range.start + i);
+        drawFooter(i, count);
+    }
+    // Evita que end() materialice una página en blanco adicional.
+    if (count > 0) doc.switchToPage(range.start + count - 1);
+    doc.end();
+    return count;
+}
+
 export const presentacionControl: Record<string, { titulo: string; anchos: number[] }> = {
-    descarguios: { titulo: 'CONTROL DE DESCARGUÍO', anchos: [58, 62, 68, 62, 95, 110, 70, 58, 52, 42, 40, 40, 40, 90] },
-    secados: { titulo: 'CONTROL DE SECADO DE ARROZ', anchos: [70, 70, 65, 65, 40, 55, 42, 44, 42, 44, 55, 115, 75, 60, 40, 90, 110] },
-    guardados: { titulo: 'CONTROL DE GUARDADO DE ARROZ', anchos: [70, 70, 70, 65, 30, 115, 55, 75, 60, 44, 44, 44, 44, 90, 65, 85, 100] },
-    procesados: { titulo: 'CONTROL DE PROCESADO DE ARROZ', anchos: [70, 70, 70, 60, 120, 85, 60, 65, 60, 55, 55, 55, 75, 55, 110] }
+    descarguios: { titulo: 'CONTROL DE DESCARGUÍO', anchos: [52, 56, 58, 54, 82, 95, 62, 52, 46, 36, 34, 34, 34, 78] },
+    secados: { titulo: 'CONTROL DE SECADO DE ARROZ', anchos: [48, 48, 50, 48, 30, 40, 32, 34, 32, 34, 42, 78, 55, 48, 30, 58, 70] },
+    guardados: { titulo: 'CONTROL DE GUARDADO DE ARROZ', anchos: [48, 48, 48, 50, 22, 78, 42, 55, 46, 32, 32, 32, 32, 58, 48, 55, 62] },
+    procesados: { titulo: 'CONTROL DE PROCESADO DE ARROZ', anchos: [48, 48, 48, 48, 82, 58, 44, 50, 44, 40, 42, 40, 48, 40, 70] }
 };
 export const gruposDescarguio: [string, number, number][] = [
     ['RECEPCIÓN', 0, 2],
@@ -265,14 +308,10 @@ function bufferDescarguioPdf(
             y += 2;
         }
 
-        const range = doc.bufferedPageRange();
-        paginas = range.count;
-        for (let i = 0; i < range.count; i++) {
-            doc.switchToPage(i);
+        paginas = cerrarPdfNumerado(doc, (i, count) => {
             doc.moveTo(left, doc.page.height - 22).lineTo(right, doc.page.height - 22).lineWidth(0.5).strokeColor('#333').stroke();
-            drawText(`Página ${i + 1} de ${range.count}`, left, doc.page.height - 18, width, false, 7.5, 'right');
-        }
-        doc.end();
+            drawText(`Página ${i + 1} de ${count}`, left, doc.page.height - 18, width, false, 7.5, 'right');
+        });
     });
 }
 
@@ -285,9 +324,9 @@ export function bufferControlPdf(
     if (data.tipo === 'descarguios') return bufferDescarguioPdf(data, empresa, logo);
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({
-            size: 'A3',
+            size: 'LETTER',
             layout: 'landscape',
-            margin: 25,
+            margin: 16,
             bufferPages: true,
             info: { Title: presentacionControl[data.tipo].titulo, Author: empresa.nombre }
         });
@@ -296,12 +335,12 @@ export function bufferControlPdf(
         doc.on('data', b => chunks.push(b));
         doc.on('error', reject);
         doc.on('end', () => resolve({ buffer: Buffer.concat(chunks), paginas }));
-        const left = 25,
-            width = doc.page.width - 50,
-            bottom = doc.page.height - 36,
-            line = 11,
-            font = 8.5;
-        let y = 25,
+        const left = 16,
+            width = doc.page.width - 32,
+            bottom = doc.page.height - 28,
+            line = 8.4,
+            font = 6.4;
+        let y = 14,
             headers: string[] = [],
             weights: number[] = [];
         const drawText = (text: string, x: number, top: number, w: number, bold = false, size = font, align: 'left' | 'right' | 'center' = 'left') => {
@@ -346,38 +385,38 @@ export function bufferControlPdf(
         };
         const cell = (text: string, x: number, top: number, w: number, h: number, shade = false, bold = false, align: 'left' | 'right' | 'center' = 'left') => {
             if (shade) doc.rect(x, top, w, h).fill('#E5E5E5');
-            doc.lineWidth(0.45).strokeColor('#555555').rect(x, top, w, h).stroke();
-            drawText(text, x + 3, top + 4, w - 6, bold, font, align);
+            doc.lineWidth(0.35).strokeColor('#555555').rect(x, top, w, h).stroke();
+            drawText(text, x + 1.5, top + 2.5, w - 3, bold, font, align);
         };
         const header = () => {
-            y = 25;
+            y = 12;
             let logoWidth = 0;
             if (logo && fs.existsSync(logo)) {
                 try {
-                    doc.image(logo, left, y, { fit: [100, 42], valign: 'center' });
-                    logoWidth = 108;
+                    doc.image(logo, left, y, { fit: [70, 30], valign: 'center' });
+                    logoWidth = 76;
                 } catch {
                     /* Configured unsupported image: company name remains visible. */
                 }
             }
-            drawText(empresa.nombre, left + logoWidth, y + 5, 245 - logoWidth, true, 11);
-            drawText(presentacionControl[data.tipo].titulo, left + 250, y + 9, width - 380, true, 16, 'center');
-            drawText('GESTIÓN ' + gestionControl(data), left + width - 125, y + 14, 125, true, 10, 'right');
-            y += 54;
+            drawText(empresa.nombre, left + logoWidth, y + 2, 180 - logoWidth, true, 8);
+            drawText(presentacionControl[data.tipo].titulo, left + 180, y + 6, width - 300, true, 11, 'center');
+            drawText('GESTIÓN ' + gestionControl(data), left + width - 110, y + 8, 110, true, 8, 'right');
+            y += 36;
             const filter = data.filtros.map(f => `${f.label}: ${f.valor}`).join(' | ') || 'Todos los registros';
             const lines = wrap(filter, width);
             for (const l of lines) {
-                drawText(l, left, y, width, false, 8.5);
+                drawText(l, left, y, width, false, 6.5);
                 y += line;
             }
-            y += 8;
+            y += 4;
             const ws = widths();
-            const labels = headers.map((h, i) => wrap(h, ws[i] - 6, true)),
-                height = Math.max(...labels.map(a => a.length)) * line + 8;
+            const labels = headers.map((h, i) => wrap(h, ws[i] - 3, true)),
+                height = Math.max(...labels.map(a => a.length)) * line + 4;
             let x = left;
             headers.forEach((h, i) => {
                 cell('', x, y, ws[i], height, true);
-                labels[i].forEach((l, j) => drawText(l, x + 3, y + 4 + j * line, ws[i] - 6, true, font, 'center'));
+                labels[i].forEach((l, j) => drawText(l, x + 1.5, y + 2.5 + j * line, ws[i] - 3, true, font, 'center'));
                 x += ws[i];
             });
             y += height;
@@ -392,22 +431,22 @@ export function bufferControlPdf(
             header();
             const ws = widths();
             if (!rows.length) {
-                drawText('Sin registros para los filtros seleccionados.', left, y + 10, width);
-                y += 32;
+                drawText('Sin registros para los filtros seleccionados.', left, y + 8, width);
+                y += 24;
             }
             for (const row of rows) {
-                const strings = hs.map((_, i) => wrap(textoControl(row[i], data.tipo, i), ws[i] - 6)),
+                const strings = hs.map((_, i) => wrap(textoControl(row[i], data.tipo, i), ws[i] - 3)),
                     count = Math.max(...strings.map(a => a.length));
                 let offset = 0;
                 while (offset < count) {
-                    if (y + line + 8 > bottom) next();
-                    const take = Math.min(count - offset, Math.floor((bottom - y - 8) / line)),
-                        height = take * line + 8;
+                    if (y + line + 5 > bottom) next();
+                    const take = Math.max(1, Math.min(count - offset, Math.floor((bottom - y - 5) / line) || 1));
+                    const height = take * line + 4;
                     let x = left;
                     hs.forEach((_, i) => {
                         cell('', x, y, ws[i], height);
                         const align = typeof row[i] === 'number' ? 'right' : 'left';
-                        strings[i].slice(offset, offset + take).forEach((l, j) => drawText(l, x + 3, y + 4 + j * line, ws[i] - 6, false, font, align));
+                        strings[i].slice(offset, offset + take).forEach((l, j) => drawText(l, x + 1.5, y + 2.5 + j * line, ws[i] - 3, false, font, align));
                         x += ws[i];
                     });
                     y += height;
@@ -417,30 +456,26 @@ export function bufferControlPdf(
         };
         table(columnasOriginales[data.tipo], data.filas, presentacionControl[data.tipo].anchos);
         for (const total of data.totales) {
-            if (y + 22 > bottom) next();
-            drawText(`${total[0]}: ${textoControl(total[1], data.tipo, -1)}`, left, y + 7, width, true, 9);
-            y += 22;
+            if (y + 16 > bottom) next();
+            drawText(`${total[0]}: ${textoControl(total[1], data.tipo, -1)}`, left, y + 4, width, true, 7);
+            y += 16;
         }
         for (const note of data.notas) {
             for (const l of wrap(note, width)) {
-                if (y + line + 6 > bottom) next();
-                drawText(l, left, y + 5, width, false, 8);
+                if (y + line + 4 > bottom) next();
+                drawText(l, left, y + 3, width, false, 6);
                 y += line;
             }
-            y += 5;
+            y += 3;
         }
-        const range = doc.bufferedPageRange();
-        paginas = range.count;
-        for (let i = 0; i < range.count; i++) {
-            doc.switchToPage(i);
-            drawText(`Página ${i + 1} de ${range.count}`, left, doc.page.height - 38, width, false, 8, 'right');
-        }
-        doc.end();
+        paginas = cerrarPdfNumerado(doc, (i, count) => {
+            drawText(`Página ${i + 1} de ${count}`, left, doc.page.height - 22, width, false, 6.5, 'right');
+        });
     });
 }
 export async function enviarControlPdf(res: Response, tipo: string, q: Record<string, any>) {
-    const data = await datosControlOriginal(tipo, q),
-        { buffer } = await bufferControlPdf(data);
+    const data = await datosControlOriginal(tipo, q);
+    const limpio = await bufferSinPaginasVacias((await bufferControlPdf(data)).buffer);
     const names: Record<string, string> = {
         descarguios: 'Control_Descarguio',
         secados: 'Control_Secado_Arroz',
@@ -450,41 +485,36 @@ export async function enviarControlPdf(res: Response, tipo: string, q: Record<st
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     res.setHeader('Content-Disposition', `inline; filename="${names[tipo]}.pdf"`);
-    res.send(buffer);
+    res.send(limpio);
 }
 
 export async function enviarControlConsolidadoPdf(res: Response, q: Record<string, any>, tipos: string[]) {
-    const { PDFDocument } = await import('pdf-lib');
     const { controlesOriginales } = await import('./produccion-controles-excel.servicio');
     const { hojaTransformacion } = await import('./produccion-transformaciones-consulta.servicio');
     const { bufferReportePdf } = await import('../utils/exportar');
-    const merged = await PDFDocument.create();
+    const merged = await PDFLibDocument.create();
     let paginas = 0;
     for (const tipo of tipos) {
+        let buffer: Buffer | null = null;
         if (controlesOriginales.includes(tipo)) {
             const data = await datosControlOriginal(tipo, q);
-            const { buffer } = await bufferControlPdf(data);
-            const src = await PDFDocument.load(buffer);
-            const copied = await merged.copyPages(src, src.getPageIndices());
-            copied.forEach(p => merged.addPage(p));
-            paginas += copied.length;
-            continue;
-        }
-        if (tipo === 'envasados') {
+            buffer = await bufferSinPaginasVacias((await bufferControlPdf(data)).buffer);
+        } else if (tipo === 'envasados') {
             const hoja = await hojaTransformacion('ENVASADO', { ...q, orden: 'fecha', direccion: -1 }, 'pdf');
             hoja.mostrarFirma = false;
             hoja.cabeceraReporte = true;
-            const { buffer } = await bufferReportePdf([hoja]);
-            const src = await PDFDocument.load(buffer);
-            const copied = await merged.copyPages(src, src.getPageIndices());
-            copied.forEach(p => merged.addPage(p));
-            paginas += copied.length;
+            buffer = await bufferSinPaginasVacias((await bufferReportePdf([hoja])).buffer);
         }
+        if (!buffer) continue;
+        const src = await PDFLibDocument.load(buffer);
+        const copied = await merged.copyPages(src, src.getPageIndices());
+        copied.forEach(p => merged.addPage(p));
+        paginas += copied.length;
     }
     if (!paginas) throw new Error('No hay módulos de producción para consolidar.');
-    const bytes = await merged.save();
+    const limpio = await bufferSinPaginasVacias(Buffer.from(await merged.save()));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     res.setHeader('Content-Disposition', 'inline; filename="Control_Produccion_Consolidado.pdf"');
-    res.send(Buffer.from(bytes));
+    res.send(limpio);
 }

@@ -115,8 +115,8 @@ export function agregarHojaControl(wb:ExcelJS.Workbook,data:ControlOriginal,empr
  const headers=columnasOriginales[data.tipo];
  const values=data.filas;
  const principal=true;
-  // Carta=1; A3=8. Descarguíos usa carta horizontal.
-  const ws=wb.addWorksheet(name,{pageSetup:{paperSize:esDesc&&principal?1:8,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.3,right:.3,top:.35,bottom:.4,header:.15,footer:.2}},views:[{state:'frozen',ySplit:7,showGridLines:false}]});
+  // Carta (1) horizontal para todos los controles de producción.
+  const ws=wb.addWorksheet(name,{pageSetup:{paperSize:1,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.25,right:.25,top:.3,bottom:.35,header:.12,footer:.15}},views:[{state:'frozen',ySplit:7,showGridLines:false}]});
   const end=headers.length;
   const logo=rutaLogotipo(),extension=logo?path.extname(logo).slice(1).toLowerCase():'';
   const ahora=new Date();
@@ -141,7 +141,7 @@ export function agregarHojaControl(wb:ExcelJS.Workbook,data:ControlOriginal,empr
    ws.getCell(1,end-2).font={name:'Arial',size:9,bold:true};ws.getCell(1,end-2).alignment={vertical:'middle',horizontal:'right',wrapText:true};
    // Fila 2: título centrado
    ws.mergeCells(2,1,2,end);ws.getRow(2).height=28;
-   ws.getCell(2,1).value=titulos[data.tipo];ws.getCell(2,1).font={name:'Arial',size:16,bold:true,underline:true};ws.getCell(2,1).alignment={horizontal:'center',vertical:'middle'};
+   ws.getCell(2,1).value=titulos[data.tipo];ws.getCell(2,1).font={name:'Arial',size:13,bold:true,underline:true};ws.getCell(2,1).alignment={horizontal:'center',vertical:'middle'};
    // Fila 3: filtros
    ws.mergeCells(3,1,3,end);ws.getRow(3).height=22;
    ws.getCell(3,1).value=data.filtros.map(f=>`${f.label}: ${f.valor}`).join('   |   ')||'Todos los registros';
@@ -158,28 +158,29 @@ export function agregarHojaControl(wb:ExcelJS.Workbook,data:ControlOriginal,empr
     ws.addImage(image,{tl:{col:0,row:0},ext:dimensionesLogo(logo)});
     ws.getCell(1,1).value=empresa.nombre;ws.getCell(1,1).alignment={vertical:'bottom',horizontal:'right',wrapText:true};ws.getCell(1,1).font={name:'Arial',size:9};
    }else{ws.getCell(1,1).value=empresa.nombre;ws.getCell(1,1).font={name:'Arial',size:14,bold:true};ws.getCell(1,1).alignment={vertical:'middle',wrapText:true};}
-   ws.mergeCells(1,4,1,end-2);ws.getCell(1,4).value=titulos[data.tipo];ws.getCell(1,4).font={name:'Arial',size:16,bold:true,underline:true};ws.getCell(1,4).alignment={horizontal:'center',vertical:'middle',wrapText:true};
-   ws.mergeCells(1,end-1,1,end);ws.getCell(1,end-1).value='GESTIÓN '+gestion;ws.getCell(1,end-1).alignment={vertical:'middle',horizontal:'center',wrapText:true};
-   ws.mergeCells(2,1,2,end);ws.getCell(2,1).value=data.filtros.map(f=>`${f.label}: ${f.valor}`).join(' · ')||'Consulta: todos los registros (sin filtros adicionales).';ws.getCell(2,1).alignment={wrapText:true,vertical:'middle'};ws.getRow(2).height=Math.max(26,Math.ceil(String(ws.getCell(2,1).value).length/170)*14);
-   headerRow=3;ws.getRow(headerRow).values=headers;ws.getRow(headerRow).height=30;
-   ws.getRow(3).eachCell({includeEmpty:true},cell=>{cell.font={name:'Arial',bold:true,size:10};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE9ECEF'}};cell.alignment={wrapText:true,vertical:'middle',horizontal:'center'};cell.border={bottom:{style:'thin'},top:{style:'thin'}};});
+   ws.mergeCells(1,4,1,end-2);ws.getCell(1,4).value=titulos[data.tipo];ws.getCell(1,4).font={name:'Arial',size:12,bold:true,underline:true};ws.getCell(1,4).alignment={horizontal:'center',vertical:'middle',wrapText:true};
+   ws.mergeCells(1,end-1,1,end);ws.getCell(1,end-1).value='GESTIÓN '+gestion;ws.getCell(1,end-1).font={name:'Arial',size:8,bold:true};ws.getCell(1,end-1).alignment={vertical:'middle',horizontal:'center',wrapText:true};
+   ws.mergeCells(2,1,2,end);ws.getCell(2,1).value=data.filtros.map(f=>`${f.label}: ${f.valor}`).join(' · ')||'Consulta: todos los registros (sin filtros adicionales).';ws.getCell(2,1).font={name:'Arial',size:8};ws.getCell(2,1).alignment={wrapText:true,vertical:'middle'};ws.getRow(2).height=Math.max(20,Math.ceil(String(ws.getCell(2,1).value).length/190)*12);
+   headerRow=3;ws.getRow(headerRow).values=headers;ws.getRow(headerRow).height=22;
+   ws.getRow(3).eachCell({includeEmpty:true},cell=>{cell.font={name:'Arial',bold:true,size:7.5};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE9ECEF'}};cell.alignment={wrapText:true,vertical:'middle',horizontal:'center'};cell.border={bottom:{style:'thin'},top:{style:'thin'}};});
   }
 
   ws.views=[{state:'frozen',ySplit:headerRow,showGridLines:false}];
   if(esDesc&&principal){
-   const anchos=[10,12,12,11,16,18,12,11,10,8,8,8,8,18];
-   headers.forEach((_,i)=>{ws.getColumn(i+1).width=anchos[i]||12;});
+   const anchos=[9,10,10,9,13,15,10,9,8,7,7,7,7,14];
+   headers.forEach((_,i)=>{ws.getColumn(i+1).width=anchos[i]||10;});
   }else{
-   headers.forEach((h,i)=>{ws.getColumn(i+1).width=/observ|informaci|productor|propietario|producto obtenido|chofer/i.test(h)?30:/boleta|detalle|ubicaci/i.test(h)?22:/fecha|c[oó]d|secado|descarg|operaci|lote|^sec\.|^des\.|^desc\./i.test(h)?19:12;});
+   headers.forEach((h,i)=>{ws.getColumn(i+1).width=/observ|informaci|productor|propietario|producto obtenido|chofer/i.test(h)?16:/boleta|detalle|ubicaci/i.test(h)?12:/fecha|c[oó]d|secado|descarg|operaci|lote|^sec\.|^des\.|^desc\./i.test(h)?10:8;});
   }
   const dateCols=principal?(data.tipo==='descarguios'?[2]:data.tipo==='secados'?[3]:data.tipo==='guardados'?[4]:[8]):[15,17];
   const timeCols=principal&&data.tipo==='secados'?[7,9]:principal?[]:[16,18];
+  const fontTabla=esDesc?8:7.5;
   values.forEach(v=>{const row=ws.addRow(v.map(x=>x==null||x===''?null:x));let lines=1;row.eachCell({includeEmpty:true},(cell,c)=>{
-   cell.font={name:'Arial',size:esDesc?9:12};cell.alignment={vertical:'middle',wrapText:true,horizontal:typeof cell.value==='number'?'right':'left'};
+   cell.font={name:'Arial',size:fontTabla};cell.alignment={vertical:'middle',wrapText:true,horizontal:typeof cell.value==='number'?'right':'left'};
    cell.border={top:{style:'thin',color:{argb:'FF555555'}},bottom:{style:'thin',color:{argb:'FF555555'}},left:{style:'thin',color:{argb:'FF555555'}},right:{style:'thin',color:{argb:'FF555555'}}};
    cell.numFmt=dateCols.includes(c)?'dd-mmm-yyyy':timeCols.includes(c)?'hh:mm':'#,##0.00#';
-   lines=Math.max(lines,...String(cell.value instanceof Date?'fecha':cell.value??'').split('\n').map(s=>Math.ceil(s.length*1.2/Math.max(8,(ws.getColumn(c).width||12)-2))));
-  });row.height=Math.max(esDesc?18:24,lines*(esDesc?13:17)+6);});
+   lines=Math.max(lines,...String(cell.value instanceof Date?'fecha':cell.value??'').split('\n').map(s=>Math.ceil(s.length*1.15/Math.max(6,(ws.getColumn(c).width||10)-1))));
+  });row.height=Math.max(esDesc?16:15,lines*(esDesc?11:10)+4);});
   ws.autoFilter={from:{row:headerRow,column:1},to:{row:Math.max(headerRow,headerRow+values.length),column:end}};
   ws.pageSetup.printTitlesRow='1:'+headerRow;if(!principal)ws.pageSetup.printTitlesColumn='A:A';
   if(principal){
@@ -187,15 +188,15 @@ export function agregarHojaControl(wb:ExcelJS.Workbook,data:ControlOriginal,empr
     const n=ws.addRow([]).number;
     if(esDesc){
      // Etiqueta a la izquierda; valor bajo columna PESO (9)
-     ws.mergeCells(n,1,n,8);ws.getCell(n,1).value=total[0];ws.getCell(n,1).font={name:'Arial',size:9,bold:true};ws.getCell(n,1).alignment={vertical:'middle'};
-     ws.getCell(n,9).value=total[1];ws.getCell(n,9).numFmt='#,##0.00#';ws.getCell(n,9).font={name:'Arial',size:9,bold:true};ws.getCell(n,9).alignment={horizontal:'right',vertical:'middle'};
+     ws.mergeCells(n,1,n,8);ws.getCell(n,1).value=total[0];ws.getCell(n,1).font={name:'Arial',size:8,bold:true};ws.getCell(n,1).alignment={vertical:'middle'};
+     ws.getCell(n,9).value=total[1];ws.getCell(n,9).numFmt='#,##0.00#';ws.getCell(n,9).font={name:'Arial',size:8,bold:true};ws.getCell(n,9).alignment={horizontal:'right',vertical:'middle'};
      for(let c=1;c<=end;c++){ws.getCell(n,c).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E8'}};ws.getCell(n,c).border={top:{style:'thin',color:{argb:'FF555555'}},bottom:{style:'thin',color:{argb:'FF555555'}},left:{style:'thin',color:{argb:'FF555555'}},right:{style:'thin',color:{argb:'FF555555'}}};}
     }else{
-     ws.mergeCells(n,1,n,6);ws.getCell(n,1).value=total[0];ws.getCell(n,7).value=total[1];ws.getCell(n,7).numFmt='#,##0.00#';ws.getRow(n).font={name:'Arial',size:10,bold:true};
+     ws.mergeCells(n,1,n,6);ws.getCell(n,1).value=total[0];ws.getCell(n,7).value=total[1];ws.getCell(n,7).numFmt='#,##0.00#';ws.getRow(n).font={name:'Arial',size:8,bold:true};
     }
-    ws.getRow(n).height=22;
+    ws.getRow(n).height=18;
    }
-   for(const note of data.notas){const n=ws.addRow([]).number;ws.mergeCells(n,1,n,end);ws.getCell(n,1).value=note;ws.getCell(n,1).font={name:'Arial',size:8,italic:true};ws.getCell(n,1).alignment={wrapText:true};ws.getRow(n).height=Math.max(22,Math.ceil(note.length/160)*12);}
+   for(const note of data.notas){const n=ws.addRow([]).number;ws.mergeCells(n,1,n,end);ws.getCell(n,1).value=note;ws.getCell(n,1).font={name:'Arial',size:7,italic:true};ws.getCell(n,1).alignment={wrapText:true};ws.getRow(n).height=Math.max(18,Math.ceil(note.length/180)*10);}
   }
   ws.pageSetup.printArea=`A1:${ws.getColumn(end).letter}${ws.rowCount}`;
   ws.headerFooter.oddFooter='&RPágina &P de &N';
@@ -225,18 +226,18 @@ export async function enviarControlConsolidadoExcel(res:Response,q:Fila,tipos:st
  if(tipos.includes('envasados')){
   const {hojaTransformacion}=await import('./produccion-transformaciones-consulta.servicio');
   const hoja=await hojaTransformacion('ENVASADO',{...q,orden:'fecha',direccion:-1},'xlsx');
-  const ws=wb.addWorksheet('Envasados',{pageSetup:{paperSize:8,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
+  const ws=wb.addWorksheet('Envasados',{pageSetup:{paperSize:1,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.25,right:.25,top:.3,bottom:.35,header:.12,footer:.15}}});
   const cols=['N°',...hoja.columnas];
-  ws.addRow([empresa.nombre.toUpperCase(),'','CONTROL DE ENVASADOS DE ARROZ']).font={name:'Arial',size:12,bold:true};
+  ws.addRow([empresa.nombre.toUpperCase(),'','CONTROL DE ENVASADOS DE ARROZ']).font={name:'Arial',size:11,bold:true};
   ws.mergeCells(1,1,1,Math.max(3,cols.length));
   ws.addRow([hoja.consulta?.map(f=>`${f.label}: ${f.valor}`).join(' | ')||'Todos los registros']);
   ws.mergeCells(2,1,2,cols.length);
-  const header=ws.addRow(cols);header.font={name:'Arial',bold:true,size:10};header.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE9ECEF'}};c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};} );
+  const header=ws.addRow(cols);header.font={name:'Arial',bold:true,size:7.5};header.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE9ECEF'}};c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};} );
   hoja.filas.forEach((fila,i)=>{
    const row=ws.addRow([i+1,...fila.map(v=>v==null||v===''?null:v)]);
-   row.eachCell(c=>{c.font={name:'Arial',size:10};c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};c.alignment={wrapText:true,vertical:'middle'};});
+   row.eachCell(c=>{c.font={name:'Arial',size:7.5};c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};c.alignment={wrapText:true,vertical:'middle'};});
   });
-  cols.forEach((h,i)=>{ws.getColumn(i+1).width=/productor|propietario|producto|observ/i.test(h)?28:/código|fecha|ubicaci/i.test(h)?16:12;});
+  cols.forEach((h,i)=>{ws.getColumn(i+1).width=/productor|propietario|producto|observ/i.test(h)?16:/código|fecha|ubicaci/i.test(h)?11:9;});
  }
  if(!wb.worksheets.length)throw new Error('No hay módulos de producción para consolidar.');
  const buffer=await wb.xlsx.writeBuffer();
