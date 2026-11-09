@@ -7,8 +7,7 @@ export const PROGRAMAS_PRODUCCION = [
     { nombre_programa: 'Secados', url: '/produccion/secados', class_icon: 'pi pi-sun', es_expandible: false, nro_posicion: 66 },
     { nombre_programa: 'Guardados', url: '/produccion/guardados', class_icon: 'pi pi-warehouse', es_expandible: false, nro_posicion: 67 },
     { nombre_programa: 'Procesados', url: '/produccion/procesados', class_icon: 'pi pi-cog', es_expandible: false, nro_posicion: 68 },
-    { nombre_programa: 'Envasados', url: '/produccion/envasados', class_icon: 'pi pi-box', es_expandible: false, nro_posicion: 69 },
-    { nombre_programa: 'Lotes y trazabilidad', url: '/produccion/lotes', class_icon: 'pi pi-sitemap', es_expandible: false, nro_posicion: 70 }
+    { nombre_programa: 'Envasados', url: '/produccion/envasados', class_icon: 'pi pi-box', es_expandible: false, nro_posicion: 69 }
 ];
 
 export function esProgramaProduccion(url: string): boolean {

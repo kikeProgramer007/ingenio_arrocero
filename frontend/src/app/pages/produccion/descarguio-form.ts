@@ -176,15 +176,19 @@ export class DescarguioFormPage implements OnInit {
             if (this.form.modalidad === 'COMPRA' && !this.opcion(this.compra)) this.campos['id_compra_detalle'] = 'Vincule una compra recibida.';
             if (Object.keys(this.campos).length) { this.errorGuardar = 'Revise los campos obligatorios señalados.'; return; }
         }
+        if (confirmar && !this.confirmacionPendiente && !await this.confirmar.pedir({ titulo: 'Confirmar descarguío', mensaje: this.form.modalidad === 'COMPRA'
+            ? 'Se confirmará el descarguío vinculándolo al arroz ya recibido en Compras. El stock propio no volverá a sumarse.'
+            : 'Se registrará el arroz en custodia a nombre del productor/proveedor. No se generarán compras, cobros ni stock propio.', aceptar: 'Confirmar' })) return;
+        const ventanaDoc = confirmar ? this.exportar.abrirVentanaEspera(`Control de descarguío ${this.documento?.codigo || ''}...`) : null;
         this.guardando = true;
         try {
             if (confirmar && this.confirmacionPendiente) {
                 this.aplicar(await firstValueFrom(this.api.confirmar(this.confirmacionPendiente.id, this.confirmacionPendiente.version, this.claveConfirmacion)));
-                this.confirmacionPendiente = null; this.aviso.ok('Descarguío confirmado'); return;
+                this.confirmacionPendiente = null;
+                this.aviso.ok('Descarguío confirmado', this.documento?.codigo);
+                this.mostrarDocumentoConfirmado(ventanaDoc);
+                return;
             }
-            if (confirmar && !await this.confirmar.pedir({ titulo: 'Confirmar descarguío', mensaje: this.form.modalidad === 'COMPRA'
-                ? 'Se confirmará el descarguío vinculándolo al arroz ya recibido en Compras. El stock propio no volverá a sumarse.'
-                : 'Se registrará el arroz en custodia a nombre del productor/proveedor. No se generarán compras, cobros ni stock propio.', aceptar: 'Confirmar' })) return;
             let guardado = this.documento;
             if (!this.soloLectura) {
                 guardado = await firstValueFrom(this.documento ? this.api.editar(this.documento.id, this.datos()) : this.api.crear(this.datos()));
@@ -197,11 +201,19 @@ export class DescarguioFormPage implements OnInit {
                 this.confirmacionPendiente = null;
             }
             this.aviso.ok(confirmar ? 'Descarguío confirmado' : 'Borrador guardado', this.documento?.codigo);
+            if (confirmar) this.mostrarDocumentoConfirmado(ventanaDoc);
         } catch (e: unknown) {
+            ventanaDoc?.close();
             if ([400,403,404,409].includes(Number((e as { status?: number }).status))) this.confirmacionPendiente = null;
             this.errorGuardar = this.aviso.error(e, 'No se pudo guardar el descarguío').mensaje;
             this.campos = (e as { error?: { campos?: Record<string, string> } }).error?.campos || {};
         } finally { this.guardando = false; }
+    }
+    private mostrarDocumentoConfirmado(ventana: Window | null) {
+        if (!this.documento) { ventana?.close(); return; }
+        this.exportar.mostrarPdf({ tipo: 'descarguio', formato: 'pdf', id: this.documento.id }, ventana).subscribe({
+            error: e => this.aviso.error(e, 'No se pudo generar el documento')
+        });
     }
     async crearProductor() {
         if (this.creandoProductor) return;

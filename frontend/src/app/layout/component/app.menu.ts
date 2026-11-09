@@ -65,8 +65,7 @@ export class AppMenu {
         const produccion = [
             ['resumen', 'Resumen', 'pi pi-chart-bar'], ['descarguios', 'Descarguíos', 'pi pi-download'],
             ['secados', 'Secados', 'pi pi-sun'], ['guardados', 'Guardados', 'pi pi-warehouse'],
-            ['procesados', 'Procesados', 'pi pi-cog'], ['envasados', 'Envasados', 'pi pi-box'],
-            ['lotes', 'Lotes y trazabilidad', 'pi pi-sitemap']
+            ['procesados', 'Procesados', 'pi pi-cog'], ['envasados', 'Envasados', 'pi pi-box']
         ].filter(([ruta]) => byUrl.get(`${APP_ROUTES.produccion}/${ruta}`)?.permisos?.lectura)
             .map(([ruta, label, icon]) => link(`${APP_ROUTES.produccion}/${ruta}`, label, icon));
 

@@ -35,8 +35,6 @@ import { ProductosService } from './productos.service';
 import { DespachosService } from '../despachos/despachos.service';
 import { DrawerModule } from 'primeng/drawer';
 
-import { permisoEtapa } from '../produccion/produccion-permisos';
-
 @Component({
     selector: 'app-inventario',
     standalone: true,
@@ -52,7 +50,7 @@ import { permisoEtapa } from '../produccion/produccion-permisos';
                 <div class="text-surface-900 dark:text-surface-0 font-semibold text-2xl mb-1">Inventario</div>
                 <div class="text-muted-color">Productos, stock mínimo y ajustes</div>
             </div>
-            <div class="flex flex-wrap gap-2"><p-button *ngIf="puedeConsultarLotes" label="Existencias por lote y propietario" icon="pi pi-sitemap" [outlined]="true" routerLink="/produccion/lotes" /><p-button label="Nuevo producto" icon="pi pi-plus" (onClick)="abrirNuevo()" /></div>
+            <div class="flex flex-wrap gap-2"><p-button label="Nuevo producto" icon="pi pi-plus" (onClick)="abrirNuevo()" /></div>
         </div>
         <div class="card mb-4" *ngIf="unidadesInvalidas.length">
             <div class="font-semibold mb-1">Unidades de medida inválidas</div>
@@ -206,7 +204,6 @@ import { permisoEtapa } from '../produccion/produccion-permisos';
     `
 })
 export class InventarioPage implements OnInit {
-    puedeConsultarLotes=permisoEtapa('lotes','lectura');
     filasTabla = FILAS_TABLA;
     filtrarTabla = filtrarTabla;
     productos: any[] = [];

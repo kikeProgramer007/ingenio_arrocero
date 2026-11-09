@@ -88,7 +88,7 @@ export class ReportesPage implements OnInit {
 
     private armarMenu(): void {
         this.menuReportes = [
-            ...(['descarguios','secados','guardados','procesados','envasados','lotes'].some(r=>permisoEtapa(r,'lectura')) ? [{label:'Producción',icon:'pi pi-cog',command:()=>this.elegir('produccion')}] : []),
+            ...(['descarguios','secados','guardados','procesados','envasados'].some(r=>permisoEtapa(r,'lectura')) ? [{label:'Producción',icon:'pi pi-cog',command:()=>this.elegir('produccion')}] : []),
             {
                 label: 'Operación',
                 icon: 'pi pi-chart-bar',

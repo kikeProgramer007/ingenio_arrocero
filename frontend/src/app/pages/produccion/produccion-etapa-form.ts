@@ -104,7 +104,7 @@ export class ProduccionEtapaFormPage implements OnInit {
         id_ubicacion:typeof this.ubicacion==='object'?this.ubicacion?.['id']||null:null,destino_nombre:typeof this.ubicacion==='string'?this.ubicacion.trim():this.ubicacion?.['nombre']||null};
         if(this.secado){
             const fecha=this.form['fecha'] instanceof Date&&Number.isFinite(this.form['fecha'].getTime())
-                ?new Date(this.form['fecha'].getFullYear(),this.form['fecha'].getMonth(),this.form['fecha'].getDate(),12,0,0,0):null;
+                ?new Date(this.form['fecha'].getFullYear(),this.form['fecha'].getMonth(),this.form['fecha'].getDate(),0,0,0,0):null;
             d['fecha']=fecha?fecha.toISOString():null;
             d['inicio']=this.inicioCompleto?.toISOString()??null;
             d['fin']=this.finCompleto?.toISOString()??null;
@@ -117,6 +117,7 @@ export class ProduccionEtapaFormPage implements OnInit {
         if(this.guardando||this.cargando||this.errorCarga)return;
         if(!this.pendiente && !this.validarFormulario(confirmar))return;
         if(confirmar&&!await this.confirmar.pedir({titulo:'Confirmar '+this.nombre,mensaje:this.mensajeConfirmacion}))return;
+        const ventanaDoc=confirmar&&this.secado?this.exportar.abrirVentanaEspera(`Control de secado ${this.documento?.['codigo']||''}...`):null;
         this.guardando=true;this.error='';this.campos={};
         try{
             let d:DatosEtapa;
@@ -126,9 +127,18 @@ export class ProduccionEtapaFormPage implements OnInit {
                 if(confirmar){this.pendiente={id:d['id'],version:d['version']};d=await firstValueFrom(this.api.confirmar(this.ruta,d['id'],d['version'],this.claveConfirmacion));}
             }
             this.pendiente=null;this.aplicar(d);this.aviso.ok(confirmar?'Operación confirmada':'Borrador guardado');
-        }catch(e:any){this.error=this.aviso.error(e,'No se pudo guardar la operación').mensaje;this.campos=e.error?.campos||{};
+            if(confirmar&&this.secado)this.mostrarDocumentoConfirmado(ventanaDoc);
+        }catch(e:any){
+            ventanaDoc?.close();
+            this.error=this.aviso.error(e,'No se pudo guardar la operación').mensaje;this.campos=e.error?.campos||{};
             if(e.status&&e.status<500)this.pendiente=null;
         }finally{this.guardando=false;}
+    }
+    private mostrarDocumentoConfirmado(ventana:Window|null){
+        if(!this.documento||!this.secado){ventana?.close();return;}
+        this.exportar.mostrarPdf({tipo:'secado',formato:'pdf',id:this.documento['id']},ventana).subscribe({
+            error:e=>this.aviso.error(e,'No se pudo generar el documento')
+        });
     }
     protected validarFormulario(confirmar:boolean){
         this.campos={};this.error='';

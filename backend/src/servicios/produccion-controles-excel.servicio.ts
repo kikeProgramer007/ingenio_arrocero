@@ -107,10 +107,14 @@ function dimensionesLogo(filename:string):{width:number;height:number}{
  else if(b[0]===255&&b[1]===216){let p=2;while(p+9<b.length){if(b[p]!==255){p++;continue;}const marker=b[p+1];if(marker===218||marker===217)break;if(marker===216||marker===1||marker>=208&&marker<=215){p+=2;continue;}const len=b.readUInt16BE(p+2);if([192,193,194,195,197,198,199,201,202,203,205,206,207].includes(marker)){h=b.readUInt16BE(p+5);w=b.readUInt16BE(p+7);break;}if(len<2)break;p+=len+2;}}
  const scale=Math.min(105/w,55/h);return {width:w*scale,height:h*scale};
 }
-export function libroControlOriginal(data:ControlOriginal,empresa:EmpresaDatos=datosEmpresa()):ExcelJS.Workbook{
- const wb=new ExcelJS.Workbook();wb.creator=empresa.nombre;wb.created=new Date();
+const nombresHojaControl:Record<string,string>={descarguios:'Descarguíos',secados:'Secados',guardados:'Guardados',procesados:'Procesados'};
+
+export function agregarHojaControl(wb:ExcelJS.Workbook,data:ControlOriginal,empresa:EmpresaDatos=datosEmpresa(),nombreHoja?:string):ExcelJS.Worksheet{
  const esDesc=data.tipo==='descarguios';
- const sheet=(name:string,headers:string[],values:Valor[][],principal:boolean)=>{
+ const name=(nombreHoja||nombresHojaControl[data.tipo]||'Control').slice(0,31);
+ const headers=columnasOriginales[data.tipo];
+ const values=data.filas;
+ const principal=true;
   // Carta=1; A3=8. Descarguíos usa carta horizontal.
   const ws=wb.addWorksheet(name,{pageSetup:{paperSize:esDesc&&principal?1:8,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.3,right:.3,top:.35,bottom:.4,header:.15,footer:.2}},views:[{state:'frozen',ySplit:7,showGridLines:false}]});
   const end=headers.length;
@@ -196,12 +200,48 @@ export function libroControlOriginal(data:ControlOriginal,empresa:EmpresaDatos=d
   ws.pageSetup.printArea=`A1:${ws.getColumn(end).letter}${ws.rowCount}`;
   ws.headerFooter.oddFooter='&RPágina &P de &N';
   return ws;
- };
- sheet('Control original',columnasOriginales[data.tipo],data.filas,true);
+}
+export function libroControlOriginal(data:ControlOriginal,empresa:EmpresaDatos=datosEmpresa()):ExcelJS.Workbook{
+ const wb=new ExcelJS.Workbook();wb.creator=empresa.nombre;wb.created=new Date();
+ agregarHojaControl(wb,data,empresa,'Control original');
  return wb;
 }
 export async function enviarControlOriginal(res:Response,tipo:string,q:Fila):Promise<void>{
  const data=await datosControlOriginal(tipo,q),wb=libroControlOriginal(data);
  const buffer=await wb.xlsx.writeBuffer();
  res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');res.setHeader('Access-Control-Expose-Headers','Content-Disposition');res.setHeader('Content-Disposition',`attachment; filename="${archivos[tipo]}"`);res.send(Buffer.from(buffer));
+}
+export async function enviarControlConsolidadoExcel(res:Response,q:Fila,tipos:string[]):Promise<void>{
+ const empresa=datosEmpresa(),wb=new ExcelJS.Workbook();wb.creator=empresa.nombre;wb.created=new Date();
+ const usados=new Set<string>();
+ for(const tipo of tipos){
+  if(!controlesOriginales.includes(tipo))continue;
+  const data=await datosControlOriginal(tipo,q);
+  let nombre=nombresHojaControl[tipo]||tipo;
+  if(usados.has(nombre))nombre=`${nombre} (${tipo})`;
+  usados.add(nombre);
+  agregarHojaControl(wb,data,empresa,nombre);
+ }
+ if(tipos.includes('envasados')){
+  const {hojaTransformacion}=await import('./produccion-transformaciones-consulta.servicio');
+  const hoja=await hojaTransformacion('ENVASADO',{...q,orden:'fecha',direccion:-1},'xlsx');
+  const ws=wb.addWorksheet('Envasados',{pageSetup:{paperSize:8,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
+  const cols=['N°',...hoja.columnas];
+  ws.addRow([empresa.nombre.toUpperCase(),'','CONTROL DE ENVASADOS DE ARROZ']).font={name:'Arial',size:12,bold:true};
+  ws.mergeCells(1,1,1,Math.max(3,cols.length));
+  ws.addRow([hoja.consulta?.map(f=>`${f.label}: ${f.valor}`).join(' | ')||'Todos los registros']);
+  ws.mergeCells(2,1,2,cols.length);
+  const header=ws.addRow(cols);header.font={name:'Arial',bold:true,size:10};header.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE9ECEF'}};c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};} );
+  hoja.filas.forEach((fila,i)=>{
+   const row=ws.addRow([i+1,...fila.map(v=>v==null||v===''?null:v)]);
+   row.eachCell(c=>{c.font={name:'Arial',size:10};c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};c.alignment={wrapText:true,vertical:'middle'};});
+  });
+  cols.forEach((h,i)=>{ws.getColumn(i+1).width=/productor|propietario|producto|observ/i.test(h)?28:/código|fecha|ubicaci/i.test(h)?16:12;});
+ }
+ if(!wb.worksheets.length)throw new Error('No hay módulos de producción para consolidar.');
+ const buffer=await wb.xlsx.writeBuffer();
+ res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+ res.setHeader('Access-Control-Expose-Headers','Content-Disposition');
+ res.setHeader('Content-Disposition','attachment; filename="Control_Produccion_Consolidado.xlsx"');
+ res.send(Buffer.from(buffer));
 }

@@ -40,6 +40,7 @@
     "jsonwebtoken": "^8.5.1",
     "multer": "^2.3.0",
     "mysql2": "^2.3.3",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.15.0",
     "pdfkit-table": "^0.1.99",
     "reflect-metadata": "^0.2.2",

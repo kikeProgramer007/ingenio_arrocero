@@ -11,6 +11,12 @@ import { mayusculizarDatos } from '../utils/mayusculas';
 const tabla = (tipo: Etapa) => tipo === 'SECADO' ? 'produccion_secados' : 'produccion_guardados';
 const previa = (tipo: Etapa) => tipo === 'SECADO' ? 'DESCARGUIO' : 'SECADO';
 const mil = (v: unknown) => Math.round(Number(v || 0) * 1000);
+/** Día calendario en Bolivia (YYYY-MM-DD) para comparar fechas de operación sin hora. */
+function diaLaPaz(v: unknown): string {
+    const d = v instanceof Date ? v : new Date(String(v || ''));
+    if (!Number.isFinite(d.getTime())) return '';
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
 async function sql(query: string, replacements: Fila, transaction: Transaction) { return sequelize.query(query, { replacements: mayusculizarDatos(replacements), transaction }); }
 async function insert(table: string, data: Fila, transaction: Transaction) {
     const payload = mayusculizarDatos(data);
@@ -62,7 +68,8 @@ async function fuentes(tipo: Etapa, d: Fila, t: Transaction, confirmar = false):
             throw new ErrorDescarguio(`El lote ${l.codigo} no está disponible en la etapa de origen.`,409);
         if (['modalidad','id_propietario','id_productor','id_producto','unidad','variedad'].some(k => String(l[k] ?? '') !== String(first[k] ?? '')))
             throw new ErrorDescarguio('Los lotes deben tener el mismo propietario, productor, producto, variedad y unidad. Registre operaciones separadas.',400,{origenes:'No se permite mezclar estas existencias.'});
-        if (d.fecha < l.fecha_origen) throw new ErrorDescarguio('La fecha no puede ser anterior a la operación de origen.',400,{fecha:'Revise la fecha del origen.'});
+        // Comparar solo el día (America/La_Paz): la fecha de secado es fecha de operación, no hora.
+        if (diaLaPaz(d.fecha) < diaLaPaz(l.fecha_origen)) throw new ErrorDescarguio('La fecha no puede ser anterior a la operación de origen.',400,{fecha:'Revise la fecha del origen.'});
         if (tipo === 'SECADO' && d.inicio && d.inicio < l.fecha_origen) throw new ErrorDescarguio('El inicio no puede ser anterior a la recepción.',400,{inicio:'Revise la fecha y hora de recepción.'});
         const r = d.origenes.find((o: Fila)=>o.id_lote === Number(l.id));
         if (confirmar && mil(r.cantidad) > mil(l.cantidad_disponible)) throw new ErrorDescarguio(`La cantidad supera el disponible de ${l.codigo}: ${l.cantidad_disponible} ${l.unidad}.`,409,{origenes:'Actualice los disponibles y ajuste la cantidad.'});

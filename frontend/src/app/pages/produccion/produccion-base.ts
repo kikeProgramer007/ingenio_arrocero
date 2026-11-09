@@ -86,7 +86,7 @@ export class ProduccionBasePage implements OnInit {
         return [
             { label: 'Descarguíos por secar', value: String(i?.descarguios_por_secar ?? 0), icon: 'pi pi-download', tone: 'warn' },
             { label: 'Secados por guardar', value: String(i?.secados_por_guardar ?? 0), icon: 'pi pi-sun', tone: 'info' },
-            { label: 'Lotes almacenados', value: String(i?.lotes_almacenados ?? 0), icon: 'pi pi-warehouse', tone: 'success' },
+            { label: 'Existencias almacenadas', value: String(i?.lotes_almacenados ?? 0), icon: 'pi pi-warehouse', tone: 'success' },
             { label: 'Procesados del período', value: String(i?.procesados ?? 0), icon: 'pi pi-cog', tone: 'neutral' }
         ];
     }

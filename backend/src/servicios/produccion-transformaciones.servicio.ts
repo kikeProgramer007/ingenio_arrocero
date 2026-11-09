@@ -12,6 +12,11 @@ import { mayusculizarDatos } from '../utils/mayusculas';
 
 const tabla=(tipo:Transformacion)=>tipo==='PROCESADO'?'produccion_procesados':'produccion_envasados';
 const mil=(v:any)=>Math.round(Number(v||0)*1000);
+function diaLaPaz(v:unknown):string{
+    const d=v instanceof Date?v:new Date(String(v||''));
+    if(!Number.isFinite(d.getTime()))return '';
+    return new Intl.DateTimeFormat('en-CA',{timeZone:'America/La_Paz',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+}
 const tx=<T>(work:(t:Transaction)=>Promise<T>,external?:Transaction)=>sequelize.transaction({transaction:external,isolationLevel:Transaction.ISOLATION_LEVELS.READ_COMMITTED},work);
 async function sql(query:string,replacements:Fila,t:Transaction){return sequelize.query(query,{replacements:mayusculizarDatos(replacements),transaction:t});}
 async function insert(table:string,data:Fila,t:Transaction){const payload=mayusculizarDatos(data);const keys=Object.keys(payload);const [id]=await sequelize.query(`INSERT INTO ${table} (${keys.map(k=>'`'+k+'`').join(',')}) VALUES (${keys.map(k=>':'+k).join(',')})`,{replacements:payload,transaction:t,type:QueryTypes.INSERT});return Number(id);}
@@ -49,11 +54,11 @@ async function fuentes(tipo:Transformacion,d:Fila,t:Transaction,confirmar=false)
     const refs=await leerDesc('SELECT DISTINCT id_operacion_origen id FROM produccion_lotes WHERE id IN (:ids) ORDER BY id_operacion_origen',{ids},t);
     for(const r of refs)await leerDesc('SELECT id FROM produccion_operaciones WHERE id = :id FOR UPDATE',{id:r.id},t);
     const lots=await leerDesc(`SELECT l.*,o.estado estado_origen,o.fecha fecha_origen,o.id_campana FROM produccion_lotes l JOIN produccion_operaciones o ON o.id=l.id_operacion_origen WHERE l.id IN (:ids) ORDER BY l.id FOR UPDATE`,{ids},t);
-    if(lots.length!==ids.length)throw new ErrorDescarguio('Un lote de origen no existe.',409);
+    if(lots.length!==ids.length)throw new ErrorDescarguio('Un origen seleccionado no existe.',409);
     for(const l of lots){
-        if(l.etapa!==(tipo==='PROCESADO'?'GUARDADO':'PROCESADO')||l.estado_origen!=='CONFIRMADO'||l.estado==='ANULADO'||confirmar&&(l.estado!=='ACTIVO'||mil(l.cantidad_disponible)<=0))throw new ErrorDescarguio('El lote '+l.codigo+' no está disponible en la etapa de origen.',409);
+        if(l.etapa!==(tipo==='PROCESADO'?'GUARDADO':'PROCESADO')||l.estado_origen!=='CONFIRMADO'||l.estado==='ANULADO'||confirmar&&(l.estado!=='ACTIVO'||mil(l.cantidad_disponible)<=0))throw new ErrorDescarguio('El origen '+l.codigo+' no está disponible en la etapa previa.',409);
         if(['modalidad','id_propietario','id_productor','id_producto','unidad','variedad'].some(k=>String(l[k]??'')!==String(lots[0][k]??'')))throw new ErrorDescarguio('No mezcle propietarios, productos, variedades o unidades diferentes.',400,{origenes:'Use operaciones separadas.'});
-        if(d.fecha<l.fecha_origen)throw new ErrorDescarguio('La fecha no puede ser anterior al origen.',400,{fecha:'Revise la fecha del lote.'});
+        if(diaLaPaz(d.fecha)<diaLaPaz(l.fecha_origen))throw new ErrorDescarguio('La fecha no puede ser anterior a la operación de origen.',400,{fecha:'Revise la fecha del origen.'});
         const r=d.origenes.find((r:Fila)=>r.id_lote===Number(l.id));
         if(confirmar&&mil(r.cantidad)>mil(l.cantidad_disponible))throw new ErrorDescarguio('La cantidad supera el disponible de '+l.codigo+'.',409,{origenes:'Actualice y ajuste la cantidad disponible.'});
     }return lots;

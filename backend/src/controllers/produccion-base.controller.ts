@@ -9,9 +9,20 @@ import { VERSION_ETAPAS } from '../migrations/20261105-produccion-secados-guarda
 import { VERSION_TRANSFORMACIONES } from '../migrations/20261105-produccion-transformaciones';
 import { catalogosProduccion, ErrorConsultaProduccion, filtrosProduccion, lotesProduccion, operacionesProduccion, resumenProduccion } from '../servicios/produccion-consulta.servicio';
 
-import { reportesProduccion } from '../servicios/produccion-reportes.servicio';
+import { MODULOS_CONSOLIDADO, reportesProduccion } from '../servicios/produccion-reportes.servicio';
 
 const paginas: Record<string, string> = { DESCARGUIO: 'descarguios', SECADO: 'secados', GUARDADO: 'guardados', PROCESADO: 'procesados', ENVASADO: 'envasados' };
+export async function modulosProduccionConLectura(idPerfil: number): Promise<string[]> {
+    const urls = MODULOS_CONSOLIDADO.map(m => `/produccion/${m}`);
+    const programas = await Programas.findAll({ where: { url: { [Op.in]: urls }, eliminado: false }, attributes: ['id', 'url'] });
+    if (!programas.length) return [];
+    const permisos = await PerfilProgramas.findAll({
+        where: { id_perfil: idPerfil, id_programa: { [Op.in]: programas.map(p => p.get('id')) }, permiso_lectura: true },
+        attributes: ['id_programa']
+    });
+    const ids = new Set(permisos.map(p => Number(p.get('id_programa'))));
+    return programas.filter(p => ids.has(Number(p.get('id')))).map(p => String(p.get('url')).replace('/produccion/', ''));
+}
 export async function permisoProduccion(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
         const reporte = req.path.startsWith('/reportes/');
@@ -22,8 +33,13 @@ export async function permisoProduccion(req: Request, res: Response, next: NextF
         const transformacion=req.path.startsWith('/procesados')?'procesados':req.path.startsWith('/envasados')?'envasados':null;
         const etapa = transformacion || (req.path.startsWith('/secados') ? 'secados' : req.path.startsWith('/guardados') ? 'guardados' : null);
         const f = filtrosProduccion(descarguio || etapa || lotes || reporte ? { ...req.query, tipo: undefined, orden: 'fecha' } : req.query, etapa || lotes || reporte ? 100 : 50);
+        const consolidado = reporte && reporteTipo === 'consolidado';
         const pagina = (reporte ? reportesProduccion[reporteTipo].programa : lotes ? 'lotes' : null) || etapa || (descarguio ? 'descarguios' : req.path === '/lotes' ? 'lotes' : req.path === '/operaciones' && f.tipo ? paginas[f.tipo] : 'resumen');
-        const urls = req.path === '/catalogos' || req.path === '/lotes/opciones' ? PROGRAMAS_PRODUCCION.map(p => p.url) : [`/produccion/${pagina}`];
+        const urls = req.path === '/catalogos' || req.path === '/lotes/opciones'
+            ? PROGRAMAS_PRODUCCION.map(p => p.url)
+            : consolidado
+              ? MODULOS_CONSOLIDADO.map(m => `/produccion/${m}`)
+              : [`/produccion/${pagina}`];
         const usuario = await User.findByPk(getAuthUser(req)?.id);
         const programas = await Programas.findAll({ where: { url: { [Op.in]: urls }, eliminado: false }, attributes: ['id'] });
         const permiso = usuario && programas.length ? await PerfilProgramas.findOne({ where: {

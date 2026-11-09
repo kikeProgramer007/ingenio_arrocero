@@ -16,8 +16,6 @@ export default [
         {path:etapa+'/nuevo',loadComponent:()=>import('./produccion-transformacion-form').then(m=>m.ProduccionTransformacionFormPage),data:{etapa}},
         {path:etapa+'/:id',loadComponent:()=>import('./produccion-transformacion-form').then(m=>m.ProduccionTransformacionFormPage),data:{etapa}}
     ]),
-    {path:'lotes',loadComponent:()=>import('./produccion-consultas').then(m=>m.ProduccionConsultasPage)},
-    {path:'lotes/:id',loadComponent:()=>import('./produccion-consultas').then(m=>m.ProduccionConsultasPage)},
     ...['resumen'].map(vista => ({
         path: vista, component: ProduccionBasePage, data: { vista }
     }))

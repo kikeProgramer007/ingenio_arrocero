@@ -452,3 +452,39 @@ export async function enviarControlPdf(res: Response, tipo: string, q: Record<st
     res.setHeader('Content-Disposition', `inline; filename="${names[tipo]}.pdf"`);
     res.send(buffer);
 }
+
+export async function enviarControlConsolidadoPdf(res: Response, q: Record<string, any>, tipos: string[]) {
+    const { PDFDocument } = await import('pdf-lib');
+    const { controlesOriginales } = await import('./produccion-controles-excel.servicio');
+    const { hojaTransformacion } = await import('./produccion-transformaciones-consulta.servicio');
+    const { bufferReportePdf } = await import('../utils/exportar');
+    const merged = await PDFDocument.create();
+    let paginas = 0;
+    for (const tipo of tipos) {
+        if (controlesOriginales.includes(tipo)) {
+            const data = await datosControlOriginal(tipo, q);
+            const { buffer } = await bufferControlPdf(data);
+            const src = await PDFDocument.load(buffer);
+            const copied = await merged.copyPages(src, src.getPageIndices());
+            copied.forEach(p => merged.addPage(p));
+            paginas += copied.length;
+            continue;
+        }
+        if (tipo === 'envasados') {
+            const hoja = await hojaTransformacion('ENVASADO', { ...q, orden: 'fecha', direccion: -1 }, 'pdf');
+            hoja.mostrarFirma = false;
+            hoja.cabeceraReporte = true;
+            const { buffer } = await bufferReportePdf([hoja]);
+            const src = await PDFDocument.load(buffer);
+            const copied = await merged.copyPages(src, src.getPageIndices());
+            copied.forEach(p => merged.addPage(p));
+            paginas += copied.length;
+        }
+    }
+    if (!paginas) throw new Error('No hay módulos de producción para consolidar.');
+    const bytes = await merged.save();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    res.setHeader('Content-Disposition', 'inline; filename="Control_Produccion_Consolidado.pdf"');
+    res.send(Buffer.from(bytes));
+}
