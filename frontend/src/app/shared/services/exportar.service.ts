@@ -36,7 +36,6 @@ export interface ParamsExport {
     modulos?: string;
     limit?: number;
     offset?: number;
-    columna?: number;
     tipo_compra?: string | string[];
     metodo?: string | string[];
     categoria?: string | string[];
