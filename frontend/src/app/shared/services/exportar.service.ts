@@ -32,6 +32,11 @@ export interface ParamsExport {
     presentacion?: string;
     orden?: string;
     direccion?: number;
+    buscar?: string;
+    modulos?: string;
+    limit?: number;
+    offset?: number;
+    columna?: number;
     tipo_compra?: string | string[];
     metodo?: string | string[];
     categoria?: string | string[];
@@ -79,6 +84,8 @@ export class ExportarService {
             tap(({ blob, nombre }) => {
                 const pdf = blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
                 const url = URL.createObjectURL(pdf);
+                // Revoca el blob tras dar tiempo al visor a cargar (evita fugas en exportaciones repetidas).
+                window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
                 if (ventana && !ventana.closed) {
                     ventana.location.replace(url);
                     ventana.focus();

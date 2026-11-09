@@ -3,8 +3,8 @@ import { aplicarPlantillaFormal, HojaExport } from '../utils/exportar';
 import { consultaDescarguios, filasDescarguios } from './descarguios-consulta.servicio';
 import { leerDesc } from './descarguios.servicio';
 
-export async function hojaDescarguios(query: Record<string, unknown>, formato: 'pdf' | 'xlsx', transaction?: Transaction): Promise<HojaExport> {
-    const c = consultaDescarguios(query), filas = await filasDescarguios(query, true, transaction);
+export async function hojaDescarguios(query: Record<string, unknown>, formato: 'pdf' | 'xlsx', transaction?: Transaction, todas = true): Promise<HojaExport> {
+    const c = consultaDescarguios(query), filas = await filasDescarguios(query, todas, transaction);
     const etiquetas: Record<string, string> = { COMPRA: 'Compra', SERVICIO: 'Servicio', BORRADOR: 'Borrador', CONFIRMADO: 'Confirmado', ANULADO: 'Anulado' };
     const fecha = (valor: Date | string) => new Intl.DateTimeFormat('es-BO', { timeZone: 'America/La_Paz' }).format(new Date(valor));
     const numero = (valor: unknown) => new Intl.NumberFormat('es-BO', { maximumFractionDigits: 3 }).format(Number(valor));

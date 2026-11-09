@@ -62,9 +62,17 @@ export class ProduccionEtapaFormPage implements OnInit {
         this.cargando=true;this.errorCarga='';
         try{
             const grupos=['lotes','ubicaciones',...(['procesados','envasados'].includes(this.ruta)?['productos']:[]),...(this.ruta==='envasados'?['empaques']:[])];
-            await Promise.all(grupos.map(async grupo=>{this.catalogos[grupo]=await firstValueFrom(this.api.opciones(this.ruta,grupo,'',undefined,true).pipe(takeUntilDestroyed(this.destroy)));}));
+            // defaultValue evita EmptyError si se sale de la pantalla antes de que responda el API.
+            const cargados=await Promise.all(grupos.map(grupo=>firstValueFrom(this.api.opciones(this.ruta,grupo,'',undefined,true).pipe(takeUntilDestroyed(this.destroy)),{defaultValue:null})));
+            if(cargados.some(d=>d==null))return;
+            grupos.forEach((grupo,i)=>{this.catalogos[grupo]=cargados[i]!});
             this.ubicaciones=this.catalogos['ubicaciones'];
-            const id=this.route.snapshot.paramMap.get('id');if(id)this.aplicar(await firstValueFrom(this.api.obtener(this.ruta,Number(id)).pipe(takeUntilDestroyed(this.destroy))));
+            const id=this.route.snapshot.paramMap.get('id');
+            if(id){
+                const doc=await firstValueFrom(this.api.obtener(this.ruta,Number(id)).pipe(takeUntilDestroyed(this.destroy)),{defaultValue:null});
+                if(!doc)return;
+                this.aplicar(doc);
+            }
             if(this.documento&&this.documento['estado']!=='ANULADO'&&this.puedeModificar&&this.route.snapshot.queryParamMap.get('anular')==='1')this.anularVisible=true;
         }catch(e){this.errorCarga=this.aviso.error(e,'No se pudieron cargar los datos del formulario').mensaje;}
         finally{this.cargando=false;}

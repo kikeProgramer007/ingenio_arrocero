@@ -46,7 +46,7 @@ export class EmpresaController {
                 await empresa.update(payload);
             }
             const actualizado = mapEmpresa(empresa);
-            await refrescarEmpresa();
+            await refrescarEmpresa(true);
             res.status(200).json({ mensaje: 'Datos de la empresa actualizados', data: actualizado });
         } catch (error) {
             handleError(res, error, 'Error al actualizar los datos de la empresa');

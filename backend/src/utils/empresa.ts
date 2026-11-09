@@ -77,18 +77,23 @@ export function mapEmpresa(row: any): EmpresaDatos {
 }
 
 let cache: EmpresaDatos | null = null;
+let cacheAt = 0;
+/** Evita consultar empresa en cada export; se fuerza al actualizar datos. */
+const EMPRESA_TTL_MS = 60_000;
 
 export function datosEmpresa(): EmpresaDatos {
     return cache || datosEmpresaFallback();
 }
 
-export async function refrescarEmpresa(): Promise<EmpresaDatos> {
+export async function refrescarEmpresa(forzar = false): Promise<EmpresaDatos> {
+    if (!forzar && cache && Date.now() - cacheAt < EMPRESA_TTL_MS) return cache;
     try {
         const row = await Empresa.findOne({ order: [['id', 'ASC']] });
         cache = row ? mapEmpresa(row) : datosEmpresaFallback();
     } catch {
         cache = datosEmpresaFallback();
     }
+    cacheAt = Date.now();
     return cache;
 }
 

@@ -5,7 +5,8 @@ import { ErrorDescarguio } from '../dtos/descarguio.dto';
 import { leerDesc } from './descarguios.servicio';
 
 export function consultaDescarguios(query: Record<string, unknown>) {
-    const f = filtrosProduccion({ ...query, tipo: undefined, orden: 'fecha', buscar: query.buscar || query.q });
+    // Hasta 1500: consolidado de reportes carga un buffer en pantalla.
+    const f = filtrosProduccion({ ...query, tipo: undefined, orden: 'fecha', buscar: query.buscar || query.q }, 1500);
     const estado = valoresFiltro(query.estado, ['BORRADOR','CONFIRMADO','ANULADO']);
     const variedad = valoresFiltro(query.variedad);
     const ordenes: Record<string, string> = { codigo: 'o.codigo', fecha: 'o.fecha', boleta: 'd.boleta', productor: 'p.nombre', modalidad: 'o.modalidad',

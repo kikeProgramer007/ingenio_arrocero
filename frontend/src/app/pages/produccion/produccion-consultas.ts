@@ -116,6 +116,13 @@ export class ProduccionConsultasPage implements OnInit {
 
     modulos: string[] = this.modulosConsolidado.map(m => m.value);
 
+    /** Valores de módulo válidos (evita chips "undefined" tras limpiar el multiselect). */
+    private modulosSeleccionados(): string[] {
+        const permitidos = new Set(this.modulosConsolidado.map(m => m.value));
+        const elegidos = (this.modulos || []).filter((m): m is string => typeof m === 'string' && permitidos.has(m));
+        return elegidos.length ? elegidos : this.modulosConsolidado.map(m => m.value);
+    }
+
     tipo = '';
     desde: Date | null = null;
     hasta: Date | null = null;
@@ -128,6 +135,7 @@ export class ProduccionConsultasPage implements OnInit {
     resultado: Datos | null = null;
     cargandoFiltros = true;
     cargando = false;
+    exportando = false;
     error = '';
     primero = 0;
     filas = 10;
@@ -217,7 +225,7 @@ export class ProduccionConsultasPage implements OnInit {
             direccion: this.direccion,
             limit: this.filas,
             offset: this.primero,
-            ...(this.tipo === 'consolidado' ? { modulos: (this.modulos?.length ? this.modulos : this.modulosConsolidado.map(m => m.value)).join(',') } : {})
+            ...(this.tipo === 'consolidado' ? { modulos: this.modulosSeleccionados().join(',') } : {})
         };
     }
     consultar() {
@@ -226,9 +234,12 @@ export class ProduccionConsultasPage implements OnInit {
             this.error = 'La fecha inicial no puede ser posterior a la final.';
             return;
         }
-        if (this.tipo === 'consolidado' && !(this.modulos?.length || this.modulosConsolidado.length)) {
-            this.error = 'Seleccione al menos un módulo para el consolidado.';
-            return;
+        if (this.tipo === 'consolidado') {
+            if (!this.modulosConsolidado.length) {
+                this.error = 'Seleccione al menos un módulo para el consolidado.';
+                return;
+            }
+            this.modulos = this.modulosSeleccionados();
         }
         this.aplicado = {
             fecha_desde: this.fecha(this.desde),
@@ -247,16 +258,17 @@ export class ProduccionConsultasPage implements OnInit {
         this.resultado = null;
         this.columnasSeleccionadas = [];
         this.expandedRows = {};
-        if (this.tipo === 'consolidado' && !this.modulos?.length) {
-            this.modulos = this.modulosConsolidado.map(m => m.value);
-        }
+        if (this.tipo === 'consolidado') this.modulos = this.modulosSeleccionados();
         this.consultar();
     }
     paginar(e: TableLazyLoadEvent) {
-        this.primero = e.first || 0;
+        const orden = typeof e.sortField === 'string' ? e.sortField : '0';
+        const direccion = e.sortOrder === 1 ? 1 : -1;
+        const cambioOrden = orden !== this.orden || direccion !== this.direccion;
+        this.primero = cambioOrden ? 0 : (e.first || 0);
         this.filas = e.rows || 10;
-        this.orden = typeof e.sortField === 'string' ? e.sortField : '0';
-        this.direccion = e.sortOrder === 1 ? 1 : -1;
+        this.orden = orden;
+        this.direccion = direccion;
         this.recargar.next();
     }
     numero(v: unknown) {
@@ -270,16 +282,26 @@ export class ProduccionConsultasPage implements OnInit {
         return typeof r['valores'][Number(c.field)] === 'number';
     }
     archivo(formato: 'pdf' | 'xlsx') {
+        if (this.exportando) return;
+        const { limit: _l, offset: _o, orden: _or, columna: _c, direccion: _d, ...filtros } = this.query();
         const p: ParamsExport = {
-            ...this.query(),
+            ...filtros,
             tipo: 'reporte_produccion',
             reporte: this.tipo,
             formato
         };
+        this.exportando = true;
         const visor = formato === 'pdf' ? this.exportar.abrirVentanaEspera() : null;
         (formato === 'pdf' ? this.exportar.mostrarPdf(p, visor) : this.exportar.descargar(p))
             .pipe(takeUntilDestroyed(this.destroy))
-            .subscribe({ error: e => { visor?.close(); this.aviso.error(e, 'No se pudo exportar'); } });
+            .subscribe({
+                next: () => { this.exportando = false; },
+                error: e => {
+                    this.exportando = false;
+                    visor?.close();
+                    this.aviso.error(e, 'No se pudo exportar');
+                }
+            });
     }
 
     aplicarColumnasPorDefecto() {

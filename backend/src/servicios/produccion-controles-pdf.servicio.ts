@@ -51,7 +51,8 @@ export const presentacionControl: Record<string, { titulo: string; anchos: numbe
     descarguios: { titulo: 'CONTROL DE DESCARGUÍO', anchos: [52, 56, 58, 54, 82, 95, 62, 52, 46, 36, 34, 34, 34, 78] },
     secados: { titulo: 'CONTROL DE SECADO DE ARROZ', anchos: [48, 48, 50, 48, 30, 40, 32, 34, 32, 34, 42, 78, 55, 48, 30, 58, 70] },
     guardados: { titulo: 'CONTROL DE GUARDADO DE ARROZ', anchos: [48, 48, 48, 50, 22, 78, 42, 55, 46, 32, 32, 32, 32, 58, 48, 55, 62] },
-    procesados: { titulo: 'CONTROL DE PROCESADO DE ARROZ', anchos: [48, 48, 48, 48, 82, 58, 44, 50, 44, 40, 42, 40, 48, 40, 70] }
+    procesados: { titulo: 'CONTROL DE PROCESADO DE ARROZ', anchos: [48, 48, 48, 48, 82, 58, 44, 50, 44, 40, 42, 40, 48, 40, 70] },
+    envasados: { titulo: 'CONTROL DE ENVASADOS DE ARROZ', anchos: [70, 58, 110, 100, 90, 50, 70, 90, 55] }
 };
 export const gruposDescarguio: [string, number, number][] = [
     ['RECEPCIÓN', 0, 2],
@@ -195,7 +196,9 @@ function bufferDescarguioPdf(
             }
             const empresaX = left + logoW + (logoW ? 5 : 0);
             const metaW = 150;
-            const empresaW = Math.max(160, width - metaW - logoW - 20);
+            const empresaW = 175;
+            const tituloX = empresaX + empresaW + 6;
+            const tituloW = Math.max(120, width - logoW - (logoW ? 5 : 0) - empresaW - metaW - 16);
             let ey = y + 2;
             doc.fillColor('#111111').font('Helvetica-Bold').fontSize(11);
             doc.text(String(empresa.nombre || '').toUpperCase(), empresaX, ey, { width: empresaW, lineBreak: false });
@@ -217,15 +220,14 @@ function bufferDescarguioPdf(
             drawText(`Generado: ${meta.fecha}`, metaX, y + 14, metaW, false, 8, 'right');
             drawText(`Hora: ${meta.hora}`, metaX, y + 25, metaW, false, 8, 'right');
 
-            y = Math.max(y + logoSize, doc.y) + 6;
-            doc.rect(left, y, width, 2.2).fill('#741419');
-            y += 10;
+            // Título centrado en la franja superior, sobre la línea roja
+            drawText(presentacionControl.descarguios.titulo, tituloX, y + 10, tituloW, true, 13, 'center');
+            doc.moveTo(tituloX + tituloW * 0.12, y + 28).lineTo(tituloX + tituloW * 0.88, y + 28).lineWidth(0.9).strokeColor('#222').stroke();
+            doc.moveTo(tituloX + tituloW * 0.12, y + 30).lineTo(tituloX + tituloW * 0.88, y + 30).lineWidth(0.45).stroke();
 
-            drawText(presentacionControl.descarguios.titulo, left, y, width, true, 15, 'center');
-            y += 18;
-            doc.moveTo(left + width * 0.28, y).lineTo(right - width * 0.28, y).lineWidth(0.9).strokeColor('#222').stroke();
-            doc.moveTo(left + width * 0.28, y + 2.2).lineTo(right - width * 0.28, y + 2.2).lineWidth(0.45).stroke();
-            y += 10;
+            y = Math.max(y + logoSize, doc.y, y + 34) + 6;
+            doc.rect(left, y, width, 2.2).fill('#741419');
+            y += 8;
 
             const filtro = data.filtros.map(f => `${f.label}: ${f.valor}`).join('   |   ') || 'Todos los registros';
             const filtroLines = wrap(filtro, width - 16);
@@ -390,26 +392,59 @@ export function bufferControlPdf(
         };
         const header = () => {
             y = 12;
-            let logoWidth = 0;
+            const logoSize = 36;
+            let logoW = 0;
             if (logo && fs.existsSync(logo)) {
                 try {
-                    doc.image(logo, left, y, { fit: [70, 30], valign: 'center' });
-                    logoWidth = 76;
+                    doc.image(logo, left, y, { fit: [logoSize, logoSize] });
+                    logoW = logoSize;
                 } catch {
-                    /* Configured unsupported image: company name remains visible. */
+                    logoW = 0;
                 }
             }
-            drawText(empresa.nombre, left + logoWidth, y + 2, 180 - logoWidth, true, 8);
-            drawText(presentacionControl[data.tipo].titulo, left + 180, y + 6, width - 300, true, 11, 'center');
-            drawText('GESTIÓN ' + gestionControl(data), left + width - 110, y + 8, 110, true, 8, 'right');
-            y += 36;
-            const filter = data.filtros.map(f => `${f.label}: ${f.valor}`).join(' | ') || 'Todos los registros';
-            const lines = wrap(filter, width);
-            for (const l of lines) {
-                drawText(l, left, y, width, false, 6.5);
-                y += line;
+            const empresaX = left + logoW + (logoW ? 5 : 0);
+            const metaW = 140;
+            const empresaW = 160;
+            const tituloX = empresaX + empresaW + 4;
+            const tituloW = Math.max(110, width - logoW - (logoW ? 5 : 0) - empresaW - metaW - 14);
+            let ey = y + 1;
+            doc.fillColor('#111111').font('Helvetica-Bold').fontSize(10);
+            doc.text(String(empresa.nombre || '').toUpperCase(), empresaX, ey, { width: empresaW, lineBreak: false });
+            ey = doc.y + 1;
+            doc.font('Helvetica').fontSize(7);
+            const sub = String(empresa.slogan || 'Sistema de Gestión Administrativa').trim();
+            if (sub) {
+                doc.text(sub, empresaX, ey, { width: empresaW, lineBreak: false });
+                ey = doc.y + 1;
             }
-            y += 4;
+            const tel = String(empresa.telefono || '').trim();
+            const ciudad = String(empresa.ciudad || '').trim();
+            const contacto = [tel ? `Teléfono: ${tel}` : '', ciudad].filter(Boolean).join(' · ');
+            if (contacto) doc.text(contacto, empresaX, ey, { width: empresaW, lineBreak: false });
+
+            const meta = ahoraLaPaz();
+            const metaX = left + width - metaW;
+            drawText(`Gestión ${gestionControl(data)}`, metaX, y + 1, metaW, true, 8.5, 'right');
+            drawText(`Generado: ${meta.fecha}`, metaX, y + 12, metaW, false, 7.5, 'right');
+            drawText(`Hora: ${meta.hora}`, metaX, y + 22, metaW, false, 7.5, 'right');
+
+            // Título centrado arriba de la franja roja
+            drawText(presentacionControl[data.tipo].titulo, tituloX, y + 8, tituloW, true, 11, 'center');
+            doc.moveTo(tituloX + tituloW * 0.1, y + 24).lineTo(tituloX + tituloW * 0.9, y + 24).lineWidth(0.8).strokeColor('#222').stroke();
+            doc.moveTo(tituloX + tituloW * 0.1, y + 26).lineTo(tituloX + tituloW * 0.9, y + 26).lineWidth(0.4).stroke();
+
+            y = Math.max(y + logoSize, doc.y, y + 30) + 5;
+            doc.rect(left, y, width, 2).fill('#741419');
+            y += 6;
+
+            const filter = data.filtros.map(f => `${f.label}: ${f.valor}`).join(' | ') || 'Todos los registros';
+            const filtroLines = wrap(filter, width - 12);
+            const filtroH = Math.max(16, filtroLines.length * line + 6);
+            doc.rect(left, y, width, filtroH).fill('#EDEDED');
+            doc.lineWidth(0.4).strokeColor('#999').rect(left, y, width, filtroH).stroke();
+            filtroLines.forEach((l, i) => drawText(l, left + 6, y + 4 + i * line, width - 12, false, 6.5));
+            y += filtroH + 5;
+
             const ws = widths();
             const labels = headers.map((h, i) => wrap(h, ws[i] - 3, true)),
                 height = Math.max(...labels.map(a => a.length)) * line + 4;
@@ -480,7 +515,8 @@ export async function enviarControlPdf(res: Response, tipo: string, q: Record<st
         descarguios: 'Control_Descarguio',
         secados: 'Control_Secado_Arroz',
         guardados: 'Control_Guardado_Arroz',
-        procesados: 'Control_Procesado_Arroz'
+        procesados: 'Control_Procesado_Arroz',
+        envasados: 'Control_Envasados_Arroz'
     };
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
@@ -489,23 +525,19 @@ export async function enviarControlPdf(res: Response, tipo: string, q: Record<st
 }
 
 export async function enviarControlConsolidadoPdf(res: Response, q: Record<string, any>, tipos: string[]) {
-    const { controlesOriginales } = await import('./produccion-controles-excel.servicio');
-    const { hojaTransformacion } = await import('./produccion-transformaciones-consulta.servicio');
-    const { bufferReportePdf } = await import('../utils/exportar');
+    const { controlesOriginales, datosControlOriginal } = await import('./produccion-controles-excel.servicio');
+    const validos = tipos.filter(t => controlesOriginales.includes(t));
+    if (!validos.length) throw new Error('No hay módulos de producción para consolidar.');
+    // Genera cada control en paralelo y luego une páginas.
+    const buffers = await Promise.all(
+        validos.map(async tipo => {
+            const data = await datosControlOriginal(tipo, q);
+            return bufferSinPaginasVacias((await bufferControlPdf(data)).buffer);
+        })
+    );
     const merged = await PDFLibDocument.create();
     let paginas = 0;
-    for (const tipo of tipos) {
-        let buffer: Buffer | null = null;
-        if (controlesOriginales.includes(tipo)) {
-            const data = await datosControlOriginal(tipo, q);
-            buffer = await bufferSinPaginasVacias((await bufferControlPdf(data)).buffer);
-        } else if (tipo === 'envasados') {
-            const hoja = await hojaTransformacion('ENVASADO', { ...q, orden: 'fecha', direccion: -1 }, 'pdf');
-            hoja.mostrarFirma = false;
-            hoja.cabeceraReporte = true;
-            buffer = await bufferSinPaginasVacias((await bufferReportePdf([hoja])).buffer);
-        }
-        if (!buffer) continue;
+    for (const buffer of buffers) {
         const src = await PDFLibDocument.load(buffer);
         const copied = await merged.copyPages(src, src.getPageIndices());
         copied.forEach(p => merged.addPage(p));

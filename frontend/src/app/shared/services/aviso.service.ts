@@ -1,7 +1,16 @@
 import { Injectable } from '@angular/core';
 import { MessageService } from 'primeng/api';
+import { EmptyError } from 'rxjs';
 import { ErrorApiMapeado } from '../models/errores.interface';
 import { mapearErrorHttp } from '../utils/error-http';
+
+/** RxJS EmptyError al destruir la vista a mitad de una petición (firstValueFrom + takeUntilDestroyed). */
+function esCancelacionNavegacion(err: unknown): boolean {
+    if (err instanceof EmptyError) return true;
+    if (!err || typeof err !== 'object') return false;
+    const e = err as { name?: string; message?: string };
+    return e.name === 'EmptyError' || e.message === 'no elements in sequence';
+}
 
 @Injectable({ providedIn: 'root' })
 export class AvisoService {
@@ -24,6 +33,10 @@ export class AvisoService {
     }
 
     error(err: unknown, fallback: string): ErrorApiMapeado {
+        // No mostrar toast al salir de una pantalla con peticiones pendientes.
+        if (esCancelacionNavegacion(err)) {
+            return { mensaje: '', resumen: '', errores: [], estado: null, cuerpoTexto: '' };
+        }
         const mapeado = mapearErrorHttp(err, fallback);
         this.message.add({
             severity: 'error',

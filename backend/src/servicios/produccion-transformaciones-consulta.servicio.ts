@@ -9,7 +9,7 @@ import { resumenTransformacion } from './produccion-transformaciones.servicio';
 import { aplicarPlantillaFormal, HojaExport } from '../utils/exportar';
 
 function consulta(tipo:Transformacion,q:Fila){
-    const f=filtrosProduccion({...q,tipo:undefined,orden:'fecha',buscar:q.buscar||q.q},100),params:Fila={tipo},where=['o.tipo = :tipo'];
+    const f=filtrosProduccion({...q,tipo:undefined,orden:'fecha',buscar:q.buscar||q.q},1500),params:Fila={tipo},where=['o.tipo = :tipo'];
     if(f.desde){where.push('o.fecha >= :desde');params.desde=f.desde+' 00:00:00';}if(f.hasta){where.push('o.fecha < DATE_ADD(:hasta,INTERVAL 1 DAY)');params.hasta=f.hasta;}
     if(f.productor){where.push('o.id_productor IN (:productor)');params.productor=f.productor;}if(f.modalidad){where.push('o.modalidad IN (:modalidad)');params.modalidad=f.modalidad;}
     if(q.estado){valoresFiltro(q.estado,['BORRADOR','CONFIRMADO','ANULADO']);where.push('o.estado IN (:estado)');params.estado=valoresFiltro(q.estado);}
@@ -79,8 +79,8 @@ export async function opcionesTransformacion(tipo:Transformacion,q:Fila,t?:Trans
     if(q.grupo==='ubicaciones')return leerDesc(`SELECT id,nombre FROM produccion_ubicaciones WHERE activo=1 AND LOCATE(:q,nombre)>0 ORDER BY nombre${limiteCatalogo}`,{q:buscar},t);
     throw new ErrorDescarguio('Catálogo inválido.');
 }
-export async function hojaTransformacion(tipo:Transformacion,q:Fila,formato:'pdf'|'xlsx',t?:Transaction):Promise<HojaExport>{
-    const rows=await filasTransformacion(tipo,q,true,t),process=tipo==='PROCESADO',num=(n:any)=>n==null?'No medido':new Intl.NumberFormat('es-BO',{maximumFractionDigits:3}).format(Number(n));
+export async function hojaTransformacion(tipo:Transformacion,q:Fila,formato:'pdf'|'xlsx',t?:Transaction,todas=true):Promise<HojaExport>{
+    const rows=await filasTransformacion(tipo,q,todas,t),process=tipo==='PROCESADO',num=(n:any)=>n==null?'No medido':new Intl.NumberFormat('es-BO',{maximumFractionDigits:3}).format(Number(n));
     const filtros=[{label:'Desde',valor:q.fecha_desde||'Sin límite'},{label:'Hasta',valor:q.fecha_hasta||'Sin límite'}];
     if(q.id_productor){const productores=await leerDesc('SELECT nombre FROM proveedores WHERE id IN (:id)',{id:idsFiltro(q.id_productor)},t); const p={nombre:productores.map(p=>p.nombre).join(', ')};filtros.push({label:'Productor',valor:p?.nombre||'No encontrado'});}
     if(q.id_producto){const [p]=await leerDesc('SELECT nombre FROM productos WHERE id = :id',{id:Number(q.id_producto)},t);filtros.push({label:'Producto',valor:p?.nombre||'No encontrado'});}

@@ -3,7 +3,7 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { Subject, catchError, debounceTime, forkJoin, of, switchMap, tap } from 'rxjs';
+import { Subject, catchError, debounceTime, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
@@ -30,7 +30,8 @@ import { permisoEtapa } from './produccion-permisos';
 })
 export class ProduccionBasePage implements OnInit {
     private destroyRef = inject(DestroyRef);
-    private recargar = new Subject<void>();
+    /** 'todo' = listado + KPIs; 'lista' = solo tabla (paginación/búsqueda). */
+    private recargar = new Subject<'todo' | 'lista'>();
     private busqueda = new Subject<void>();
     private consultaAplicada: ConsultaProduccion = {};
 
@@ -109,31 +110,34 @@ export class ProduccionBasePage implements OnInit {
 
         this.recargar.pipe(
             tap(() => { this.cargando = true; this.errorCarga = ''; }),
-            switchMap(() => forkJoin({
-                listado: this.api.listado({
+            switchMap(modo => {
+                const listado$ = this.api.listado({
                     ...this.consultaAplicada,
                     buscar: this.buscar,
                     offset: this.primero,
                     limit: this.filas,
                     orden: this.orden,
                     direccion: this.direccion
-                }),
-                resumen: this.api.resumen(this.consultaAplicada)
-            }).pipe(catchError(error => {
-                this.errorCarga = this.aviso.error(error, 'No se pudo consultar Producción').mensaje;
-                return of(null);
-            }))),
+                });
+                const peticion$ = modo === 'lista' && this.resumen
+                    ? listado$.pipe(map(listado => ({ listado, resumen: this.resumen! })))
+                    : forkJoin({ listado: listado$, resumen: this.api.resumen(this.consultaAplicada) });
+                return peticion$.pipe(catchError(error => {
+                    this.errorCarga = this.aviso.error(error, 'No se pudo consultar Producción').mensaje;
+                    return of(null);
+                }));
+            }),
             takeUntilDestroyed(this.destroyRef)
         ).subscribe(resultado => {
             this.cargando = false;
             this.items = resultado?.listado.items || [];
             this.total = resultado?.listado.total || 0;
-            this.resumen = resultado?.resumen || null;
+            if (resultado?.resumen) this.resumen = resultado.resumen;
         });
 
         this.busqueda.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
             this.primero = 0;
-            this.solicitar();
+            this.solicitarLista();
         });
 
         this.api.catalogos().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -160,7 +164,8 @@ export class ProduccionBasePage implements OnInit {
         this.solicitar();
     }
 
-    solicitar(): void { this.recargar.next(); }
+    solicitar(): void { this.recargar.next('todo'); }
+    solicitarLista(): void { this.recargar.next('lista'); }
     cambioBusqueda(): void { this.busqueda.next(); }
 
     paginar(evento: TableLazyLoadEvent): void {
@@ -171,7 +176,7 @@ export class ProduccionBasePage implements OnInit {
         this.filas = evento.rows || 10;
         this.orden = orden;
         this.direccion = direccion;
-        this.solicitar();
+        this.solicitarLista();
     }
 
     numero(valor: unknown): string {

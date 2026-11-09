@@ -60,13 +60,23 @@ export class DescarguioFormPage implements OnInit {
     async ngOnInit() {
         this.cargando = true; this.errorCarga = '';
         try {
-            await Promise.all(['productores','compras','productos','variedades','ubicaciones'].map(async grupo => {
-                const datos = await firstValueFrom(this.api.opciones(grupo, '', undefined, true).pipe(takeUntilDestroyed(this.destroyRef)));
+            const grupos = ['productores', 'compras', 'productos', 'variedades', 'ubicaciones'] as const;
+            // defaultValue evita EmptyError si se navega fuera antes de que termine la carga.
+            const cargados = await Promise.all(grupos.map(grupo =>
+                firstValueFrom(this.api.opciones(grupo, '', undefined, true).pipe(takeUntilDestroyed(this.destroyRef)), { defaultValue: null })
+            ));
+            if (cargados.some(d => d == null)) return;
+            grupos.forEach((grupo, i) => {
+                const datos = cargados[i]!;
                 this.sugerencias[grupo] = grupo === 'compras' ? datos.map(d => this.etiquetarCompra(d)) : datos;
                 if (grupo === 'variedades') this.variedades = datos.map(d => d.nombre);
-            }));
+            });
             const id = this.route.snapshot.paramMap.get('id');
-            if (id) this.aplicar(await firstValueFrom(this.api.obtener(Number(id)).pipe(takeUntilDestroyed(this.destroyRef))));
+            if (id) {
+                const doc = await firstValueFrom(this.api.obtener(Number(id)).pipe(takeUntilDestroyed(this.destroyRef)), { defaultValue: null });
+                if (!doc) return;
+                this.aplicar(doc);
+            }
         } catch (e) { this.errorCarga = this.aviso.error(e, 'No se pudieron cargar los datos del formulario').mensaje; }
         finally { this.cargando = false; }
     }

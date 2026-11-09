@@ -11,7 +11,7 @@ export const proporcionesEtapa = (tipo: Etapa): Record<string,number> => tipo ==
     ? {'N°':18,'Secado':42,'Descarguío':42,'Fecha':42,'Operador':65,'Silo':40,'Secadora':48,'H. entrada (%)':42,'H. salida (%)':42,'Variedad':42,'Productor':78,'Boleta':48,'Cantidad':42,'Unidad':34,'Modalidad':42,'Ubicación':52,'Observaciones':70,'Estado':38}
     : {'N°':18,'Guardado':42,'Secado(s)':54,'Descarguío(s)':54,'Fecha':42,'N° boleta':48,'Productor':78,'Variedad':42,'Cantidad':42,'Unidad':34,'H. entrada (%)':42,'H. salida (%)':42,'Imp. entrada (%)':42,'Imp. salida (%)':42,'Ubicación':60,'Detalle':58,'Modalidad':42,'Observaciones':70,'Estado':38};
 function consulta(tipo: Etapa, query: Fila) {
-    const f = filtrosProduccion({...query,tipo:undefined,orden:'fecha',buscar:query.buscar || query.q},100);
+    const f = filtrosProduccion({...query,tipo:undefined,orden:'fecha',buscar:query.buscar || query.q},1500);
     const params: Fila = {tipo}, where = ['o.tipo = :tipo'];
     if (f.desde) { where.push('o.fecha >= :desde'); params.desde = `${f.desde} 00:00:00`; }
     if (f.hasta) { where.push('o.fecha < DATE_ADD(:hasta,INTERVAL 1 DAY)'); params.hasta=f.hasta; }
@@ -89,9 +89,9 @@ export async function opcionesEtapa(tipo: Etapa, query: Fila, t?: Transaction) {
     if (query.grupo === 'secadoras' && tipo === 'SECADO') return leerDesc(`SELECT DISTINCT secadora nombre FROM produccion_secados WHERE secadora IS NOT NULL AND LOCATE(:q,secadora)>0 ORDER BY secadora${limiteCatalogo}`,{q},t);
     throw new ErrorDescarguio('Catálogo inválido.');
 }
-export async function hojaEtapa(tipo: Etapa, query: Fila, formato: 'pdf'|'xlsx', t?: Transaction): Promise<HojaExport> {
+export async function hojaEtapa(tipo: Etapa, query: Fila, formato: 'pdf'|'xlsx', t?: Transaction, todas = true): Promise<HojaExport> {
     consulta(tipo,query);
-    const rows=await filasEtapa(tipo,query,true,t), sec=tipo==='SECADO';
+    const rows=await filasEtapa(tipo,query,todas,t), sec=tipo==='SECADO';
     const n=(v:any)=>v==null ? 'No medido':new Intl.NumberFormat('es-BO',{maximumFractionDigits:3}).format(Number(v));
     const totals=new Map<string,number>();
     for (const r of rows) if(r.estado==='CONFIRMADO' && r.unidad) { const k=`${r.modalidad} / ${r.unidad}`; totals.set(k,(totals.get(k)||0)+Math.round(Number(r.cantidad)*1000)); }
