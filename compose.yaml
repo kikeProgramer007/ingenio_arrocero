@@ -1,5 +1,4 @@
-
-name: royal
+name: empresa_rojas
 
 services:
   backend:
@@ -15,4 +14,4 @@ services:
     build: ./frontend
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8082:8080"
+      - "127.0.0.1:8084:8080"

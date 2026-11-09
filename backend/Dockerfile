@@ -18,7 +18,7 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=3002
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
@@ -26,6 +26,6 @@ COPY --from=build /app/asset ./asset
 RUN mkdir -p /app/uploads
 COPY package*.json ./
 
-EXPOSE 3001
+EXPOSE 3002
 
 CMD ["npm", "start"]

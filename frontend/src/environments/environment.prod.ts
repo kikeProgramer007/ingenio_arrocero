@@ -1,5 +1,5 @@
 export const environment = {
     production: true,
-    endpoint: 'https://apiroyal.bitsys.com.bo/',
-    apiUrl: 'https://apiroyal.bitsys.com.bo/'
+    endpoint: 'https://apirojas.bitsys.com.bo/',
+    apiUrl: 'https://apirojas.bitsys.com.bo/'
 };
