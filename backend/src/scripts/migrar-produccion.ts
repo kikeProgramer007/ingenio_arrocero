@@ -1,10 +1,10 @@
 import '../load-env';
-import { createHash } from 'crypto';
-import { QueryTypes } from 'sequelize';
+import {createHash} from 'crypto';
+import {QueryTypes} from 'sequelize';
 import sequelize from '../db/connection';
-import { assertBaseDeUsuario } from '../utils/db-sync';
-import { TABLAS_PRODUCCION } from '../db/produccion-schema';
-import { up, VERSION_PRODUCCION } from '../migrations/20261105-produccion-base';
+import {assertBaseDeUsuario} from '../utils/db-sync';
+import {TABLAS_PRODUCCION} from '../db/produccion-schema';
+import {up, VERSION_PRODUCCION} from '../migrations/20261105-produccion-base';
 
 /** Huella de todos los registros anteriores, excepto los permisos que agrega esta migración. */
 async function huella(tablas: string[]) {

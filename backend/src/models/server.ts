@@ -8,12 +8,10 @@ import routeDashboard from '../routes/dashboard.routes';
 import routeClientes from '../routes/cliente.routes';
 import routeVentas, { cobranzaRouter } from '../routes/venta.routes';
 import routeProveedores from '../routes/proveedor.routes';
-import routeProductores from '../routes/productor.routes';
 import routeCompras, { pagoProveedorRouter } from '../routes/compra.routes';
 import routeGastos from '../routes/gasto.routes';
 import routeProductos from '../routes/producto.routes';
 import routeCampanas from '../routes/campana.routes';
-import routeProduccion from '../routes/produccion.routes';
 import routeProduccionBase from '../routes/produccion-base.routes';
 import routeReportes from '../routes/reporte.routes';
 import routeUploads from '../routes/upload.routes';
@@ -24,11 +22,13 @@ import { seedInventarioBase } from '../seed/inventario.seed';
 import { seedCatalogoFotos } from '../seed/catalogo-fotos.seed';
 import { sequelize } from '../models';
 import { assertBaseDeUsuario, shouldAlterSchema } from '../utils/db-sync';
-import { asegurarEsquemaClientes, asegurarEsquemaCompras, asegurarEsquemaEmpresa, asegurarEsquemaGastos, asegurarEsquemaOperacion, asegurarEsquemaPagoMixto, asegurarEsquemaPagosGasto, asegurarEsquemaProductores, asegurarEsquemaUsuarios, asegurarEsquemaVentas } from '../utils/ensure-schema';
+import { asegurarEsquemaClientes, asegurarEsquemaCompras, asegurarEsquemaEmpresa, asegurarEsquemaGastos, asegurarEsquemaOperacion, asegurarEsquemaPagoMixto, asegurarEsquemaPagosGasto, asegurarEsquemaUsuarios, asegurarEsquemaVentas } from '../utils/ensure-schema';
 import { asegurarDirectoriosImagen, uploadsRoot } from '../utils/imagen';
 import { asegurarEmpresa } from '../utils/empresa';
+import { middlewareMayusculas } from '../utils/mayusculas';
 import routeDespachos from '../routes/despacho.routes';
 import routePlantillasDocumentos from '../routes/plantillas-documentos.routes';
+import routeAuditoria from '../routes/auditoria.routes';
 
 class Server {
     private app: Application;
@@ -59,22 +59,22 @@ class Server {
         this.app.use('/api/despachos', routeDespachos);
         this.app.use('/api/cobranzas', cobranzaRouter);
         this.app.use('/api/proveedores', routeProveedores);
-        this.app.use('/api/productores', routeProductores);
         this.app.use('/api/compras', routeCompras);
         this.app.use('/api/pagos', pagoProveedorRouter);
         this.app.use('/api/gastos', routeGastos);
         this.app.use('/api/productos', routeProductos);
         this.app.use('/api/campanas', routeCampanas);
-        this.app.use('/api/producciones', routeProduccion);
         this.app.use('/api/produccion', routeProduccionBase);
         this.app.use('/api/reportes', routeReportes);
         this.app.use('/api/uploads', routeUploads);
         this.app.use('/api/empresa', routeEmpresa);
         this.app.use('/api/plantillas-documentos', routePlantillasDocumentos);
+        this.app.use('/api/auditoria', routeAuditoria);
     }
 
     midlewares() {
         this.app.use(express.json());
+        this.app.use(middlewareMayusculas);
         this.app.use(cors({ exposedHeaders: ['Content-Disposition'] }));
         asegurarDirectoriosImagen();
         this.app.use('/uploads', express.static(uploadsRoot()));
@@ -103,7 +103,7 @@ class Server {
                 asegurarEsquemaClientes,
                 asegurarEsquemaVentas,
                 asegurarEsquemaCompras,
-                asegurarEsquemaProductores,
+               
                 asegurarEsquemaUsuarios,
                 asegurarEsquemaOperacion
             ];

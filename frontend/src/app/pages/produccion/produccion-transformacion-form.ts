@@ -1,10 +1,11 @@
+import { AyudaCampoComponent } from '../../shared/components/ayuda-campo';
 import { CommonModule, Location } from '@angular/common';
 import { Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { AutoCompleteModule } from 'primeng/autocomplete';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { InputTextModule } from 'primeng/inputtext';
@@ -21,7 +22,7 @@ import { OrigenForm, ProduccionEtapaFormPage } from './produccion-etapa-form';
 import { DatosEtapa, ProduccionEtapasService } from './produccion-etapas.service';
 
 @Component({selector:'app-produccion-transformacion-form',standalone:true,
-    imports:[CommonModule,FormsModule,RouterModule,AutoCompleteModule,ButtonModule,DatePickerModule,InputTextModule,TextareaModule,SelectModule,SkeletonModule,DialogModule,TagModule,InputNumeroComponent],
+    imports:[AyudaCampoComponent,CommonModule,FormsModule,RouterModule,MultiSelectModule,ButtonModule,DatePickerModule,InputTextModule,TextareaModule,SelectModule,SkeletonModule,DialogModule,TagModule,InputNumeroComponent],
     templateUrl:'./produccion-transformacion-form.html',styles:[`:host{display:block;min-width:0}.etiqueta{display:block;font-weight:600;font-size:.9rem;margin-bottom:.5rem}.campo-error{color:var(--p-red-600,#dc2626);font-size:.85rem;display:block;margin-top:.35rem}:host ::ng-deep .p-autocomplete{width:100%}:host ::ng-deep .p-autocomplete-input{width:100%;min-width:0}`]})
 export class ProduccionTransformacionFormPage extends ProduccionEtapaFormPage {
     private vida=inject(DestroyRef);private catalogo=inject(ProduccionEtapasService);private avisos=inject(AvisoService);
@@ -41,11 +42,21 @@ export class ProduccionTransformacionFormPage extends ProduccionEtapaFormPage {
     protected override datos(){const d=super.datos();d['resultados']=this.resultados.map(r=>({...r,id_producto:typeof r['seleccion']==='object'?r['seleccion']?.id||null:null}));
         d['id_producto_destino']=typeof this.destino==='object'?this.destino?.['id']||null:null;d['id_producto_empaque']=typeof this.bolsa==='object'?this.bolsa?.['id']||null:null;return d;}
     override elegir(o:OrigenForm){super.elegir(o);if(this.procesado)this.form['peso_entrada_kg']=null;else{this.form['equivalencia_kg_origen']=null;this.recalcularEnvase();}}
-    agregarResultado(){this.resultados.push({id_producto:null,seleccion:null,sugerencias:[],clasificacion:null,cantidad:null,unidad:null,peso_real_kg:null,observacion:null});}
-    quitarResultado(i:number){this.requests.get(this.resultados[i])?.unsubscribe();this.resultados.splice(i,1);}
-    buscarResultado(r:DatosEtapa,q:string){this.requests.get(r)?.unsubscribe();this.requests.set(r,this.catalogo.opciones(this.ruta,'productos',q).pipe(takeUntilDestroyed(this.vida)).subscribe({next:rows=>r['sugerencias']=rows,error:e=>this.avisos.error(e,'No se pudieron cargar productos')}));}
+    agregarResultado(){if(this.soloLectura||this.guardando||this.resultados.length>=30)return;this.campos={};this.resultados.push({id_producto:null,seleccion:null,sugerencias:[],clasificacion:null,cantidad:null,unidad:null,peso_real_kg:null,observacion:null});}
+    quitarResultado(i:number){if(this.soloLectura||this.guardando||!this.resultados[i])return;this.requests.get(this.resultados[i])?.unsubscribe();this.requests.delete(this.resultados[i]);this.resultados.splice(i,1);this.campos={};}
+    protected override validarFormulario(confirmar:boolean){
+        super.validarFormulario(confirmar);
+        if(this.procesado){
+            if(confirmar&&!this.resultados.length)this.campos['resultados']='Agregue al menos un producto obtenido.';
+            this.resultados.forEach((r,i)=>{
+                if(!r['seleccion']?.id)this.campos[`resultados.${i}.id_producto`]='Seleccione un producto de la lista.';
+                if(confirmar&&!r['clasificacion']?.trim())this.campos[`resultados.${i}.clasificacion`]='Indique la clasificación.';
+                if(r['cantidad']!=null&&(!Number.isFinite(r['cantidad'])||r['cantidad']<=0)||confirmar&&r['cantidad']==null)this.campos[`resultados.${i}.cantidad`]='Ingrese una cantidad mayor que cero.';
+            });
+        }
+        if(Object.keys(this.campos).length){this.error='Revise los campos señalados antes de continuar.';return false;}return true;
+    }
     elegirResultado(r:DatosEtapa){const p=r['seleccion'];r['id_producto']=typeof p==='object'?p?.id||null:null;r['unidad']=p?.unidad_medida?normalizarUnidadMedida(p.unidad_medida):null;r['peso_real_kg']=null;if(!r['clasificacion']&&p?.nombre)r['clasificacion']=p.nombre;}
-    buscarProducto(grupo:'productos'|'empaques',q:string){const key=grupo==='empaques'?this.bolsas:this.destinos;this.requests.get(key)?.unsubscribe();this.requests.set(key,this.catalogo.opciones(this.ruta,grupo,q).pipe(takeUntilDestroyed(this.vida)).subscribe({next:r=>{key.splice(0,key.length,...r);},error:e=>this.avisos.error(e,'No se pudieron cargar productos')}));}
     get unidadDestino(){return normalizarUnidadMedida(this.destino?.['unidad_medida']||'');}
     get pesoTotal(){return this.form['numero_bolsas']!=null&&this.form['contenido_bolsa_kg']!=null?Math.round(this.form['numero_bolsas']*this.form['contenido_bolsa_kg']*1000)/1000:null;}
     recalcularEnvase(){const factor=this.origenPrincipal?.['unidad']==='Kilo'?1:Number(this.form['equivalencia_kg_origen']);if(this.origenes[0]&&this.pesoTotal!=null&&factor>0)this.origenes[0].cantidad=Math.round(this.pesoTotal/factor*1000)/1000;}

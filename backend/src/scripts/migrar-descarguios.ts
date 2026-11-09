@@ -1,10 +1,10 @@
 import '../load-env';
-import { createHash } from 'crypto';
-import { QueryTypes } from 'sequelize';
+import {createHash} from 'crypto';
+import {QueryTypes} from 'sequelize';
 import sequelize from '../db/connection';
-import { assertBaseDeUsuario } from '../utils/db-sync';
-import { up } from '../migrations/20261105-produccion-descarguios';
-import { VERSION_DESCARGUIOS } from '../db/descarguio-schema';
+import {assertBaseDeUsuario} from '../utils/db-sync';
+import {up} from '../migrations/20261105-produccion-descarguios';
+import {VERSION_DESCARGUIOS} from '../db/descarguio-schema';
 
 async function huella(tablas: string[]) {
     const salida: Record<string, string> = {};

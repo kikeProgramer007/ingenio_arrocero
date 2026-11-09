@@ -10,8 +10,9 @@ import { AvisoService } from '../services/aviso.service';
     standalone: true,
     imports: [CommonModule, ButtonModule, TooltipModule],
     template: `
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-2 w-full sm:w-auto">
             <p-button
+                styleClass="flex-1 sm:flex-none"
                 label="PDF"
                 icon="pi pi-file-pdf"
                 [outlined]="true"
@@ -23,6 +24,7 @@ import { AvisoService } from '../services/aviso.service';
                 [disabled]="disabled"
             />
             <p-button
+                styleClass="flex-1 sm:flex-none"
                 label="Excel"
                 icon="pi pi-file-excel"
                 [outlined]="true"
@@ -59,7 +61,7 @@ export class BotonesExportarComponent {
     @Input() rol?: string;
     @Input() estadoDespacho?: string | string[];
     @Input() disabled = false;
-    @Input() idProductor?: number | null;
+    @Input() idProductor?: number | string | null;
     @Input() modalidad?: string;
     @Input() variedad?: string;
     @Input() orden?: string;

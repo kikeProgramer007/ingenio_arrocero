@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { bufferVoucherPdf, DatosVoucher, LineaVoucher, NOTA_FORMULARIO, notaDetalleAltoMm } from '../utils/pdf-voucher';
+import {bufferVoucherPdf, DatosVoucher, LineaVoucher, NOTA_FORMULARIO, notaDetalleAltoMm} from '../utils/pdf-voucher';
 
 function linea(partial: Partial<LineaVoucher>): LineaVoucher {
     return {

@@ -1,5 +1,5 @@
-import { QueryTypes } from 'sequelize';
-import { sequelize } from '../models';
+import {QueryTypes} from 'sequelize';
+import {sequelize} from '../models';
 
 async function main() {
     await sequelize.authenticate();

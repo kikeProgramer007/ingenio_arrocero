@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { ReservaProducto } from '../models/despacho.model';
-import { Acopio, Caja, Campana, CategoriaProducto, Cliente, Compra, CompraDetalle, Gasto, MovimientoCaja, PagoGasto, PagoProveedor, Produccion, Productor, Productos, Proveedor, User, Venta, VentaDetalle, Cobranza } from '../models';
+import { Acopio, Caja, Campana, CategoriaProducto, Cliente, Compra, CompraDetalle, Gasto, MovimientoCaja, PagoGasto, PagoProveedor, Proveedor, Productos, User, Venta, VentaDetalle, Cobranza } from '../models';
 import { handleError } from '../utils/error.handler';
 import { clasificarDiferencia, formatBs, formatUsd, roundMoney, toMoney } from '../utils/money';
 import { aplicarPlantillaFormal, enviarExcel, enviarPdf, HojaExport } from '../utils/exportar';
@@ -289,9 +289,6 @@ export class ReporteController {
         }
         if (tipo === 'empaques') {
             return [await ReporteController.hojaEmpaques(req)];
-        }
-        if (tipo === 'produccion') {
-            return [await ReporteController.hojaProduccion(req, desde, hasta)];
         }
         if (tipo === 'campanas') {
             return [await ReporteController.hojaCampanas(req, desde, hasta)];
@@ -1175,7 +1172,7 @@ export class ReporteController {
                         as: 'detalles',
                         include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }]
                     },
-                    { model: Productor, as: 'productor', attributes: ['id', 'nombre'] }
+                    { model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] }
                 ],
                 order: [['fecha', 'ASC'], ['id', 'ASC']]
             }),
@@ -1185,7 +1182,7 @@ export class ReporteController {
                     model: Compra,
                     as: 'compra',
                     attributes: ['id', 'total', 'tipo_compra', 'tipo_cambio', 'total_usd', 'fanegas', 'boleta', 'ordenante'],
-                    include: [{ model: Productor, as: 'productor', attributes: ['id', 'nombre'] }]
+                    include: [{ model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] }]
                 }],
                 order: [['fecha', 'ASC'], ['id', 'ASC']]
             }),
@@ -1424,37 +1421,6 @@ export class ReporteController {
             subtitulo: `Generado ${fmtFecha(new Date())}`,
             resumen: [{ label: 'Tipos', valor: String(bolsas.length) }],
             columnas: COLUMNAS_DOCUMENTOS.empaques,
-            filas
-        };
-    }
-
-    private static async hojaProduccion(req: Request, desde: Date, hasta: Date): Promise<HojaExport> {
-        const where: any = hayPeriodoQuery(req.query) ? { fecha: { [Op.between]: [desde, hasta] } } : {};
-        const items = await Produccion.findAll({
-            where,
-            include: [
-                { model: Productos, as: 'productoOrigen', attributes: ['id', 'nombre'] },
-                { model: Productos, as: 'productoDestino', attributes: ['id', 'nombre'] },
-                { model: User, as: 'usuario', attributes: ['id', 'username', 'nombre'] }
-            ],
-            order: [['fecha', 'ASC']],
-            limit: 2000
-        });
-        const filas = items.map((p: any) => [
-            fmtFecha(p.fecha),
-            p.productoOrigen?.nombre || '-',
-            Number(p.cantidad_entrada),
-            p.productoDestino?.nombre || '-',
-            Number(p.cantidad_salida),
-            Number(p.merma),
-            nombreVisible(p.usuario)
-        ]);
-        return {
-            nombre: 'Producción',
-            titulo: 'Producción',
-            subtitulo: hayPeriodoQuery(req.query) ? periodoTexto(desde, hasta) : `Generado ${fmtFecha(new Date())}`,
-            resumen: [{ label: 'Registros', valor: String(items.length) }],
-            columnas: COLUMNAS_DOCUMENTOS.produccion,
             filas
         };
     }

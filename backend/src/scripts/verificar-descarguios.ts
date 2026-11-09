@@ -1,20 +1,20 @@
 import '../load-env';
 import assert from 'assert/strict';
-import { randomUUID, createHash } from 'crypto';
+import {randomUUID, createHash} from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { PassThrough } from 'stream';
-import { Request, Response } from 'express';
+import {PassThrough} from 'stream';
+import {Request, Response} from 'express';
 import ExcelJS from 'exceljs';
-import { QueryTypes, Transaction } from 'sequelize';
-import { Compra, CompraDetalle, MovimientoInventario, Productor, Productos, Proveedor, ReservaProducto, User, sequelize } from '../models';
-import { ErrorDescarguio, validarDescarguio } from '../dtos/descarguio.dto';
-import { crearDescarguio, editarDescarguio, confirmarDescarguio, anularDescarguio, leerDesc } from '../servicios/descarguios.servicio';
-import { listadoDescarguios, filasDescarguios, opcionesDescarguio } from '../servicios/descarguios-consulta.servicio';
-import { permisoProduccion } from '../controllers/produccion-base.controller';
-import { hojaDescarguios } from '../servicios/descarguios-reporte.servicio';
-import { bufferReportePdf, enviarExcel } from '../utils/exportar';
+import {QueryTypes, Transaction} from 'sequelize';
+import {Compra, CompraDetalle, MovimientoInventario, Proveedor, Productos, ReservaProducto, User, sequelize} from '../models';
+import {ErrorDescarguio, validarDescarguio} from '../dtos/descarguio.dto';
+import {crearDescarguio, editarDescarguio, confirmarDescarguio, anularDescarguio, leerDesc} from '../servicios/descarguios.servicio';
+import {listadoDescarguios, filasDescarguios, opcionesDescarguio} from '../servicios/descarguios-consulta.servicio';
+import {permisoProduccion} from '../controllers/produccion-base.controller';
+import {hojaDescarguios} from '../servicios/descarguios-reporte.servicio';
+import {bufferReportePdf, enviarExcel} from '../utils/exportar';
 
 async function huella() {
     const tablas = (await sequelize.getQueryInterface().showAllTables()).map(String).sort();
@@ -57,7 +57,7 @@ async function main() {
         assert(usuario, 'Se necesita un usuario activo.');
         const uid = Number(usuario.get('id'));
         const marca = randomUUID().slice(0,8);
-        const productor = await Productor.create({ nombre: `PRODUCTOR DE PRUEBA ${marca} NOMBRE EXTENSO PARA COMPROBAR EL AJUSTE DEL TEXTO DENTRO DE LA MISMA CELDA EN LOS DOCUMENTOS OPERATIVOS`, activo: true }, { transaction: t });
+        const productor = await Proveedor.create({ nombre: `PRODUCTOR DE PRUEBA ${marca} NOMBRE EXTENSO PARA COMPROBAR EL AJUSTE DEL TEXTO DENTRO DE LA MISMA CELDA EN LOS DOCUMENTOS OPERATIVOS`, activo: true }, { transaction: t });
         const pid = Number(productor.get('id'));
         const proveedor = await Proveedor.create({ nombre: `PROVEEDOR DE PRUEBA ${marca}`, activo: true }, { transaction: t });
         const producto = await Productos.create({ nombre: `ARROZ EN CHALA DE PRUEBA ${marca}`, unidad_medida: 'Fanega', stock: 100.123 }, { transaction: t });

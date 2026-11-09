@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { CategoriaProducto, Compra, CompraDetalle, Empresa, PagoProveedor, Productor, Productos, Proveedor, sequelize, User } from '../models';
+import { CategoriaProducto, Compra, CompraDetalle, Empresa, PagoProveedor, Proveedor, Productos, sequelize, User } from '../models';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { getAuthUser, mapUsuarioResumen } from '../utils/auth-user';
@@ -112,13 +112,13 @@ function mapCompra(compra: any) {
         total_usd: compra.total_usd != null ? toMoney(compra.total_usd) : null,
         precio_usd: compra.precio_usd != null ? Number(compra.precio_usd) : null,
         es_servicio: esCompraServicio(compra),
-        id_productor: null,
+        id_productor: compra.id_proveedor,
         ordenante: compra.ordenante || null,
         anticipada: Boolean(compra.anticipada),
         estado_recepcion: compra.estado_recepcion || 'RECIBIDA',
         plazo_dias: compra.plazo_dias != null ? Number(compra.plazo_dias) : null,
         fecha_vencimiento: compra.fecha_vencimiento || null,
-        productor: null,
+        productor: (compra.proveedor || compra.productor) ? { id: compra.id_proveedor, nombre: (compra.proveedor || compra.productor).nombre } : null,
         proveedor: compra.proveedor ? { id: compra.proveedor.id, nombre: compra.proveedor.nombre } : null,
         usuario: mapUsuarioResumen(compra.usuario),
         detalles: (compra.detalles || []).map(mapLinea),
@@ -128,7 +128,7 @@ function mapCompra(compra: any) {
 
 const includesCompra = [
     { model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre'] },
-    { model: Productor, as: 'productor', attributes: ['id', 'nombre'] },
+    { model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] },
     { model: User, as: 'usuario', attributes: usuarioAtributos },
     { model: CompraDetalle, as: 'detalles' },
     { model: PagoProveedor, as: 'pagos' }
@@ -239,7 +239,7 @@ export class CompraController {
                 return;
             }
 
-            let idProductor: number | null = null;
+            const idProductor = Number(datos.id_proveedor);
             const anticipada = Boolean(datos.anticipada);
             if (anticipada && tipoCompra !== TIPO_COMPRA.BOLSAS) {
                 await transaction.rollback();

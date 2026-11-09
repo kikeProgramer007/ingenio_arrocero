@@ -6,14 +6,16 @@ import { Etapa, FilaEtapa as Fila, validarEtapa } from '../dtos/produccion-etapa
 import { leerDesc } from './descarguios.servicio';
 import { Productos, ReservaProducto } from '../models';
 import { normalizarUnidadMedida } from '../utils/unidad-medida';
+import { mayusculizarDatos } from '../utils/mayusculas';
 
 const tabla = (tipo: Etapa) => tipo === 'SECADO' ? 'produccion_secados' : 'produccion_guardados';
 const previa = (tipo: Etapa) => tipo === 'SECADO' ? 'DESCARGUIO' : 'SECADO';
 const mil = (v: unknown) => Math.round(Number(v || 0) * 1000);
-async function sql(query: string, replacements: Fila, transaction: Transaction) { return sequelize.query(query, { replacements, transaction }); }
+async function sql(query: string, replacements: Fila, transaction: Transaction) { return sequelize.query(query, { replacements: mayusculizarDatos(replacements), transaction }); }
 async function insert(table: string, data: Fila, transaction: Transaction) {
-    const keys = Object.keys(data);
-    const [id] = await sequelize.query(`INSERT INTO ${table} (${keys.map(k => '`'+k+'`').join(',')}) VALUES (${keys.map(k => ':'+k).join(',')})`, { replacements: data, transaction, type: QueryTypes.INSERT });
+    const payload = mayusculizarDatos(data);
+    const keys = Object.keys(payload);
+    const [id] = await sequelize.query(`INSERT INTO ${table} (${keys.map(k => '`'+k+'`').join(',')}) VALUES (${keys.map(k => ':'+k).join(',')})`, { replacements: payload, transaction, type: QueryTypes.INSERT });
     return Number(id);
 }
 const tx = <T>(work: (t: Transaction) => Promise<T>, external?: Transaction) => external ? work(external) : sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED }, work);
@@ -32,13 +34,13 @@ async function lock(tipo: Etapa, id: unknown, t: Transaction) {
 }
 export async function obtenerEtapa(tipo: Etapa, id: unknown, t?: Transaction): Promise<Fila> {
     const [o] = await leerDesc(`SELECT o.*,d.*,p.nombre productor,u.nombre ubicacion FROM produccion_operaciones o JOIN ${tabla(tipo)} d ON d.id_operacion=o.id
-        LEFT JOIN productores p ON p.id=o.id_productor LEFT JOIN produccion_ubicaciones u ON u.id=d.id_ubicacion WHERE o.id = :id AND o.tipo = :tipo`,{id:idValido(id),tipo},t);
+        LEFT JOIN proveedores p ON p.id=o.id_productor LEFT JOIN produccion_ubicaciones u ON u.id=d.id_ubicacion WHERE o.id = :id AND o.tipo = :tipo`,{id:idValido(id),tipo},t);
     if (!o) throw new ErrorDescarguio('No se encontró el documento.',404);
     const origenes = await leerDesc(`SELECT r.*,l.codigo,l.unidad,l.variedad,l.cantidad_disponible,l.modalidad,l.id_propietario,l.id_productor,l.id_producto,
         p.nombre productor,pr.nombre producto,oo.codigo origen_codigo,oo.fecha origen_fecha,lr.codigo resultado_codigo,lr.cantidad_disponible disponible_resultado,
         COALESCE(s.humedad_salida,d.humedad_entrada) humedad_origen
         FROM produccion_etapa_origenes r JOIN produccion_lotes l ON l.id=r.id_lote JOIN produccion_operaciones oo ON oo.id=l.id_operacion_origen
-        LEFT JOIN productores p ON p.id=l.id_productor LEFT JOIN productos pr ON pr.id=l.id_producto
+        LEFT JOIN proveedores p ON p.id=l.id_productor LEFT JOIN productos pr ON pr.id=l.id_producto
         LEFT JOIN produccion_secados s ON s.id_operacion=oo.id LEFT JOIN produccion_descarguios d ON d.id_operacion=oo.id
         LEFT JOIN produccion_lotes lr ON lr.id=r.id_lote_resultado WHERE r.id_operacion = :id ORDER BY r.id`,{id:o.id},t);
     const historial = await leerDesc(`SELECT a.evento,a.fecha,a.motivo,COALESCE(NULLIF(u.nombre,''),u.username) usuario FROM produccion_auditoria a
@@ -68,7 +70,7 @@ async function fuentes(tipo: Etapa, d: Fila, t: Transaction, confirmar = false):
     return lots;
 }
 async function detalle(tipo: Etapa, id: number, d: Fila, t: Transaction, nuevo = false) {
-    const fields = tipo === 'SECADO' ? ['secadora','silo','operador','inicio','fin','humedad_entrada','humedad_salida','peso_salida','unidad_peso_salida','merma_medida','unidad_merma','justificacion_merma'] : ['condicion'];
+    const fields = tipo === 'SECADO' ? ['proc','secadora','silo','operador','inicio','fin','humedad_entrada','humedad_salida','peso_salida','unidad_peso_salida','merma_medida','unidad_merma','justificacion_merma'] : ['condicion','orden_guardado'];
     fields.push('id_ubicacion','destino_nombre','ubicacion_detalle');
     const values = Object.fromEntries(fields.map(k=>[k,d[k]]));
     if (nuevo) await insert(tabla(tipo),{id_operacion:id,...values},t);
@@ -112,7 +114,7 @@ export async function guardarEtapa(tipo: Etapa, id: unknown | null, raw: Fila, u
             const [seq] = await leerDesc('SELECT ultimo FROM produccion_secuencias WHERE tipo = :tipo AND gestion = :gestion',{tipo,gestion},t);
             const n = Number(seq.ultimo)+1;
             await sql('UPDATE produccion_secuencias SET ultimo = :n WHERE tipo = :tipo AND gestion = :gestion',{tipo,gestion,n},t);
-            opId = await insert('produccion_operaciones',{...header,codigo:`${tipo === 'SECADO' ? 'S':'G'}-${gestion}-${String(n).padStart(4,'0')}`,tipo,estado:'BORRADOR',id_usuario:usuario,clave_creacion:key,hash_creacion:hash,version:0,created_at:new Date(),updated_at:new Date()},t);
+            opId = await insert('produccion_operaciones',{...header,codigo:`${tipo === 'SECADO' ? 'S':'G'}-${String(n).padStart(4,'0')}`,tipo,estado:'BORRADOR',id_usuario:usuario,clave_creacion:key,hash_creacion:hash,version:0,created_at:new Date(),updated_at:new Date()},t);
         } else {
             opId = Number(actual.id);
             await sql(`UPDATE produccion_operaciones SET ${Object.keys(header).map(k=>k+' = :'+k).join(',')},version=version+1,updated_at=NOW() WHERE id = :id`,{...header,id:opId},t);
@@ -135,7 +137,7 @@ export async function confirmarEtapa(tipo: Etapa, id: unknown, raw: Fila, usuari
             const product = await Productos.findByPk(lots[0].id_producto,{transaction:t,lock:t.LOCK.UPDATE});
             const reserve = await ReservaProducto.findByPk(lots[0].id_producto,{transaction:t,lock:t.LOCK.UPDATE});
             const [balance] = await leerDesc("SELECT COALESCE(SUM(cantidad_disponible),0) cantidad FROM produccion_lotes WHERE id_producto = :id AND modalidad='COMPRA' AND estado='ACTIVO'",{id:lots[0].id_producto},t);
-            if (!product || product.get('eliminado') || normalizarUnidadMedida(product.get('unidad_medida')) !== lots[0].unidad || mil(balance.cantidad) > mil(product.get('stock'))-mil(reserve?.get('cantidad')))
+            if (!product || product.get('eliminado') || normalizarUnidadMedida(product.get('unidad_medida')) !== normalizarUnidadMedida(lots[0].unidad) || mil(balance.cantidad) > mil(product.get('stock'))-mil(reserve?.get('cantidad')))
                 throw new ErrorDescarguio('El inventario propio disponible ya no respalda los lotes activos. Revise stock, reservas y unidades antes de confirmar.',409);
         }
         if (!d.id_ubicacion && d.destino_nombre) {
@@ -145,10 +147,13 @@ export async function confirmarEtapa(tipo: Etapa, id: unknown, raw: Fila, usuari
             d.id_ubicacion = u.id;
             await sql(`UPDATE ${tabla(tipo)} SET id_ubicacion = :ubicacion WHERE id_operacion = :id`,{ubicacion:u.id,id:o.id},t);
         }
+        let idxOrigen = 0;
         for (const l of lots) {
             const r = d.origenes.find((v:Fila)=>v.id_lote === Number(l.id)), qty = mil(r.cantidad), before = mil(l.cantidad_disponible), after = before-qty;
             await sql('UPDATE produccion_lotes SET cantidad_disponible = :saldo,estado = :estado,version=version+1,updated_at=NOW() WHERE id = :id',{saldo:after/1000,estado:after ? 'ACTIVO':'AGOTADO',id:l.id},t);
-            const result = await insert('produccion_lotes',{codigo:`${o.codigo}-L${l.id}`,id_operacion_origen:o.id,id_producto:l.id_producto,modalidad:l.modalidad,id_propietario:l.id_propietario,id_productor:l.id_productor,variedad:l.variedad,
+            idxOrigen += 1;
+            const codigoLote = lots.length === 1 ? String(o.codigo) : `${o.codigo}-${idxOrigen}`;
+            const result = await insert('produccion_lotes',{codigo:codigoLote,id_operacion_origen:o.id,id_producto:l.id_producto,modalidad:l.modalidad,id_propietario:l.id_propietario,id_productor:l.id_productor,variedad:l.variedad,
                 cantidad_inicial:qty/1000,cantidad_disponible:qty/1000,unidad:l.unidad,etapa:tipo,estado_fisico:'CHALA_SECA',estado:'ACTIVO',id_ubicacion:d.id_ubicacion ?? l.id_ubicacion,
                 ubicacion_detalle:d.ubicacion_detalle,id_usuario:usuario,version:0,created_at:new Date(),updated_at:new Date()},t);
             await sql('UPDATE produccion_etapa_origenes SET id_lote_resultado = :result WHERE id_operacion = :op AND id_lote = :lote',{result,op:o.id,lote:l.id},t);

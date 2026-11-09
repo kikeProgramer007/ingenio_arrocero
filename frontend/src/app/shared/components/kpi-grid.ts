@@ -76,9 +76,10 @@ export class KpiGridComponent {
     }
 
     get compactCol(): string {
+        // Móvil: 1 col; tablet: 2; laptop/monitor: fila completa.
         if (this.items.length === 2) return 'sm:col-span-6';
-        if (this.items.length === 4) return 'sm:col-span-3';
-        return 'sm:col-span-4';
+        if (this.items.length === 4) return 'sm:col-span-6 xl:col-span-3';
+        return 'sm:col-span-6 lg:col-span-4';
     }
 
     get colClass(): string {

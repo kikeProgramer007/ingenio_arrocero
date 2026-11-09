@@ -4,6 +4,12 @@
 @use 'primeicons/primeicons.css';
 @use './assets/demo/demo.scss';
 
+/* Asterisco de campos obligatorios */
+.req {
+    color: var(--p-red-500, #dc2626);
+    font-weight: 700;
+}
+
 .login-royal {
     background:
         radial-gradient(circle at top, color-mix(in srgb, var(--royal-red) 14%, transparent) 0%, transparent 42%),

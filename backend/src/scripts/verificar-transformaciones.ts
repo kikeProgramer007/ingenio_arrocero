@@ -1,17 +1,17 @@
 import '../load-env';
 import assert from 'assert/strict';
-import { createHash, randomUUID } from 'crypto';
+import {createHash, randomUUID} from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { QueryTypes, Transaction } from 'sequelize';
-import { sequelize, Productor, Productos, User, ReservaProducto } from '../models';
-import { leerDesc } from '../servicios/descarguios.servicio';
-import { guardarTransformacion, confirmarTransformacion, anularTransformacion, obtenerTransformacion } from '../servicios/produccion-transformaciones.servicio';
-import { listarTransformacion, filasTransformacion, opcionesTransformacion, hojaTransformacion } from '../servicios/produccion-transformaciones-consulta.servicio';
-import { validarTransformacion } from '../dtos/produccion-transformacion.dto';
-import { ErrorDescarguio } from '../dtos/descarguio.dto';
-import { bufferReportePdf } from '../utils/exportar';
+import {QueryTypes, Transaction} from 'sequelize';
+import {sequelize, Proveedor, Productos, User, ReservaProducto} from '../models';
+import {leerDesc} from '../servicios/descarguios.servicio';
+import {guardarTransformacion, confirmarTransformacion, anularTransformacion, obtenerTransformacion} from '../servicios/produccion-transformaciones.servicio';
+import {listarTransformacion, filasTransformacion, opcionesTransformacion, hojaTransformacion} from '../servicios/produccion-transformaciones-consulta.servicio';
+import {validarTransformacion} from '../dtos/produccion-transformacion.dto';
+import {ErrorDescarguio} from '../dtos/descarguio.dto';
+import {bufferReportePdf} from '../utils/exportar';
 async function huella(){const h=createHash('sha256');for(const table of (await sequelize.getQueryInterface().showAllTables()).map(String).sort())h.update(table).update((await sequelize.query('SELECT * FROM `'+table.replace(/`/g,'``')+'`',{type:QueryTypes.SELECT})).map(r=>JSON.stringify(r)).sort().join('\n'));return h.digest('hex');}
 async function insertar(table:string,data:Record<string,any>,t:Transaction){const keys=Object.keys(data),[id]=await sequelize.query(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(k=>':'+k).join(',')})`,{replacements:data,transaction:t,type:QueryTypes.INSERT});return Number(id);}
 async function main(){
@@ -19,7 +19,7 @@ async function main(){
     const t=await sequelize.transaction({isolationLevel:Transaction.ISOLATION_LEVELS.READ_COMMITTED});let files:string[]=[];
     try{
         const user=await User.findOne({where:{activo:true,eliminado:false},transaction:t});assert(user);const uid=Number(user.get('id')),mark=randomUUID().slice(0,8),fecha='2026-11-05T18:00:00.000Z';
-        const productor=await Productor.create({nombre:'PRODUCTOR DE PRUEBA '+mark+' CON NOMBRE EXTENSO PARA COMPROBAR LOS TEXTOS COMPLETOS Y SALTOS DE LINEA EN REPORTES OPERATIVOS',activo:true},{transaction:t}),pid=Number(productor.get('id'));
+        const productor=await Proveedor.create({nombre:'PRODUCTOR DE PRUEBA '+mark+' CON NOMBRE EXTENSO PARA COMPROBAR LOS TEXTOS COMPLETOS Y SALTOS DE LINEA EN REPORTES OPERATIVOS',activo:true},{transaction:t}),pid=Number(productor.get('id'));
         const product=async(nombre:string,unidad:string,stock:number)=>{const p=await Productos.create({nombre:nombre+' PRUEBA '+mark,unidad_medida:unidad,stock},{transaction:t});return Number(p.get('id'));};
         const chala=await product('ARROZ EN CHALA','Fanega',200.125),pulido=await product('ARROZ ENTERO','Quintal',10),granillo=await product('GRANILLO','Quintal',0),afrecho=await product('AFRECHO','Kilo',0),bag=await product('BOLSA VACIA','Unidad',200),dest=await product('ARROZ ENVASADO','Unidad',3),destQ=await product('ARROZ PRESENTACION PERSONALIZADA','Quintal',0);
         const stock=async(id:number)=>{const p=await Productos.findByPk(id,{transaction:t});return Number(p!.get('stock'));};

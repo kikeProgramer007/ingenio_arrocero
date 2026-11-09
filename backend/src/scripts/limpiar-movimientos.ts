@@ -6,10 +6,10 @@
  */
 import '../load-env';
 import sequelize from '../db/connection';
-import { QueryTypes } from 'sequelize';
-import { assertBaseDeUsuario } from '../utils/db-sync';
-import { seedInventarioBase } from '../seed/inventario.seed';
-import { seedCatalogoFotos } from '../seed/catalogo-fotos.seed';
+import {QueryTypes} from 'sequelize';
+import {assertBaseDeUsuario} from '../utils/db-sync';
+import {seedInventarioBase} from '../seed/inventario.seed';
+import {seedCatalogoFotos} from '../seed/catalogo-fotos.seed';
 
 const TABLAS_BORRAR = [
     'cobranzas',
@@ -28,7 +28,6 @@ const TABLAS_BORRAR = [
     'cajas',
     'clientes',
     'proveedores',
-    'productores',
     'productos'
 ];
 

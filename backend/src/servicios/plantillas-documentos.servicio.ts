@@ -160,7 +160,7 @@ function generarReporte(id: keyof typeof COLUMNAS_DOCUMENTOS, titulo: string, pa
             compras: ['Cantidad', 'Servicios', 'Total', 'Por pagar'], egresos: ['Total'],
             cobranzas: ['Cantidad', 'Total cobrado'], pagos: ['Cantidad', 'Total pagado'],
             inventario: ['Productos'], clientes: ['Clientes'], proveedores: ['Proveedores'],
-            empaques: ['Productos'], produccion: ['Producciones'], campanas: ['Campañas'], cajas: ['Cajas'],
+            empaques: ['Productos'], campanas: ['Campañas'], cajas: ['Cajas'],
             cuenta_proveedor: ['Saldo anterior', 'Compras', 'Servicios', 'Pagado', 'Cargo', 'Abono', 'Saldo'],
             cuentas_por_cobrar: ['Total crédito', 'Total cobrado', 'Total pendiente'],
             cuentas_por_pagar: ['Compras Bs', 'Pagos Bs', 'Saldo Bs'],
@@ -210,7 +210,7 @@ const reportes: [keyof typeof COLUMNAS_DOCUMENTOS, string][] = [
     ['cobranzas', 'Cobranzas'], ['pagos', 'Pagos a proveedores'], ['caja', 'Detalle de caja'],
     ['cajas', 'Historial de cajas'], ['inventario', 'Inventario de productos'],
     ['clientes', 'Clientes'], ['proveedores', 'Proveedores'], ['empaques', 'Bolsas y empaques'],
-    ['produccion', 'Producción'], ['campanas', 'Campañas de acopio'],
+    ['campanas', 'Campañas de acopio'],
     ['cuentas_por_cobrar', 'Cuentas por cobrar'], ['cuentas_por_pagar', 'Cuentas por pagar'],
     ['cuenta_proveedor', 'Estado de cuenta del proveedor'],
     ['entregas_proveedor', 'Entregas del proveedor'], ['despachos', 'Despachos de ventas']

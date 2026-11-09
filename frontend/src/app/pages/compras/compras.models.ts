@@ -1,15 +1,3 @@
-export interface Productor {
-    id: number;
-    id_proveedor?: number | null;
-    nombre: string;
-    nit_ci?: string | null;
-    telefono?: string | null;
-    direccion?: string | null;
-    observacion?: string | null;
-    activo: boolean;
-    path_imagen?: string | null;
-}
-
 export interface Proveedor {
     id: number;
     nombre: string;

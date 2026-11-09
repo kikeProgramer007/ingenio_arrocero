@@ -1,3 +1,4 @@
+import { valoresFiltro, idsFiltro } from '../utils/filtros-multiples-produccion';
 import { QueryTypes } from 'sequelize';
 import sequelize from '../db/connection';
 import { MODALIDADES_PRODUCCION, TIPOS_PRODUCCION, TipoProduccion } from '../db/produccion-schema';
@@ -5,7 +6,7 @@ import { MODALIDADES_PRODUCCION, TIPOS_PRODUCCION, TipoProduccion } from '../db/
 export class ErrorConsultaProduccion extends Error { constructor(mensaje: string, public status = 400) { super(mensaje); } }
 type Consulta = Record<string, unknown>;
 export interface FiltrosProduccion {
-    desde?: string; hasta?: string; modalidad?: string; productor?: number; tipo?: TipoProduccion;
+    desde?: string; hasta?: string; modalidad?: string[]; productor?: number[]; tipo?: TipoProduccion;
     buscar: string; offset: number; limit: number; orden: string; direccion: 'ASC' | 'DESC';
 }
 function fecha(valor: unknown): string | undefined {
@@ -25,27 +26,26 @@ function entero(valor: unknown, defecto: number, minimo: number, maximo: number)
 export function filtrosProduccion(query: Consulta, maxFilas = 50): FiltrosProduccion {
     const desde = fecha(query.fecha_desde), hasta = fecha(query.fecha_hasta);
     if (desde && hasta && desde > hasta) throw new ErrorConsultaProduccion('La fecha inicial no puede ser posterior a la final.');
-    const modalidad = query.modalidad ? String(query.modalidad) : undefined;
+    const modalidades = valoresFiltro(query.modalidad, MODALIDADES_PRODUCCION); const modalidad = modalidades.length ? modalidades : undefined;
     const tipo = query.tipo ? String(query.tipo) as TipoProduccion : undefined;
-    if (modalidad && !MODALIDADES_PRODUCCION.includes(modalidad as any)) throw new ErrorConsultaProduccion('Modalidad inválida.');
     if (tipo && !TIPOS_PRODUCCION.includes(tipo)) throw new ErrorConsultaProduccion('Tipo de operación inválido.');
     const buscar = String(query.buscar || '').trim();
     if (buscar.length > 150) throw new ErrorConsultaProduccion('La búsqueda admite hasta 150 caracteres.');
     const orden = String(query.orden || 'fecha');
     if (!['codigo', 'fecha', 'productor', 'modalidad', 'estado', 'tipo', 'unidad', 'cantidad_disponible', 'etapa'].includes(orden))
         throw new ErrorConsultaProduccion('Columna de orden inválida.');
-    return { desde, hasta, modalidad, tipo, buscar, productor: query.id_productor ? entero(query.id_productor, 0, 1, 2147483647) : undefined,
+    return { desde, hasta, modalidad, tipo, buscar, productor: valoresFiltro(query.id_productor).length ? idsFiltro(query.id_productor) : undefined,
         offset: entero(query.offset, 0, 0, 1000000), limit: entero(query.limit, 10, 1, maxFilas), orden,
         direccion: String(query.direccion || '-1') === '1' ? 'ASC' : 'DESC' };
 }
 function condicion(f: FiltrosProduccion, lote = false) {
     const condiciones = ['1 = 1'];
-    const replacements: Record<string, string | number> = {};
+    const replacements: Record<string, any> = {};
     if (f.desde) { condiciones.push('o.fecha >= :desde'); replacements.desde = `${f.desde} 00:00:00`; }
     if (f.hasta) { condiciones.push('o.fecha < DATE_ADD(:hasta, INTERVAL 1 DAY)'); replacements.hasta = f.hasta; }
     const entidad = lote ? 'l' : 'o';
-    if (f.modalidad) { condiciones.push(`${entidad}.modalidad = :modalidad`); replacements.modalidad = f.modalidad; }
-    if (f.productor) { condiciones.push(`${entidad}.id_productor = :productor`); replacements.productor = f.productor; }
+    if (f.modalidad) { condiciones.push(`${entidad}.modalidad IN (:modalidad)`); replacements.modalidad = f.modalidad; }
+    if (f.productor) { condiciones.push(`${entidad}.id_productor IN (:productor)`); replacements.productor = f.productor; }
     if (f.tipo && !lote) { condiciones.push('o.tipo = :tipo'); replacements.tipo = f.tipo; }
     if (f.buscar) {
         condiciones.push(lote
@@ -59,9 +59,9 @@ async function seleccionar<T extends object = Record<string, any>>(sql: string, 
     return sequelize.query<T>(sql, { type: QueryTypes.SELECT, replacements });
 }
 
-const unionOperaciones = 'FROM produccion_operaciones o LEFT JOIN productores p ON p.id = o.id_productor LEFT JOIN productores prop ON prop.id = o.id_propietario';
+const unionOperaciones = 'FROM produccion_operaciones o LEFT JOIN proveedores p ON p.id = o.id_productor LEFT JOIN proveedores prop ON prop.id = o.id_propietario';
 const unionLotes = `FROM produccion_lotes l JOIN produccion_operaciones o ON o.id = l.id_operacion_origen
-    LEFT JOIN productores p ON p.id = l.id_productor LEFT JOIN productores prop ON prop.id = l.id_propietario
+    LEFT JOIN proveedores p ON p.id = l.id_productor LEFT JOIN proveedores prop ON prop.id = l.id_propietario
     LEFT JOIN productos pr ON pr.id = l.id_producto LEFT JOIN produccion_ubicaciones u ON u.id = l.id_ubicacion`;
 
 export async function operacionesProduccion(f: FiltrosProduccion) {
@@ -101,7 +101,7 @@ export async function resumenProduccion(f: FiltrosProduccion) {
     const l = condicion({ ...f, buscar: '' }, true);
     const [operaciones] = await seleccionar(`SELECT
         COALESCE(SUM(o.tipo = 'PROCESADO' AND o.estado = 'CONFIRMADO'), 0) procesados,
-        COALESCE(SUM(o.estado IN ('BORRADOR', 'EN_CURSO')), 0) pendientes ${unionOperaciones} WHERE ${c.sql}`, c.replacements);
+        COALESCE(SUM(o.estado = 'BORRADOR'), 0) pendientes ${unionOperaciones} WHERE ${c.sql}`, c.replacements);
     const [lotes] = await seleccionar(`SELECT
         COALESCE(SUM(l.etapa = 'DESCARGUIO'), 0) descarguios_por_secar,
         COALESCE(SUM(l.etapa = 'SECADO'), 0) secados_por_guardar,
@@ -115,6 +115,6 @@ export async function resumenProduccion(f: FiltrosProduccion) {
 
 export async function catalogosProduccion() {
     // Solo productores relacionados con operaciones: no descarga el catálogo comercial completo.
-    return { productores: await seleccionar(`SELECT DISTINCT p.id, p.nombre FROM productores p
+    return { productores: await seleccionar(`SELECT DISTINCT p.id, p.nombre FROM proveedores p
         JOIN produccion_operaciones o ON o.id_productor = p.id ORDER BY p.nombre`) };
 }

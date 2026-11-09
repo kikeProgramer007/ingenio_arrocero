@@ -49,7 +49,8 @@ export class AppMenu {
         const link = (url: string, label: string, icon: string) => {
             const prog = byUrl.get(url);
             return {
-                label: prog?.nombre || label,
+                // Etiquetas del menú fijas en frontend (no heredar mayúsculas de BD).
+                label,
                 icon: prog?.classIcon || icon,
                 routerLink: [url]
             };
@@ -127,7 +128,8 @@ export class AppMenu {
                 items: [
                     link(APP_ROUTES.empresa, 'Empresa', 'pi pi-building'),
                     link(APP_ROUTES.plantillasDocumentos, 'Plantillas de documentos', 'pi pi-file-pdf'),
-                    link(APP_ROUTES.usuarios, 'Usuarios', 'pi pi-users')
+                    link(APP_ROUTES.usuarios, 'Usuarios', 'pi pi-users'),
+                    ...(byUrl.has(APP_ROUTES.auditoria) ? [link(APP_ROUTES.auditoria, 'Auditoría', 'pi pi-history')] : [])
                 ]
             }
         ];

@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { Dialect, Sequelize } from 'sequelize';
+import { registrarHooksMayusculas } from '../utils/mayusculas';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
@@ -55,5 +56,7 @@ const sequelize = new Sequelize(database, username, password, {
         idle: 10000
     }
 });
+
+registrarHooksMayusculas(sequelize);
 
 export default sequelize;

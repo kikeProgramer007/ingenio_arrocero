@@ -25,5 +25,6 @@ export const APP_ROUTES = {
     reportes: '/reportes',
     empresa: '/empresa',
     plantillasDocumentos: '/plantillas-documentos',
-    usuarios: '/usuarios'
+    usuarios: '/usuarios',
+    auditoria: '/auditoria'
 } as const;

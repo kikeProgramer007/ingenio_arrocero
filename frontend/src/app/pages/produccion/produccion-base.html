@@ -1,0 +1,255 @@
+<div class="pr-breadcrumb">Operaciones / Producción / Resumen</div>
+
+<!-- A. Encabezado / banner -->
+<section class="pr-banner" aria-labelledby="pr-titulo">
+    <div class="pr-banner__inner">
+        <div class="pr-banner__copy min-w-0">
+            <div class="pr-banner__badge" aria-hidden="true">
+                <svg viewBox="0 0 32 32" fill="none">
+                    <path d="M10 27C16 21 20 14 23 5M14 23L8 21M17 18L11 15M20 13L15 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    <g fill="currentColor">
+                        <ellipse cx="9" cy="19" rx="2" ry="4" transform="rotate(-35 9 19)" />
+                        <ellipse cx="13" cy="13" rx="2" ry="4" transform="rotate(-30 13 13)" />
+                        <ellipse cx="18" cy="8" rx="2" ry="4" transform="rotate(-20 18 8)" />
+                        <ellipse cx="19" cy="23" rx="2" ry="4" transform="rotate(45 19 23)" />
+                        <ellipse cx="23" cy="17" rx="2" ry="4" transform="rotate(40 23 17)" />
+                        <ellipse cx="26" cy="10" rx="2" ry="4" transform="rotate(30 26 10)" />
+                    </g>
+                </svg>
+            </div>
+            <h1 id="pr-titulo" class="pr-banner__title">Producción de arroz</h1>
+            <p class="pr-banner__subtitle">Control de operaciones desde la recepción hasta el envasado.</p>
+        </div>
+        <div class="pr-banner__cta">
+            <p-button label="Ver lotes" icon="pi pi-sitemap" [outlined]="true" (onClick)="irA('/produccion/lotes')" />
+        </div>
+    </div>
+</section>
+
+<!-- B. Filtros -->
+<section class="card pr-filtros">
+    <form class="pr-filtros__form" (ngSubmit)="consultar()">
+        <div class="pr-filtros__titulo">
+            <span class="pr-filtros__icon"><i class="pi pi-filter" aria-hidden="true"></i></span>
+            <span>Filtros de consulta</span>
+        </div>
+        <div class="pr-filtros__campos">
+            <div class="min-w-0">
+                <label for="produccion-periodo" class="block font-semibold text-sm mb-2">Período</label>
+                <p-datepicker
+                    inputId="produccion-periodo"
+                    [(ngModel)]="rango"
+                    name="periodo"
+                    selectionMode="range"
+                    dateFormat="dd/mm/yy"
+                    [showIcon]="true"
+                    iconDisplay="input"
+                    [showClear]="true"
+                    [readonlyInput]="true"
+                    placeholder="Todas las fechas"
+                    appendTo="body"
+                    fluid
+                />
+            </div>
+            <div class="min-w-0">
+                <label for="produccion-modalidad" class="block font-semibold text-sm mb-2">Modalidad</label>
+                <p-select inputId="produccion-modalidad" [options]="modalidades" optionLabel="label" optionValue="value" [(ngModel)]="modalidad" name="modalidad" appendTo="body" fluid />
+            </div>
+            <div class="min-w-0">
+                <label for="produccion-productor" class="block font-semibold text-sm mb-2">Productor/Proveedor</label>
+                <p-select
+                    inputId="produccion-productor"
+                    [options]="productores"
+                    optionLabel="nombre"
+                    optionValue="id"
+                    [(ngModel)]="productor"
+                    name="productor"
+                    placeholder="Todos"
+                    [showClear]="true"
+                    [filter]="true"
+                    filterBy="nombre"
+                    appendTo="body"
+                    fluid
+                />
+            </div>
+            <div>
+                <p-button styleClass="pr-consultar" label="Consultar" icon="pi pi-search" type="submit" [loading]="cargando" />
+            </div>
+        </div>
+        <p *ngIf="errorFiltro" role="alert" class="text-red-600 text-sm m-0">{{ errorFiltro }}</p>
+    </form>
+</section>
+
+<!-- C. Indicadores KPI -->
+<section class="pr-indicadores" aria-label="Indicadores de producción">
+    <ng-container *ngIf="cargando">
+        <div class="pr-indicadores__item" *ngFor="let i of [0,1,2,3]">
+            <div class="pr-kpi card !mb-0 h-full"><p-skeleton width="55%" height="0.75rem" styleClass="mb-2" /><p-skeleton width="30%" height="1.5rem" /></div>
+        </div>
+    </ng-container>
+    <ng-container *ngIf="!cargando">
+        <div class="pr-indicadores__item" *ngFor="let kpi of indicadores">
+            <article class="pr-kpi card !mb-0 h-full" [attr.data-tone]="kpi.tone || 'neutral'">
+                <div class="pr-kpi__body">
+                    <div class="min-w-0 flex-1">
+                        <div class="pr-kpi__label">{{ kpi.label }}</div>
+                        <div class="pr-kpi__value">{{ kpi.value }}</div>
+                    </div>
+                    <div class="pr-kpi__icon" aria-hidden="true"><i [class]="kpi.icon"></i></div>
+                </div>
+            </article>
+        </div>
+    </ng-container>
+</section>
+
+<!-- C especial + D. Chala disponible y flujo -->
+<section class="pr-paneles">
+    <article class="pr-chala card">
+        <div class="pr-section-heading">
+            <i class="pi pi-inbox text-primary" aria-hidden="true"></i>
+            <h2 class="text-base font-semibold m-0">Arroz en chala disponible</h2>
+            <app-ayuda-campo texto="Existencia actual de los lotes originados en el período seleccionado. Se agrupa por modalidad y unidad de medida; no se suman unidades distintas." />
+        </div>
+
+        <div class="pr-chala__inner">
+            <div class="pr-chala__art pr-chala__art--plant" aria-hidden="true">
+                <img class="pr-img-blend pr-chala__plant" src="assets/produccion/planta.png?v=2" alt="" width="220" height="280" loading="lazy" decoding="async" />
+            </div>
+            <div class="pr-chala__content min-w-0">
+                <ng-container *ngIf="cargando">
+                    <p-skeleton width="60%" height="2rem" styleClass="mb-2" />
+                    <p-skeleton width="40%" height="1rem" />
+                </ng-container>
+
+                <ng-container *ngIf="!cargando && resumen">
+                    <div *ngIf="resumen.chala.length; else sinChala" class="pr-chala__saldos">
+                        <div *ngFor="let saldo of resumen.chala" class="pr-chala__saldo">
+                            <p-tag [value]="saldo.modalidad === 'COMPRA' ? 'Propio del ingenio' : 'De terceros'" [severity]="saldo.modalidad === 'COMPRA' ? 'info' : 'danger'" />
+                            <div class="pr-chala__cantidad">
+                                <span class="pr-chala__numero">{{ numero(saldo.cantidad) }}</span>
+                                <span class="pr-chala__unidad">{{ saldo.unidad }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <ng-template #sinChala>
+                        <p class="text-muted-color text-sm m-0">No hay existencias de chala para estos filtros.</p>
+                    </ng-template>
+                    <p class="text-muted-color text-sm mt-2 mb-0">{{ resumen.indicadores.pendientes }} operaciones pendientes de completar.</p>
+                </ng-container>
+            </div>
+            <div class="pr-chala__art pr-chala__art--sacos" aria-hidden="true">
+                <img class="pr-img-blend pr-chala__sacos" src="assets/produccion/sacos.png?v=2" alt="" width="240" height="200" loading="lazy" decoding="async" />
+            </div>
+        </div>
+    </article>
+
+    <article class="card pr-flujo-card">
+        <div class="pr-section-heading">
+            <i class="pi pi-clone" aria-hidden="true"></i>
+            <h2>Flujo de producción</h2>
+        </div>
+        <ol class="pr-flujo list-none m-0 p-0">
+            <li class="pr-flujo__paso" *ngFor="let etapa of etapas; let i = index; let ultimo = last" [class.pr-flujo__paso--primero]="i === 0">
+                <a class="pr-flujo__link" [class.pr-flujo__link--activo]="i === 0" [routerLink]="'/produccion/' + etapa.ruta" [attr.aria-label]="'Ir a ' + etapa.label">
+                    <span class="pr-flujo__icon" aria-hidden="true"><i [class]="etapa.icon"></i></span>
+                    <span class="pr-flujo__label">{{ etapa.label }}</span>
+                </a>
+                <span class="pr-flujo__conector" [class.pr-flujo__conector--spacer]="ultimo" aria-hidden="true">
+                    <i class="pi pi-angle-right" *ngIf="!ultimo"></i>
+                </span>
+            </li>
+        </ol>
+        <!-- F. Accesos rápidos -->
+        <section class="pr-accesos" *ngIf="accesosRapidos.length">
+            <h2 class="text-sm font-semibold mt-0 mb-2">Accesos rápidos</h2>
+            <div class="flex flex-wrap gap-2">
+                <p-button *ngFor="let acceso of accesosRapidos" [label]="acceso.label" [icon]="acceso.icon" [outlined]="true" size="small" styleClass="pr-accesos__boton" (onClick)="irA(acceso.ruta)" />
+            </div>
+        </section>
+    </article>
+</section>
+
+<div *ngIf="errorCarga" class="card !mb-3 flex flex-wrap gap-3 items-center justify-between" role="alert">
+    <span class="text-red-600">{{ errorCarga }}</span>
+    <p-button label="Reintentar" icon="pi pi-refresh" [outlined]="true" (onClick)="solicitar()" />
+</div>
+
+<!-- E. Operaciones recientes -->
+<section class="card !p-0 overflow-hidden pr-tabla">
+    <div class="pr-tabla__toolbar flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
+        <h2 class="pr-section-heading"><i class="pi pi-clock" aria-hidden="true"></i>Operaciones recientes</h2>
+        <span class="relative w-full sm:w-72">
+            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-muted-color" aria-hidden="true"></i>
+            <input pInputText class="w-full !pl-9" aria-label="Buscar registros de producción" placeholder="Código, boleta o productor/proveedor..." [(ngModel)]="buscar" (ngModelChange)="cambioBusqueda()" maxlength="150" />
+        </span>
+    </div>
+    <div class="overflow-x-auto">
+        <p-table
+            [value]="items"
+            [lazy]="true"
+            [lazyLoadOnInit]="false"
+            (onLazyLoad)="paginar($event)"
+            [loading]="cargando"
+            [showLoader]="false"
+            [paginator]="true"
+            [alwaysShowPaginator]="true"
+            [first]="primero"
+            [rows]="filas"
+            [rowsPerPageOptions]="[10, 20, 50]"
+            [totalRecords]="total"
+            [showCurrentPageReport]="true"
+            [currentPageReportTemplate]="reportePagina"
+            [sortField]="orden"
+            [sortOrder]="direccion"
+            [rowHover]="true"
+            [tableStyle]="{ 'min-width': '52rem' }"
+            responsiveLayout="scroll"
+            styleClass="pr-tabla__grid"
+        >
+            <ng-template #header>
+                <tr>
+                    <th pSortableColumn="codigo">Documento <p-sortIcon field="codigo" /></th>
+                    <th pSortableColumn="fecha">Fecha <p-sortIcon field="fecha" /></th>
+                    <th pSortableColumn="productor">Productor/Proveedor <p-sortIcon field="productor" /></th>
+                    <th>Propietario</th>
+                    <th pSortableColumn="modalidad">Modalidad <p-sortIcon field="modalidad" /></th>
+                    <th>Cantidad</th>
+                    <th pSortableColumn="estado">Estado <p-sortIcon field="estado" /></th>
+                    <th style="width: 7rem">Acciones</th>
+                </tr>
+            </ng-template>
+            <ng-template #body let-item>
+                <tr>
+                    <td>
+                        <span class="font-semibold">{{ item.codigo }}</span>
+                        <div class="text-muted-color text-xs">{{ etiqueta(item.tipo || '') }}</div>
+                    </td>
+                    <td class="whitespace-nowrap">{{ item.fecha | date:'dd/MM/yyyy' }}</td>
+                    <td>{{ item.productor || 'No informado' }}</td>
+                    <td>{{ item.propietario || 'No informado' }}</td>
+                    <td>
+                        <p-tag [value]="item.modalidad === 'COMPRA' ? 'Compra' : 'Servicio'" [severity]="item.modalidad === 'COMPRA' ? 'info' : 'secondary'" />
+                    </td>
+                    <td>
+                        <div *ngFor="let cantidad of item.cantidades">{{ numero(cantidad.cantidad) }} {{ cantidad.unidad }}</div>
+                        <span *ngIf="!item.cantidades?.length">—</span>
+                    </td>
+                    <td>
+                        <p-tag [value]="etiqueta(item.estado)" [severity]="severidad(item.estado)" [icon]="iconoEstado(item.estado)" />
+                    </td>
+                    <td>
+                        <p-button *ngIf="rutaOperacion(item) as ruta" label="Ver" icon="pi pi-eye" [text]="true" size="small" [routerLink]="ruta" />
+                    </td>
+                </tr>
+            </ng-template>
+            <ng-template #loadingbody>
+                <tr *ngFor="let f of [0,1,2,3,4]" app-tabla-esqueleto [columnas]="8" [fila]="f"></tr>
+            </ng-template>
+            <ng-template #emptymessage>
+                <tr>
+                    <td colspan="8" class="!py-8 text-center text-muted-color">{{ errorCarga ? 'La consulta no está disponible. Reintente para cargar los registros.' : 'No se encontraron operaciones para los filtros seleccionados.' }}</td>
+                </tr>
+            </ng-template>
+        </p-table>
+    </div>
+</section>

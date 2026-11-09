@@ -1,3 +1,4 @@
+import { valoresFiltro, idsFiltro } from '../utils/filtros-multiples-produccion';
 import { Transaction } from 'sequelize';
 import { Transformacion } from '../dtos/produccion-transformacion.dto';
 import { FilaEtapa as Fila } from '../dtos/produccion-etapa.dto';
@@ -10,15 +11,15 @@ import { aplicarPlantillaFormal, HojaExport } from '../utils/exportar';
 function consulta(tipo:Transformacion,q:Fila){
     const f=filtrosProduccion({...q,tipo:undefined,orden:'fecha',buscar:q.buscar||q.q},100),params:Fila={tipo},where=['o.tipo = :tipo'];
     if(f.desde){where.push('o.fecha >= :desde');params.desde=f.desde+' 00:00:00';}if(f.hasta){where.push('o.fecha < DATE_ADD(:hasta,INTERVAL 1 DAY)');params.hasta=f.hasta;}
-    if(f.productor){where.push('o.id_productor = :productor');params.productor=f.productor;}if(f.modalidad){where.push('o.modalidad = :modalidad');params.modalidad=f.modalidad;}
-    if(q.estado){if(!['BORRADOR','CONFIRMADO','ANULADO'].includes(q.estado))throw new ErrorDescarguio('Estado inválido.');where.push('o.estado = :estado');params.estado=q.estado;}
-    for(const k of ['variedad','presentacion'])if(q[k]){if(typeof q[k]!=='string'||q[k].length>150)throw new ErrorDescarguio('Filtro inválido.');if(k==='presentacion'&&tipo!=='ENVASADO')continue;where.push((k==='variedad'?'r.variedad':'d.presentacion')+' = :'+k);params[k]=q[k];}
-    if(q.id_producto){if(!Number.isSafeInteger(Number(q.id_producto))||Number(q.id_producto)<=0)throw new ErrorDescarguio('Producto inválido.');where.push(tipo==='ENVASADO'?'d.id_producto_destino = :producto':'EXISTS (SELECT 1 FROM produccion_procesado_detalles dp WHERE dp.id_operacion=o.id AND dp.id_producto = :producto)');params.producto=Number(q.id_producto);}
+    if(f.productor){where.push('o.id_productor IN (:productor)');params.productor=f.productor;}if(f.modalidad){where.push('o.modalidad IN (:modalidad)');params.modalidad=f.modalidad;}
+    if(q.estado){valoresFiltro(q.estado,['BORRADOR','CONFIRMADO','ANULADO']);where.push('o.estado IN (:estado)');params.estado=valoresFiltro(q.estado);}
+    for(const k of ['variedad','presentacion'])if(q[k]){valoresFiltro(q[k]);if(k==='presentacion'&&tipo!=='ENVASADO')continue;where.push((k==='variedad'?'r.variedad':'d.presentacion')+' IN (:'+k+')');params[k]=valoresFiltro(q[k]);}
+    if(q.id_producto){idsFiltro(q.id_producto);where.push(tipo==='ENVASADO'?'d.id_producto_destino IN (:producto)':'EXISTS (SELECT 1 FROM produccion_procesado_detalles dp WHERE dp.id_operacion=o.id AND dp.id_producto IN (:producto))');params.producto=idsFiltro(q.id_producto);}
     if(f.buscar){where.push('(LOCATE(:q,o.codigo)>0 OR LOCATE(:q,r.origen)>0 OR LOCATE(:q,p.nombre)>0)');params.q=f.buscar;}
     const orders:Fila={fecha:'o.fecha',codigo:'o.codigo',productor:'p.nombre',modalidad:'o.modalidad',variedad:'r.variedad',cantidad:'r.cantidad',estado:'o.estado'};
     const order=q.orden||'fecha';if(!orders[order])throw new ErrorDescarguio('Columna de orden inválida.');
     const joins=`FROM produccion_operaciones o JOIN ${tipo==='PROCESADO'?'produccion_procesados':'produccion_envasados'} d ON d.id_operacion=o.id
-        LEFT JOIN productores p ON p.id=o.id_productor LEFT JOIN produccion_ubicaciones u ON u.id=d.id_ubicacion
+        LEFT JOIN proveedores p ON p.id=o.id_productor LEFT JOIN produccion_ubicaciones u ON u.id=d.id_ubicacion
         ${tipo==='ENVASADO'?'LEFT JOIN productos pd ON pd.id=d.id_producto_destino':''}
         LEFT JOIN (SELECT e.id_operacion,SUM(e.cantidad) cantidad,MIN(l.unidad) unidad,MIN(l.variedad) variedad,
             GROUP_CONCAT(DISTINCT oo.codigo ORDER BY oo.codigo SEPARATOR ', ') origen,
@@ -63,24 +64,25 @@ export async function listarTransformacion(tipo:Transformacion,q:Fila,t?:Transac
     return {items:await filasTransformacion(tipo,q,false,t),total:Number(counts.total),resumen:{...counts,cantidades,resultados,rendimiento}};
 }
 export async function opcionesTransformacion(tipo:Transformacion,q:Fila,t?:Transaction){
+    const limiteCatalogo = String(q.todos) === '1' ? '' : ' LIMIT 50';
     const buscar=String(q.q||'').trim(),id=q.id?Number(q.id):null;if(buscar.length>150||id!=null&&(!Number.isSafeInteger(id)||id<=0))throw new ErrorDescarguio('Búsqueda inválida.');
-    if(q.grupo==='lotes')return leerDesc(`SELECT l.*,oo.codigo origen_codigo,oo.fecha origen_fecha,p.nombre productor,pr.nombre producto,dp.clasificacion,CONCAT(l.codigo,' · ',COALESCE(p.nombre,'Ingenio'),' · ',pr.nombre,' · ',l.cantidad_disponible,' ',l.unidad) etiqueta
-        FROM produccion_lotes l JOIN produccion_operaciones oo ON oo.id=l.id_operacion_origen JOIN productos pr ON pr.id=l.id_producto LEFT JOIN productores p ON p.id=l.id_productor
+    if(q.grupo==='lotes')return leerDesc(`SELECT l.*,oo.codigo origen_codigo,oo.fecha origen_fecha,p.nombre productor,pr.nombre producto,dp.clasificacion,oo.codigo etiqueta
+        FROM produccion_lotes l JOIN produccion_operaciones oo ON oo.id=l.id_operacion_origen JOIN productos pr ON pr.id=l.id_producto LEFT JOIN proveedores p ON p.id=l.id_productor
         LEFT JOIN produccion_procesado_detalles dp ON dp.id_lote_resultado=l.id
         WHERE l.etapa = :etapa AND oo.estado='CONFIRMADO' AND (:id IS NOT NULL AND l.id = :id OR :id IS NULL AND l.estado='ACTIVO' AND l.cantidad_disponible > 0 AND
-        (LOCATE(:q,l.codigo)>0 OR LOCATE(:q,p.nombre)>0 OR LOCATE(:q,pr.nombre)>0)) ORDER BY oo.fecha,l.id LIMIT 50`,{q:buscar,id,etapa:tipo==='PROCESADO'?'GUARDADO':'PROCESADO'},t);
+        (LOCATE(:q,oo.codigo)>0 OR LOCATE(:q,l.codigo)>0 OR LOCATE(:q,pr.nombre)>0)) ORDER BY oo.fecha,l.id${limiteCatalogo}`,{q:buscar,id,etapa:tipo==='PROCESADO'?'GUARDADO':'PROCESADO'},t);
     if(q.grupo==='productos'||q.grupo==='empaques')return leerDesc(`SELECT p.id,p.nombre,p.unidad_medida,p.stock,c.nombre categoria FROM productos p LEFT JOIN categorias_producto c ON c.id=p.id_categoria
         WHERE p.eliminado=0 ${q.grupo==='empaques'?`AND LOWER(p.unidad_medida) IN ('unidad','unidades','und') AND
             (LOWER(COALESCE(c.nombre,'')) REGEXP 'bolsa|empaque|arpillera' OR LOWER(p.nombre) REGEXP 'bolsa|empaque|arpillera' AND LOWER(p.nombre) NOT REGEXP 'arroz|granillo|afrecho')`:''}
-        AND (:id IS NOT NULL AND p.id = :id OR :id IS NULL AND LOCATE(:q,p.nombre)>0) ORDER BY p.nombre,p.id LIMIT 50`,{q:buscar,id},t);
-    if(q.grupo==='productores')return leerDesc('SELECT id,nombre FROM productores WHERE activo=1 AND LOCATE(:q,nombre)>0 ORDER BY nombre,id LIMIT 50',{q:buscar},t);
-    if(q.grupo==='ubicaciones')return leerDesc('SELECT id,nombre FROM produccion_ubicaciones WHERE activo=1 AND LOCATE(:q,nombre)>0 ORDER BY nombre LIMIT 50',{q:buscar},t);
+        AND (:id IS NOT NULL AND p.id = :id OR :id IS NULL AND LOCATE(:q,p.nombre)>0) ORDER BY p.nombre,p.id${limiteCatalogo}`,{q:buscar,id},t);
+    if(q.grupo==='productores')return leerDesc(`SELECT id,nombre FROM proveedores WHERE activo=1 AND LOCATE(:q,nombre)>0 ORDER BY nombre,id${limiteCatalogo}`,{q:buscar},t);
+    if(q.grupo==='ubicaciones')return leerDesc(`SELECT id,nombre FROM produccion_ubicaciones WHERE activo=1 AND LOCATE(:q,nombre)>0 ORDER BY nombre${limiteCatalogo}`,{q:buscar},t);
     throw new ErrorDescarguio('Catálogo inválido.');
 }
 export async function hojaTransformacion(tipo:Transformacion,q:Fila,formato:'pdf'|'xlsx',t?:Transaction):Promise<HojaExport>{
     const rows=await filasTransformacion(tipo,q,true,t),process=tipo==='PROCESADO',num=(n:any)=>n==null?'No medido':new Intl.NumberFormat('es-BO',{maximumFractionDigits:3}).format(Number(n));
     const filtros=[{label:'Desde',valor:q.fecha_desde||'Sin límite'},{label:'Hasta',valor:q.fecha_hasta||'Sin límite'}];
-    if(q.id_productor){const [p]=await leerDesc('SELECT nombre FROM productores WHERE id = :id',{id:Number(q.id_productor)},t);filtros.push({label:'Productor',valor:p?.nombre||'No encontrado'});}
+    if(q.id_productor){const productores=await leerDesc('SELECT nombre FROM proveedores WHERE id IN (:id)',{id:idsFiltro(q.id_productor)},t); const p={nombre:productores.map(p=>p.nombre).join(', ')};filtros.push({label:'Productor',valor:p?.nombre||'No encontrado'});}
     if(q.id_producto){const [p]=await leerDesc('SELECT nombre FROM productos WHERE id = :id',{id:Number(q.id_producto)},t);filtros.push({label:'Producto',valor:p?.nombre||'No encontrado'});}
     const labels:Fila={modalidad:'Modalidad',variedad:'Variedad',presentacion:'Presentación',estado:'Estado',buscar:'Búsqueda',q:'Búsqueda'};
     for(const k of Object.keys(labels))if(q[k])filtros.push({label:labels[k],valor:String(q[k])});

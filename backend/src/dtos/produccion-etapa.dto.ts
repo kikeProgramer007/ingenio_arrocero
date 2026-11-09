@@ -36,7 +36,7 @@ export function validarEtapa(tipo: Etapa, raw: FilaEtapa, confirmar = false): Fi
     const d: FilaEtapa = { fecha: date('fecha', true), origenes, responsable: text('responsable'), observacion: text('observacion',5000),
         id_ubicacion: id(raw.id_ubicacion,'id_ubicacion'), destino_nombre: text('destino_nombre'), ubicacion_detalle: text('ubicacion_detalle',200) };
     if (tipo === 'SECADO') {
-        Object.assign(d, { secadora: text('secadora'), operador: text('operador'), silo: text('silo'), inicio: date('inicio'), fin: date('fin'),
+        Object.assign(d, { proc: text('proc',50), secadora: text('secadora'), operador: text('operador'), silo: text('silo'), inicio: date('inicio'), fin: date('fin'),
             humedad_entrada: num(raw.humedad_entrada,'humedad_entrada',2,100), humedad_salida: num(raw.humedad_salida,'humedad_salida',2,100),
             peso_salida: num(raw.peso_salida,'peso_salida'), unidad_peso_salida: text('unidad_peso_salida',30), merma_medida: num(raw.merma_medida,'merma_medida'),
             unidad_merma: text('unidad_merma',30), justificacion_merma: text('justificacion_merma',2000) });
@@ -49,6 +49,7 @@ export function validarEtapa(tipo: Etapa, raw: FilaEtapa, confirmar = false): Fi
         if (confirmar) for (const c of ['secadora','inicio','fin','humedad_salida']) if (d[c] == null || d[c] === '') campos[c] = 'Obligatorio para confirmar el ciclo.';
     } else {
         d.condicion = text('condicion');
+        d.orden_guardado = text('orden_guardado',50);
         if (confirmar && !d.id_ubicacion && !d.destino_nombre) campos.destino_nombre = 'Seleccione o escriba el silo/almacén destino.';
     }
     if (Object.keys(campos).length) throw new ErrorDescarguio('Revise los campos señalados.',400,campos);

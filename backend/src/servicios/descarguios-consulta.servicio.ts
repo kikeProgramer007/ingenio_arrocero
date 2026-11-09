@@ -1,3 +1,4 @@
+import { valoresFiltro, idsFiltro } from '../utils/filtros-multiples-produccion';
 import { Transaction } from 'sequelize';
 import { filtrosProduccion } from './produccion-consulta.servicio';
 import { ErrorDescarguio } from '../dtos/descarguio.dto';
@@ -5,10 +6,8 @@ import { leerDesc } from './descarguios.servicio';
 
 export function consultaDescarguios(query: Record<string, unknown>) {
     const f = filtrosProduccion({ ...query, tipo: undefined, orden: 'fecha', buscar: query.buscar || query.q });
-    const estado = query.estado ? String(query.estado) : '';
-    const variedad = query.variedad ? String(query.variedad).trim() : '';
-    if (estado && !['BORRADOR', 'CONFIRMADO', 'ANULADO'].includes(estado)) throw new ErrorDescarguio('Estado de descarguío inválido.');
-    if (variedad.length > 100) throw new ErrorDescarguio('Variedad demasiado extensa.');
+    const estado = valoresFiltro(query.estado, ['BORRADOR','CONFIRMADO','ANULADO']);
+    const variedad = valoresFiltro(query.variedad);
     const ordenes: Record<string, string> = { codigo: 'o.codigo', fecha: 'o.fecha', boleta: 'd.boleta', productor: 'p.nombre', modalidad: 'o.modalidad',
         variedad: 'd.variedad', cantidad: 'd.cantidad', unidad: 'd.unidad', humedad_entrada: 'd.humedad_entrada', ubicacion: 'ubicacion', estado: 'o.estado' };
     const orden = String(query.orden || 'fecha');
@@ -17,15 +16,15 @@ export function consultaDescarguios(query: Record<string, unknown>) {
     const params: Record<string, any> = {};
     if (f.desde) { where.push('o.fecha>= :desde'); params.desde = `${f.desde} 00:00:00`; }
     if (f.hasta) { where.push('o.fecha<DATE_ADD(:hasta,INTERVAL 1 DAY)'); params.hasta = f.hasta; }
-    if (f.productor) { where.push('o.id_productor= :productor'); params.productor = f.productor; }
-    if (f.modalidad) { where.push('o.modalidad= :modalidad'); params.modalidad = f.modalidad; }
-    if (estado) { where.push('o.estado= :estado'); params.estado = estado; }
-    if (variedad) { where.push('d.variedad= :variedad'); params.variedad = variedad; }
+    if (f.productor) { where.push('o.id_productor IN (:productor)'); params.productor = f.productor; }
+    if (f.modalidad) { where.push('o.modalidad IN (:modalidad)'); params.modalidad = f.modalidad; }
+    if (estado.length) { where.push('o.estado IN (:estado)'); params.estado = estado; }
+    if (variedad.length) { where.push('d.variedad IN (:variedad)'); params.variedad = variedad; }
     if (f.buscar) { where.push('(LOCATE(:q,o.codigo)>0 OR LOCATE(:q,d.boleta)>0 OR LOCATE(:q,p.nombre)>0)'); params.q = f.buscar; }
     return { ...f, estado, variedad, sql: where.join(' AND '), params, campoOrden: ordenes[orden] };
 }
 const uniones = `FROM produccion_operaciones o JOIN produccion_descarguios d ON d.id_operacion=o.id
-    LEFT JOIN productores p ON p.id=o.id_productor LEFT JOIN produccion_ubicaciones u ON u.id=d.id_ubicacion`;
+    LEFT JOIN proveedores p ON p.id=o.id_productor LEFT JOIN produccion_ubicaciones u ON u.id=d.id_ubicacion`;
 export async function filasDescarguios(query: Record<string, unknown>, todas = false, t?: Transaction) {
     const c = consultaDescarguios(query);
     return leerDesc(`SELECT o.id,o.codigo,o.fecha,o.modalidad,o.estado,o.version,d.boleta,p.nombre productor,
@@ -45,32 +44,34 @@ export async function listadoDescarguios(query: Record<string, unknown>, t?: Tra
 }
 
 export async function opcionesDescarguio(query: Record<string, unknown>, t?: Transaction) {
+    const limiteCatalogo = String(query.todos) === '1' ? '' : ' LIMIT 50';
     const q = String(query.q || '').trim();
     if (q.length > 150) throw new ErrorDescarguio('Búsqueda demasiado extensa.');
     const id = query.id ? Number(query.id) : null;
     if (id != null && (!Number.isSafeInteger(id) || id <= 0)) throw new ErrorDescarguio('Identificador inválido.');
     const params = { q, id };
     switch (query.grupo) {
-        case 'productores': return leerDesc(`SELECT id,nombre,nit_ci FROM productores WHERE activo=1 AND
-            (:id IS NOT NULL AND id= :id OR :id IS NULL AND (LOCATE(:q,nombre)>0 OR LOCATE(:q,COALESCE(nit_ci,''))>0)) ORDER BY nombre,id LIMIT 50`, params, t);
+        case 'productores': return leerDesc(`SELECT id,nombre,nit_ci FROM proveedores WHERE activo=1 AND
+            (:id IS NOT NULL AND id= :id OR :id IS NULL AND (LOCATE(:q,nombre)>0 OR LOCATE(:q,COALESCE(nit_ci,''))>0)) ORDER BY nombre,id${limiteCatalogo}`, params, t);
         case 'productos': return leerDesc(`SELECT p.id,p.nombre,p.unidad_medida,c.nombre categoria FROM productos p
             LEFT JOIN categorias_producto c ON c.id=p.id_categoria WHERE p.eliminado=0 AND
-            (:id IS NOT NULL AND p.id= :id OR :id IS NULL AND LOCATE(:q,p.nombre)>0) ORDER BY p.nombre,p.id LIMIT 50`, params, t);
+            (:id IS NOT NULL AND p.id= :id OR :id IS NULL AND LOCATE(:q,p.nombre)>0) ORDER BY p.nombre,p.id${limiteCatalogo}`, params, t);
         case 'ubicaciones': return leerDesc(`SELECT id,nombre,tipo FROM produccion_ubicaciones WHERE activo=1 AND
-            (:id IS NOT NULL AND id= :id OR :id IS NULL AND LOCATE(:q,nombre)>0) ORDER BY nombre,id LIMIT 50`, params, t);
+            (:id IS NOT NULL AND id= :id OR :id IS NULL AND LOCATE(:q,nombre)>0) ORDER BY nombre,id${limiteCatalogo}`, params, t);
         case 'campanas': return leerDesc(`SELECT id,nombre,estado FROM campanas WHERE
-            (:id IS NOT NULL AND id= :id OR :id IS NULL AND LOCATE(:q,nombre)>0) ORDER BY fecha_inicio DESC,id DESC LIMIT 50`, params, t);
+            (:id IS NOT NULL AND id= :id OR :id IS NULL AND LOCATE(:q,nombre)>0) ORDER BY fecha_inicio DESC,id DESC${limiteCatalogo}`, params, t);
         case 'variedades': return leerDesc(`SELECT DISTINCT variedad nombre FROM produccion_descarguios WHERE variedad IS NOT NULL
-            AND variedad<>'' AND LOCATE(:q,variedad)>0 ORDER BY variedad LIMIT 50`, params, t);
-        case 'compras': return leerDesc(`SELECT cd.id,cd.id_compra,cd.id_producto,cd.unidad,cd.descripcion,cd.cantidad_recibida,c.fecha,c.boleta,c.chofer,c.placa,c.id_productor,
+            AND variedad<>'' AND LOCATE(:q,variedad)>0 ORDER BY variedad${limiteCatalogo}`, params, t);
+        case 'compras': return leerDesc(`SELECT cd.id,cd.id_compra,cd.id_producto,cd.unidad,cd.descripcion,cd.cantidad_recibida,c.fecha,c.boleta,c.chofer,c.placa,
+            c.concepto,NULLIF(TRIM(c.concepto),'') AS variedad,c.id_proveedor AS id_productor,
             p.nombre productor,pr.nombre producto,pr.unidad_medida,
             GREATEST(0,cd.cantidad_recibida-COALESCE((SELECT SUM(d.cantidad) FROM produccion_descarguios d
                 JOIN produccion_operaciones o ON o.id=d.id_operacion WHERE d.id_compra_detalle=cd.id AND o.estado='CONFIRMADO'),0)) disponible
             FROM compra_detalles cd JOIN compras c ON c.id=cd.id_compra JOIN productos pr ON pr.id=cd.id_producto
-            LEFT JOIN productores p ON p.id=c.id_productor WHERE c.estado<>'ANULADA' AND pr.eliminado=0
+            LEFT JOIN proveedores p ON p.id=c.id_proveedor WHERE c.estado<>'ANULADA' AND pr.eliminado=0
             AND (c.tipo_compra='CHALA' OR (c.tipo_compra IS NULL AND (c.fanegas>0 OR NULLIF(c.boleta,'') IS NOT NULL)))
-            AND (:id IS NOT NULL AND cd.id= :id OR :id IS NULL AND (LOCATE(:q,CAST(c.id AS CHAR))>0 OR LOCATE(:q,c.boleta)>0 OR LOCATE(:q,p.nombre)>0 OR LOCATE(:q,pr.nombre)>0))
-            ORDER BY c.fecha DESC,cd.id DESC LIMIT 50`, params, t);
+            AND (:id IS NOT NULL AND cd.id= :id OR :id IS NULL AND (LOCATE(:q,CAST(c.id AS CHAR))>0 OR LOCATE(:q,c.boleta)>0 OR LOCATE(:q,p.nombre)>0 OR LOCATE(:q,pr.nombre)>0 OR LOCATE(:q,COALESCE(c.concepto,''))>0))
+            ORDER BY c.fecha DESC,cd.id DESC${limiteCatalogo}`, params, t);
         default: throw new ErrorDescarguio('Catálogo no válido.');
     }
 }

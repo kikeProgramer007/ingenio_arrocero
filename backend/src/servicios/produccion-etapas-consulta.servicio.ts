@@ -1,3 +1,4 @@
+import { valoresFiltro, idsFiltro } from '../utils/filtros-multiples-produccion';
 import { Transaction } from 'sequelize';
 import { Etapa, FilaEtapa as Fila } from '../dtos/produccion-etapa.dto';
 import { ErrorDescarguio } from '../dtos/descarguio.dto';
@@ -14,25 +15,25 @@ function consulta(tipo: Etapa, query: Fila) {
     const params: Fila = {tipo}, where = ['o.tipo = :tipo'];
     if (f.desde) { where.push('o.fecha >= :desde'); params.desde = `${f.desde} 00:00:00`; }
     if (f.hasta) { where.push('o.fecha < DATE_ADD(:hasta,INTERVAL 1 DAY)'); params.hasta=f.hasta; }
-    if (f.productor) { where.push('o.id_productor = :productor'); params.productor=f.productor; }
-    if (f.modalidad) { where.push('o.modalidad = :modalidad'); params.modalidad=f.modalidad; }
+    if (f.productor) { where.push('o.id_productor IN (:productor)'); params.productor=f.productor; }
+    if (f.modalidad) { where.push('o.modalidad IN (:modalidad)'); params.modalidad=f.modalidad; }
     if (query.estado) {
-        if (!['BORRADOR','CONFIRMADO','ANULADO'].includes(String(query.estado))) throw new ErrorDescarguio('Estado inválido.');
-        where.push('o.estado = :estado'); params.estado=query.estado;
+        valoresFiltro(query.estado, ['BORRADOR','CONFIRMADO','ANULADO']);
+        where.push('o.estado IN (:estado)'); params.estado=valoresFiltro(query.estado);
     }
     for (const k of ['variedad','secadora','ubicacion']) {
         if (!query[k]) continue;
-        if (typeof query[k] !== 'string' || query[k].length > 150) throw new ErrorDescarguio('Filtro demasiado extenso.');
+        valoresFiltro(query[k]);
         if (k === 'secadora' && tipo !== 'SECADO') continue;
         const field = k === 'variedad' ? 'r.variedad' : k === 'ubicacion' ? 'COALESCE(u.nombre,d.destino_nombre)' : 'd.secadora';
-        where.push(`${field} = :${k}`); params[k] = query[k].trim();
+        where.push(`${field} IN (:${k})`); params[k] = valoresFiltro(query[k]);
     }
     if (f.buscar) { where.push('(LOCATE(:q,o.codigo)>0 OR LOCATE(:q,p.nombre)>0 OR LOCATE(:q,r.origen)>0 OR LOCATE(:q,ra.boleta)>0)'); params.q=f.buscar; }
     const orders: Fila = {fecha:'o.fecha',codigo:'o.codigo',productor:'p.nombre',estado:'o.estado',variedad:'r.variedad',cantidad:'r.cantidad',origen:'r.origen',ubicacion:'ubicacion'};
     if (tipo === 'SECADO') Object.assign(orders,{secadora:'d.secadora',humedad_entrada:'d.humedad_entrada',humedad_salida:'d.humedad_salida',duracion:'TIMESTAMPDIFF(MINUTE,d.inicio,d.fin)'});
     const orden = query.orden || 'fecha'; if (!orders[orden]) throw new ErrorDescarguio('Columna de orden inválida.');
     const joins = `FROM produccion_operaciones o JOIN ${tabla(tipo)} d ON d.id_operacion=o.id
-        LEFT JOIN productores p ON p.id=o.id_productor LEFT JOIN produccion_ubicaciones u ON u.id=d.id_ubicacion
+        LEFT JOIN proveedores p ON p.id=o.id_productor LEFT JOIN produccion_ubicaciones u ON u.id=d.id_ubicacion
         LEFT JOIN (SELECT e.id_operacion,SUM(e.cantidad) cantidad,MIN(l.unidad) unidad,MIN(l.variedad) variedad,
             GROUP_CONCAT(DISTINCT oo.codigo ORDER BY oo.codigo SEPARATOR ', ') origen
             FROM produccion_etapa_origenes e JOIN produccion_lotes l ON l.id=e.id_lote JOIN produccion_operaciones oo ON oo.id=l.id_operacion_origen
@@ -58,7 +59,7 @@ export async function filasEtapa(tipo: Etapa, query: Fila, todas=false, t?: Tran
     const c=consulta(tipo,query);
     return leerDesc(`SELECT o.id,o.codigo,o.fecha,o.estado,o.modalidad,o.version,o.responsable,o.observacion,p.nombre productor,r.origen,ra.descarguio,ra.boleta,ra.humedad_entrada humedad_origen_entrada,ra.humedad_salida humedad_origen_salida,r.variedad,r.cantidad,r.unidad,
         COALESCE(u.nombre,d.destino_nombre) ubicacion,d.ubicacion_detalle,
-        ${tipo === 'SECADO' ? 'd.secadora,d.silo,d.operador,d.humedad_entrada,d.humedad_salida,TIMESTAMPDIFF(MINUTE,d.inicio,d.fin) duracion' : `d.condicion,
+        ${tipo === 'SECADO' ? 'd.proc,d.secadora,d.silo,d.operador,d.humedad_entrada,d.humedad_salida,TIMESTAMPDIFF(MINUTE,d.inicio,d.fin) duracion' : `d.condicion,d.orden_guardado,
             (SELECT SUM(lr.cantidad_disponible) FROM produccion_etapa_origenes er JOIN produccion_lotes lr ON lr.id=er.id_lote_resultado WHERE er.id_operacion=o.id) disponible`}
         ${c.joins} WHERE ${c.where} ORDER BY ${c.order} ${c.f.direccion},o.id ${c.f.direccion} ${todas ? '' : 'LIMIT :limit OFFSET :offset'}`,
         {...c.params,limit:c.f.limit,offset:c.f.offset},t);
@@ -70,20 +71,22 @@ export async function listarEtapa(tipo: Etapa, query: Fila, t?: Transaction) {
     return {items:await filasEtapa(tipo,query,false,t),total:Number(count.total),resumen:{...count,cantidades}};
 }
 export async function opcionesEtapa(tipo: Etapa, query: Fila, t?: Transaction) {
+    const limiteCatalogo = String(query.todos) === '1' ? '' : ' LIMIT 50';
     const q=String(query.q || '').trim(); if (q.length>150) throw new ErrorDescarguio('Búsqueda demasiado extensa.');
     const id=query.id ? Number(query.id):null;
     if (id != null && (!Number.isSafeInteger(id)||id<=0)) throw new ErrorDescarguio('Identificador inválido.');
     if (query.grupo === 'lotes') return leerDesc(`SELECT l.*,o.codigo origen_codigo,o.fecha origen_fecha,p.nombre productor,pr.nombre producto,
-        COALESCE(s.humedad_salida,d.humedad_entrada) humedad_origen,
-        CONCAT(l.codigo,' · ',COALESCE(p.nombre,'Ingenio'),' · ',COALESCE(l.variedad,''),' · ',l.cantidad_disponible,' ',l.unidad) etiqueta
+        COALESCE(s.humedad_salida,d.humedad_entrada) humedad_origen,u.nombre ubicacion_nombre,d.boleta,o.responsable responsable_origen,
+        o.codigo etiqueta
         FROM produccion_lotes l JOIN produccion_operaciones o ON o.id=l.id_operacion_origen
-        LEFT JOIN productores p ON p.id=l.id_productor LEFT JOIN productos pr ON pr.id=l.id_producto
+        LEFT JOIN proveedores p ON p.id=l.id_productor LEFT JOIN productos pr ON pr.id=l.id_producto
+        LEFT JOIN produccion_ubicaciones u ON u.id=l.id_ubicacion
         LEFT JOIN produccion_secados s ON s.id_operacion=o.id LEFT JOIN produccion_descarguios d ON d.id_operacion=o.id
         WHERE l.etapa = :etapa AND o.estado='CONFIRMADO' AND (:id IS NOT NULL AND l.id = :id OR :id IS NULL AND l.estado='ACTIVO' AND l.cantidad_disponible > 0
-        AND (LOCATE(:q,l.codigo)>0 OR LOCATE(:q,p.nombre)>0 OR LOCATE(:q,COALESCE(d.boleta,''))>0 OR LOCATE(:q,COALESCE(l.variedad,''))>0)) ORDER BY o.fecha,l.id LIMIT 50`,{q,id,etapa:tipo === 'SECADO' ? 'DESCARGUIO':'SECADO'},t);
-    if (query.grupo === 'productores') return leerDesc('SELECT id,nombre FROM productores WHERE activo=1 AND LOCATE(:q,nombre)>0 ORDER BY nombre,id LIMIT 50',{q},t);
-    if (query.grupo === 'ubicaciones') return leerDesc('SELECT id,nombre FROM produccion_ubicaciones WHERE activo=1 AND LOCATE(:q,nombre)>0 ORDER BY nombre LIMIT 50',{q},t);
-    if (query.grupo === 'secadoras' && tipo === 'SECADO') return leerDesc("SELECT DISTINCT secadora nombre FROM produccion_secados WHERE secadora IS NOT NULL AND LOCATE(:q,secadora)>0 ORDER BY secadora LIMIT 50",{q},t);
+        AND (LOCATE(:q,o.codigo)>0 OR LOCATE(:q,l.codigo)>0 OR LOCATE(:q,COALESCE(d.boleta,''))>0)) ORDER BY o.fecha,l.id${limiteCatalogo}`,{q,id,etapa:tipo === 'SECADO' ? 'DESCARGUIO':'SECADO'},t);
+    if (query.grupo === 'productores') return leerDesc(`SELECT id,nombre FROM proveedores WHERE activo=1 AND LOCATE(:q,nombre)>0 ORDER BY nombre,id${limiteCatalogo}`,{q},t);
+    if (query.grupo === 'ubicaciones') return leerDesc(`SELECT id,nombre FROM produccion_ubicaciones WHERE activo=1 AND LOCATE(:q,nombre)>0 ORDER BY nombre${limiteCatalogo}`,{q},t);
+    if (query.grupo === 'secadoras' && tipo === 'SECADO') return leerDesc(`SELECT DISTINCT secadora nombre FROM produccion_secados WHERE secadora IS NOT NULL AND LOCATE(:q,secadora)>0 ORDER BY secadora${limiteCatalogo}`,{q},t);
     throw new ErrorDescarguio('Catálogo inválido.');
 }
 export async function hojaEtapa(tipo: Etapa, query: Fila, formato: 'pdf'|'xlsx', t?: Transaction): Promise<HojaExport> {
@@ -93,7 +96,7 @@ export async function hojaEtapa(tipo: Etapa, query: Fila, formato: 'pdf'|'xlsx',
     const totals=new Map<string,number>();
     for (const r of rows) if(r.estado==='CONFIRMADO' && r.unidad) { const k=`${r.modalidad} / ${r.unidad}`; totals.set(k,(totals.get(k)||0)+Math.round(Number(r.cantidad)*1000)); }
     let productor='Todos';
-    if(query.id_productor) { const [p]=await leerDesc('SELECT nombre FROM productores WHERE id = :id',{id:Number(query.id_productor)},t); productor=p?.nombre||'No encontrado'; }
+    if(query.id_productor) { const productores=await leerDesc('SELECT nombre FROM proveedores WHERE id IN (:id)',{id:idsFiltro(query.id_productor)},t); const p={nombre:productores.map(p=>p.nombre).join(', ')}; productor=p?.nombre||'No encontrado'; }
     const columnas=sec?['Secado','Descarguío','Fecha','Operador','Silo','Secadora','H. entrada (%)','H. salida (%)','Variedad','Productor','Boleta','Cantidad','Unidad','Modalidad','Ubicación','Observaciones','Estado']:
         ['Guardado','Secado(s)','Descarguío(s)','Fecha','N° boleta','Productor','Variedad','Cantidad','Unidad','H. entrada (%)','H. salida (%)','Imp. entrada (%)','Imp. salida (%)','Ubicación','Detalle','Modalidad','Observaciones','Estado'];
     const hoja = aplicarPlantillaFormal({nombre:sec?'Secados':'Guardados',titulo:sec?'CONTROL DE SECADOS DE ARROZ':'CONTROL DE GUARDADOS DE ARROZ',orientacion:'landscape',textoCompleto:true,proporcionesColumnas:proporcionesEtapa(tipo),mostrarTotalesAutomaticos:false,formatosNumericos:{Cantidad:'#,##0.###'},columnas,

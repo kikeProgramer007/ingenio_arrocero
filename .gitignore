@@ -9,3 +9,8 @@ backend/.env.*
 *.key
 *.sql.gz
 *-respaldo.sql
+
+# Artefactos locales de pruebas / generación
+tmp/
+output/
+docs/

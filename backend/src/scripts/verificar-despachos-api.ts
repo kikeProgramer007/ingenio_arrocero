@@ -1,8 +1,8 @@
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
-import { sequelize, User } from '../models';
-import { getJwtSecret } from '../utils/jwt';
+import {sequelize, User} from '../models';
+import {getJwtSecret} from '../utils/jwt';
 
 async function main() {
     const usuario = await User.findOne({ where: { activo: true, eliminado: false }, attributes: ['id', 'username', 'nombre'] });

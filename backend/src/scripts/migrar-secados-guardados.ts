@@ -1,9 +1,9 @@
 import '../load-env';
 import sequelize from '../db/connection';
-import { assertBaseDeUsuario } from '../utils/db-sync';
-import { up, VERSION_ETAPAS } from '../migrations/20261105-produccion-secados-guardados';
-import { createHash } from 'crypto';
-import { QueryTypes } from 'sequelize';
+import {assertBaseDeUsuario} from '../utils/db-sync';
+import {up, VERSION_ETAPAS} from '../migrations/20261105-produccion-secados-guardados';
+import {createHash} from 'crypto';
+import {QueryTypes} from 'sequelize';
 async function main() {
     if (!process.env.DB_NAME) throw new Error('Configure DB_NAME.');
     assertBaseDeUsuario(sequelize.getDatabaseName());

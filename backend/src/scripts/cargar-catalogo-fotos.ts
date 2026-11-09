@@ -6,9 +6,9 @@
  */
 import '../load-env';
 import sequelize from '../db/connection';
-import { assertBaseDeUsuario } from '../utils/db-sync';
-import { seedInventarioBase } from '../seed/inventario.seed';
-import { seedCatalogoFotos } from '../seed/catalogo-fotos.seed';
+import {assertBaseDeUsuario} from '../utils/db-sync';
+import {seedInventarioBase} from '../seed/inventario.seed';
+import {seedCatalogoFotos} from '../seed/catalogo-fotos.seed';
 
 async function main(): Promise<void> {
     await sequelize.authenticate();

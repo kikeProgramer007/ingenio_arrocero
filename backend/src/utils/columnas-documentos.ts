@@ -15,7 +15,6 @@ export const COLUMNAS_DOCUMENTOS = {
     clientes: ['Nombre', 'NIT / CI', 'Teléfono', 'Procedencia', 'Dirección', 'Estado'],
     proveedores: ['Nombre', 'NIT / CI', 'Teléfono', 'Dirección', 'Estado'],
     empaques: ['Tipo de bolsa', 'Unidad', 'Existencia', 'Mínimo', 'Estado'],
-    produccion: ['Fecha', 'Origen', 'Entrada', 'Destino', 'Salida', 'Merma', 'Usuario'],
     campanas: ['Nombre', 'Inicio', 'Fin', 'Meta', 'Estado', 'Usuario'],
     cajas: ['Apertura', 'Usuario', 'Saldo inicial (Bs)', 'Ingresos (Bs)', 'Egresos (Bs)', 'Esperado (Bs)', 'Contado (Bs)', 'Diferencia (Bs)', 'Estado'],
     cuentas_por_cobrar: ['N°', 'Fecha', 'N° Venta', 'Cliente', 'Total (Bs)', 'Cobrado (Bs)', 'Saldo (Bs)', 'Vencimiento', 'Días atraso', 'Estado'],

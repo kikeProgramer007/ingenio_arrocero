@@ -1,12 +1,12 @@
 import '../load-env';
 import assert from 'assert/strict';
-import {createHash,randomUUID} from 'crypto';
-import {QueryTypes,Transaction} from 'sequelize';
-import {sequelize,User,Productor,Proveedor,Productos,Compra,CompraDetalle,MovimientoInventario} from '../models';
-import {crearDescarguio,confirmarDescarguio,anularDescarguio,leerDesc} from '../servicios/descarguios.servicio';
-import {guardarEtapa,confirmarEtapa,anularEtapa} from '../servicios/produccion-etapas.servicio';
-import {guardarTransformacion,confirmarTransformacion,anularTransformacion} from '../servicios/produccion-transformaciones.servicio';
-import {detalleLote,consultarLotes} from '../servicios/produccion-trazabilidad.servicio';
+import {createHash, randomUUID} from 'crypto';
+import {QueryTypes, Transaction} from 'sequelize';
+import {sequelize, User, Proveedor, Productos, Compra, CompraDetalle, MovimientoInventario} from '../models';
+import {crearDescarguio, confirmarDescarguio, anularDescarguio, leerDesc} from '../servicios/descarguios.servicio';
+import {guardarEtapa, confirmarEtapa, anularEtapa} from '../servicios/produccion-etapas.servicio';
+import {guardarTransformacion, confirmarTransformacion, anularTransformacion} from '../servicios/produccion-transformaciones.servicio';
+import {detalleLote, consultarLotes} from '../servicios/produccion-trazabilidad.servicio';
 import {consultarReporteProduccion} from '../servicios/produccion-reportes.servicio';
 import {ErrorDescarguio} from '../dtos/descarguio.dto';
 
@@ -19,7 +19,7 @@ async function recorrido(uid:number){
  const t=await sequelize.transaction({isolationLevel:Transaction.ISOLATION_LEVELS.READ_COMMITTED});
  try{
  const mark=randomUUID().slice(0,8),fecha='2026-11-05T12:00:00Z';
- const p=await Productor.create({nombre:'PRODUCTOR INTEGRAL DE PRUEBA '+mark,activo:true},{transaction:t}),pid=Number(p.get('id'));
+ const p=await Proveedor.create({nombre:'PRODUCTOR INTEGRAL DE PRUEBA '+mark,activo:true},{transaction:t}),pid=Number(p.get('id'));
  const proveedor=await Proveedor.create({nombre:'PROVEEDOR INTEGRAL DE PRUEBA '+mark,activo:true},{transaction:t});
  const producto=async(nombre:string,unidad_medida:string,stock:number)=>Number((await Productos.create({nombre:nombre+' '+mark,unidad_medida,stock},{transaction:t})).get('id'));
  const chala=await producto('CHALA INTEGRAL','Fanega',100.125),arroz=await producto('ARROZ INTEGRAL','Quintal',0),afrecho=await producto('AFRECHO INTEGRAL','Kilo',0),bolsa=await producto('BOLSA VACIA INTEGRAL','Unidad',20),envasado=await producto('ARROZ ENVASADO INTEGRAL','Unidad',0);
@@ -63,7 +63,7 @@ async function concurrencia(uid:number){
  const mark=randomUUID().slice(0,8),operaciones:number[]=[],productos:number[]=[],productores:number[]=[];let root=0;
  try{
   await sequelize.transaction(async t=>{
-   const p=await Productor.create({nombre:'CONCURRENCIA DE PRUEBA '+mark,activo:true},{transaction:t});productores.push(Number(p.get('id')));
+   const p=await Proveedor.create({nombre:'CONCURRENCIA DE PRUEBA '+mark,activo:true},{transaction:t});productores.push(Number(p.get('id')));
    const pr=await Productos.create({nombre:'CHALA CONCURRENCIA DE PRUEBA '+mark,unidad_medida:'Fanega',stock:0},{transaction:t});productos.push(Number(pr.get('id')));
    for(const tipo of ['DESCARGUIO','SECADO','SECADO'])operaciones.push(await insert('produccion_operaciones',{codigo:'CC-'+mark+'-'+operaciones.length,tipo,fecha:'2026-11-05 10:00:00',estado:tipo==='DESCARGUIO'?'CONFIRMADO':'BORRADOR',modalidad:'SERVICIO',id_propietario:productores[0],id_productor:productores[0],id_usuario:uid,version:0,created_at:new Date(),updated_at:new Date()},t));
    root=await insert('produccion_lotes',{codigo:'CC-'+mark+'-ORIGEN',id_operacion_origen:operaciones[0],id_producto:productos[0],modalidad:'SERVICIO',id_propietario:productores[0],id_productor:productores[0],variedad:'MAC-18',cantidad_inicial:100,cantidad_disponible:100,unidad:'Fanega',etapa:'DESCARGUIO',estado_fisico:'CHALA_HUMEDA',estado:'ACTIVO',id_usuario:uid,version:0,created_at:new Date(),updated_at:new Date()},t);
@@ -83,7 +83,7 @@ async function concurrencia(uid:number){
    // Solo se borran fixtures de esta prueba. Nunca se incluyen IDs comerciales existentes.
    if(operaciones.length){for(const table of ['produccion_auditoria','produccion_movimientos','produccion_operacion_lotes','produccion_etapa_origenes','produccion_secados'])await sequelize.query('DELETE FROM '+table+' WHERE id_operacion IN (:ids)',{replacements:{ids:operaciones},transaction:t});
     await sequelize.query('DELETE FROM produccion_lotes WHERE id_operacion_origen IN (:ids)',{replacements:{ids:operaciones},transaction:t});await sequelize.query('DELETE FROM produccion_operaciones WHERE id IN (:ids)',{replacements:{ids:operaciones},transaction:t});}
-   if(productos.length)await Productos.destroy({where:{id:productos},transaction:t});if(productores.length)await Productor.destroy({where:{id:productores},transaction:t});
+   if(productos.length)await Productos.destroy({where:{id:productos},transaction:t});if(productores.length)await Proveedor.destroy({where:{id:productores},transaction:t});
   });
  }
 }

@@ -1,8 +1,8 @@
-import { createHash } from 'crypto';
-import { QueryTypes } from 'sequelize';
-import { sequelize } from '../models';
-import { assertBaseDeUsuario } from '../utils/db-sync';
-import { up } from '../migrations/20261013-despachos';
+import {createHash} from 'crypto';
+import {QueryTypes} from 'sequelize';
+import {sequelize} from '../models';
+import {assertBaseDeUsuario} from '../utils/db-sync';
+import {up} from '../migrations/20261013-despachos';
 
 async function huellaAnterior(): Promise<string> {
     const ventas = await sequelize.query('SELECT id, total, saldo_pendiente, estado FROM ventas ORDER BY id', { type: QueryTypes.SELECT });

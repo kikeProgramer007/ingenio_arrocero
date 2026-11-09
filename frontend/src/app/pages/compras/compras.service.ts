@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { apiUrl } from '../../core/utils/api-url';
 import { comoLista, parametrosLista } from '../../shared/utils/filtro-lista';
-import { ApiMensaje, Compra, CrearCompraPayload, CuentaProveedor, PagoProveedor, Productor, Proveedor } from './compras.models';
+import { ApiMensaje, Compra, CrearCompraPayload, CuentaProveedor, PagoProveedor, Proveedor } from './compras.models';
 
 @Injectable({ providedIn: 'root' })
 export class ProveedoresService {
@@ -44,40 +44,6 @@ export class ProveedoresService {
             httpParams = httpParams.set('ordenante', filtros.ordenante);
         }
         return this.http.get<CuentaProveedor>(apiUrl(`/api/proveedores/${id}/cuenta`), { params: httpParams });
-    }
-}
-
-@Injectable({ providedIn: 'root' })
-export class ProductoresService {
-    constructor(private http: HttpClient) {}
-
-    listar(params?: { q?: string; activos?: string; id_proveedor?: number; libres?: boolean }): Observable<Productor[]> {
-        let httpParams = new HttpParams();
-        if (params?.q) {
-            httpParams = httpParams.set('q', params.q);
-        }
-        if (params?.activos) {
-            httpParams = httpParams.set('activos', params.activos);
-        }
-        if (params?.id_proveedor) {
-            httpParams = httpParams.set('id_proveedor', String(params.id_proveedor));
-        }
-        if (params?.libres === false) {
-            httpParams = httpParams.set('libres', '0');
-        }
-        return this.http.get<Productor[]>(apiUrl('/api/productores'), { params: httpParams });
-    }
-
-    crear(payload: Omit<Productor, 'id'>): Observable<ApiMensaje<Productor>> {
-        return this.http.post<ApiMensaje<Productor>>(apiUrl('/api/productores'), payload);
-    }
-
-    actualizar(id: number, payload: Omit<Productor, 'id'>): Observable<ApiMensaje<Productor>> {
-        return this.http.put<ApiMensaje<Productor>>(apiUrl(`/api/productores/${id}`), payload);
-    }
-
-    eliminar(id: number): Observable<{ mensaje: string }> {
-        return this.http.delete<{ mensaje: string }>(apiUrl(`/api/productores/${id}`));
     }
 }
 

@@ -31,7 +31,7 @@ export const TABLAS_PRODUCCION: TablaProduccion[] = [
         fecha: { type: DataTypes.DATE, allowNull: false }, estado: { type: DataTypes.ENUM(...ESTADOS_PRODUCCION), allowNull: false, defaultValue: 'BORRADOR' },
         modalidad: { type: DataTypes.ENUM(...MODALIDADES_PRODUCCION), allowNull: false },
         // COMPRA: propietario NULL representa al ingenio; SERVICIO exige productor real al confirmar.
-        id_propietario: ref('productores'), id_productor: ref('productores'), id_campana: ref('campanas'),
+        id_propietario: ref('proveedores'), id_productor: ref('proveedores'), id_campana: ref('campanas'),
         responsable: texto(), observacion: { type: DataTypes.TEXT, allowNull: true },
         id_usuario: ref('user', true), id_usuario_confirmacion: ref('user'), confirmado_at: { type: DataTypes.DATE, allowNull: true },
         id_usuario_anulacion: ref('user'), anulado_at: { type: DataTypes.DATE, allowNull: true }, motivo_anulacion: { type: DataTypes.TEXT, allowNull: true },
@@ -40,7 +40,7 @@ export const TABLAS_PRODUCCION: TablaProduccion[] = [
     { nombre: 'produccion_lotes', columnas: {
         id: id(), codigo: { ...texto(60, true), unique: true }, id_operacion_origen: ref('produccion_operaciones', true),
         id_producto: ref('productos', true), modalidad: { type: DataTypes.ENUM(...MODALIDADES_PRODUCCION), allowNull: false },
-        id_propietario: ref('productores'), id_productor: ref('productores'), variedad: texto(100),
+        id_propietario: ref('proveedores'), id_productor: ref('proveedores'), variedad: texto(100),
         cantidad_inicial: cantidad(true), cantidad_disponible: cantidad(true), unidad: texto(30, true),
         etapa: { type: DataTypes.ENUM(...TIPOS_PRODUCCION), allowNull: false },
         estado_fisico: { type: DataTypes.ENUM('CHALA_HUMEDA', 'CHALA_SECA', 'PROCESADO', 'ENVASADO'), allowNull: false },

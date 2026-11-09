@@ -178,13 +178,10 @@ function tipoCambioDe(valor: unknown, respaldo = 0): number {
 }
 
 function idProductorDe(origen: any): number | null {
-    const directo = Number(origen?.id_productor);
-    if (Number.isFinite(directo) && directo > 0) {
-        return directo;
-    }
-    const deCompra = Number(origen?.compra?.id_productor);
-    if (Number.isFinite(deCompra) && deCompra > 0) {
-        return deCompra;
+    // Purchases, including historical ones, identify their producer through the supplier.
+    for (const valor of [origen?.compra?.id_proveedor, origen?.id_proveedor, origen?.compra?.id_productor, origen?.id_productor]) {
+        const id = Number(valor);
+        if (Number.isFinite(id) && id > 0) return id;
     }
     return null;
 }
@@ -321,9 +318,9 @@ export function armarCuentaProveedor(compras: any[], pagos: any[], acopios: any[
             tipo: servicio ? 'SERVICIO' : 'COMPRA',
             documento: `#${compra.id}`,
             detalle: detalleCompra(compra),
-            productor: '',
+            productor: nombreProductorDe(compra),
             ordenante: textoCampo(compra.ordenante),
-            id_productor: null,
+            id_productor: idProductorDe(compra),
             boleta: textoCampo(compra.boleta),
             chofer: textoCampo(compra.chofer),
             placa: textoCampo(compra.placa),
@@ -359,9 +356,9 @@ export function armarCuentaProveedor(compras: any[], pagos: any[], acopios: any[
             tipo: 'PAGO',
             documento: pago.id_compra ? `Compra #${pago.id_compra}` : `#${pago.id}`,
             detalle: String(pago.observacion || pago.referencia || 'Pago / amortización').trim(),
-            productor: '',
+            productor: nombreProductorDe({ ...pago, compra: compraPago }),
             ordenante: textoCampo(compraPago?.ordenante),
-            id_productor: null,
+            id_productor: idProductorDe({ ...pago, compra: compraPago }),
             boleta: '',
             chofer: '',
             placa: '',

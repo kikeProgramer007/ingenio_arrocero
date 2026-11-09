@@ -1,23 +1,25 @@
 import { createHash } from 'crypto';
 import { QueryTypes, Transaction } from 'sequelize';
 import sequelize from '../db/connection';
-import { Campana, CategoriaProducto, Compra, CompraDetalle, Productor, Productos, ReservaProducto } from '../models';
+import { Campana, CategoriaProducto, Compra, CompraDetalle, Proveedor, Productos, ReservaProducto } from '../models';
 import { DatosDescarguio, ErrorDescarguio, claveSolicitud, validarDescarguio, versionDescarguio } from '../dtos/descarguio.dto';
 import { normalizarUnidadMedida } from '../utils/unidad-medida';
 import { inferirTipoCompra } from '../constants/compra.constants';
 import { esProductoEmpaque } from '../utils/empaque';
+import { mayusculizarDatos } from '../utils/mayusculas';
 
 type Fila = Record<string, any>;
 export async function leerDesc<T extends object = Fila>(sql: string, replacements: Record<string, any> = {}, transaction?: Transaction): Promise<T[]> {
     return sequelize.query<T>(sql, { replacements, transaction, type: QueryTypes.SELECT });
 }
 async function ejecutar(sql: string, replacements: Record<string, any>, transaction: Transaction) {
-    return sequelize.query(sql, { replacements, transaction });
+    return sequelize.query(sql, { replacements: mayusculizarDatos(replacements), transaction });
 }
 async function insertar(tabla: string, datos: Fila, transaction: Transaction): Promise<number> {
-    const columnas = Object.keys(datos);
+    const payload = mayusculizarDatos(datos);
+    const columnas = Object.keys(payload);
     const [id] = await sequelize.query(`INSERT INTO ${tabla} (${columnas.map(c => '`' + c + '`').join(',')}) VALUES (${columnas.map(c => ':' + c).join(',')})`,
-        { replacements: datos, transaction, type: QueryTypes.INSERT });
+        { replacements: payload, transaction, type: QueryTypes.INSERT });
     return Number(id);
 }
 async function enTransaccion<T>(trabajo: (t: Transaction) => Promise<T>, externa?: Transaction): Promise<T> {
@@ -49,7 +51,7 @@ function comprobarVersion(registro: Fila, version: unknown) {
 }
 async function validarReferencias(datos: DatosDescarguio, t: Transaction, confirmar = false) {
     if (datos.id_productor) {
-        const productor = await Productor.findByPk(datos.id_productor, { transaction: t, lock: t.LOCK.UPDATE });
+        const productor = await Proveedor.findByPk(datos.id_productor, { transaction: t, lock: t.LOCK.UPDATE });
         if (!productor || !productor.get('activo')) throw new ErrorDescarguio('Seleccione un productor activo.', 400, { id_productor: 'El productor no existe o está inactivo.' });
     }
     if (datos.id_producto) {
@@ -82,7 +84,7 @@ export async function obtenerDescarguio(id: unknown, t?: Transaction): Promise<F
         u.nombre ubicacion_nombre, cd.id_compra, c.boleta compra_boleta, l.codigo lote_codigo, l.cantidad_disponible,
         CASE WHEN o.modalidad='COMPRA' THEN 'Ingenio (propio)' ELSE p.nombre END propietario_nombre
         FROM produccion_operaciones o JOIN produccion_descarguios d ON d.id_operacion=o.id
-        LEFT JOIN productores p ON p.id=o.id_productor LEFT JOIN productos pr ON pr.id=d.id_producto
+        LEFT JOIN proveedores p ON p.id=o.id_productor LEFT JOIN productos pr ON pr.id=d.id_producto
         LEFT JOIN produccion_ubicaciones u ON u.id=d.id_ubicacion LEFT JOIN compra_detalles cd ON cd.id=d.id_compra_detalle
         LEFT JOIN compras c ON c.id=cd.id_compra LEFT JOIN produccion_lotes l ON l.id=d.id_lote
         WHERE o.id= :id AND o.tipo='DESCARGUIO'`, { id: enteroId(id) }, t);
@@ -108,7 +110,7 @@ export async function crearDescarguio(raw: Fila, usuario: number, externa?: Tran
         }
         await validarReferencias(datos, t);
         const numero = Number(secuencia.ultimo) + 1;
-        const codigo = `D-${gestion}-${String(numero).padStart(4, '0')}`;
+        const codigo = `D-${String(numero).padStart(4, '0')}`;
         await ejecutar("UPDATE produccion_secuencias SET ultimo= :numero WHERE tipo='DESCARGUIO' AND gestion= :gestion", { numero, gestion }, t);
         const ahora = new Date();
         const id = await insertar('produccion_operaciones', { codigo, tipo: 'DESCARGUIO', fecha: datos.fecha, estado: 'BORRADOR', modalidad: datos.modalidad,
@@ -146,7 +148,7 @@ async function validarCompraRecibida(datos: DatosDescarguio, t: Transaction) {
     const detalle = await CompraDetalle.findByPk(datos.id_compra_detalle!, { transaction: t, lock: t.LOCK.UPDATE });
     if (!compra || !detalle || compra.get('estado') === 'ANULADA') throw new ErrorDescarguio('La compra no está vigente.', 409);
     if (inferirTipoCompra(compra.get({ plain: true }) as any) !== 'CHALA') throw new ErrorDescarguio('La compra debe corresponder a arroz en chala.', 409);
-    if (compra.get('id_productor') && Number(compra.get('id_productor')) !== datos.id_productor) throw new ErrorDescarguio('El productor no coincide con la compra.', 409, { id_productor: 'Seleccione el productor de la compra.' });
+    if (Number(compra.get('id_proveedor')) !== datos.id_productor) throw new ErrorDescarguio('El productor no coincide con la compra.', 409, { id_productor: 'Seleccione el productor de la compra.' });
     if (Number(detalle.get('id_producto')) !== datos.id_producto) throw new ErrorDescarguio('El producto no coincide con la línea de compra.', 409, { id_producto: 'Use el producto de la compra.' });
     const producto = await Productos.findByPk(datos.id_producto!, { transaction: t, lock: t.LOCK.UPDATE });
     if (!producto || producto.get('eliminado')) throw new ErrorDescarguio('El producto ya no está disponible.', 409);
@@ -196,7 +198,7 @@ export async function confirmarDescarguio(id: unknown, raw: Fila, usuario: numbe
             ubicacion = Number(fila.id);
         }
         const ahora = new Date();
-        const lote = await insertar('produccion_lotes', { codigo: `L-${actual.codigo}`, id_operacion_origen: actual.id,
+        const lote = await insertar('produccion_lotes', { codigo: actual.codigo, id_operacion_origen: actual.id,
             id_producto: datos.id_producto, modalidad: datos.modalidad, id_propietario: datos.modalidad === 'SERVICIO' ? datos.id_productor : null,
             id_productor: datos.id_productor, variedad: datos.variedad, cantidad_inicial: datos.cantidad, cantidad_disponible: datos.cantidad,
             unidad: datos.unidad, etapa: 'DESCARGUIO', estado_fisico: 'CHALA_HUMEDA', estado: 'ACTIVO', id_ubicacion: ubicacion,

@@ -31,6 +31,7 @@ export const appRoutes: Routes = [
             { path: 'empresa', loadChildren: () => import('./app/pages/configuracion/empresa.routes'), canActivate: [AuthGuard] },
             { path: 'plantillas-documentos', loadComponent: () => import('./app/pages/configuracion/plantillas-documentos').then(m => m.PlantillasDocumentosComponent), canActivate: [AuthGuard] },
             { path: 'usuarios', loadChildren: () => import('./app/pages/configuracion/usuarios.routes'), canActivate: [AuthGuard] },
+            { path: 'auditoria', loadChildren: () => import('./app/pages/auditoria/auditoria.routes'), canActivate: [AuthGuard] },
             { path: 'uikit', loadChildren: () => import('./app/pages/uikit/uikit.routes') ,canActivate:[AuthGuard] },
             { path: 'documentation', component: Documentation,canActivate:[AuthGuard]  },
             { path: 'pages', loadChildren: () => import('./app/pages/pages.routes'),canActivate:[AuthGuard] }

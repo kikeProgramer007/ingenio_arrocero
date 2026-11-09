@@ -1,11 +1,11 @@
 import '../load-env';
 import assert from 'assert/strict';
-import { QueryTypes } from 'sequelize';
-import { Request, Response } from 'express';
-import { sequelize, User } from '../models';
-import { TABLAS_PRODUCCION } from '../db/produccion-schema';
-import { permisoProduccion } from '../controllers/produccion-base.controller';
-import { filtrosProduccion, lotesProduccion, operacionesProduccion, resumenProduccion } from '../servicios/produccion-consulta.servicio';
+import {QueryTypes} from 'sequelize';
+import {Request, Response} from 'express';
+import {sequelize, User} from '../models';
+import {TABLAS_PRODUCCION} from '../db/produccion-schema';
+import {permisoProduccion} from '../controllers/produccion-base.controller';
+import {filtrosProduccion, lotesProduccion, operacionesProduccion, resumenProduccion} from '../servicios/produccion-consulta.servicio';
 
 /** Comprobación de lectura: no crea usuarios, lotes ni operaciones de muestra. */
 async function main() {

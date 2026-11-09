@@ -1,17 +1,17 @@
 import '../load-env';
 import assert from 'assert/strict';
-import { randomUUID, createHash } from 'crypto';
+import {randomUUID, createHash} from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { QueryTypes, Transaction } from 'sequelize';
-import { Productor, Productos, User, sequelize, Proveedor, Compra, CompraDetalle, MovimientoInventario, ReservaProducto } from '../models';
-import { crearDescarguio, confirmarDescarguio, anularDescarguio, leerDesc } from '../servicios/descarguios.servicio';
-import { guardarEtapa, confirmarEtapa, anularEtapa, obtenerEtapa } from '../servicios/produccion-etapas.servicio';
-import { filasEtapa, listarEtapa, opcionesEtapa, hojaEtapa } from '../servicios/produccion-etapas-consulta.servicio';
-import { validarEtapa } from '../dtos/produccion-etapa.dto';
-import { ErrorDescarguio } from '../dtos/descarguio.dto';
-import { bufferReportePdf } from '../utils/exportar';
+import {QueryTypes, Transaction} from 'sequelize';
+import {Proveedor, Productos, User, sequelize, Compra, CompraDetalle, MovimientoInventario, ReservaProducto} from '../models';
+import {crearDescarguio, confirmarDescarguio, anularDescarguio, leerDesc} from '../servicios/descarguios.servicio';
+import {guardarEtapa, confirmarEtapa, anularEtapa, obtenerEtapa} from '../servicios/produccion-etapas.servicio';
+import {filasEtapa, listarEtapa, opcionesEtapa, hojaEtapa} from '../servicios/produccion-etapas-consulta.servicio';
+import {validarEtapa} from '../dtos/produccion-etapa.dto';
+import {ErrorDescarguio} from '../dtos/descarguio.dto';
+import {bufferReportePdf} from '../utils/exportar';
 
 async function hash() {
     const h=createHash('sha256');
@@ -27,7 +27,7 @@ async function main(){
     const files:string[]=[];
     try {
         const user=await User.findOne({where:{activo:true,eliminado:false},transaction:t});assert(user);const uid=Number(user.get('id')),mark=randomUUID().slice(0,8);
-        const productor=await Productor.create({nombre:`PRODUCTOR DE PRUEBA ${mark} NOMBRE EXTENSO PARA REVISAR LA ALINEACION Y CONTINUIDAD DEL TEXTO EN LOS REPORTES DE SECADOS Y GUARDADOS`,activo:true},{transaction:t}),pid=Number(productor.get('id'));
+        const productor=await Proveedor.create({nombre:`PRODUCTOR DE PRUEBA ${mark} NOMBRE EXTENSO PARA REVISAR LA ALINEACION Y CONTINUIDAD DEL TEXTO EN LOS REPORTES DE SECADOS Y GUARDADOS`,activo:true},{transaction:t}),pid=Number(productor.get('id'));
         const producto=await Productos.create({nombre:`CHALA DE PRUEBA ${mark}`,unidad_medida:'Fanega',stock:100.125},{transaction:t}),prid=Number(producto.get('id'));
         const fecha='2026-11-05T12:00:00.000Z';
         const finanzas=async()=>{const counts=[];for(const table of ['compras','ventas','movimientos_caja','pagos_proveedor','movimientos_inventario']){const [r]=await leerDesc(`SELECT COUNT(*) n FROM ${table}`,{},t);counts.push(Number(r.n));}return counts;};
@@ -64,7 +64,7 @@ async function main(){
         const [stored]=await leerDesc('SELECT * FROM produccion_lotes WHERE id = :id',{id:g.origenes[0].id_lote_resultado},t);assert.equal(stored.etapa,'GUARDADO');assert.equal(Number(stored.cantidad_disponible),12.005);assert.equal(Number(stored.id_propietario),pid);
         assert.deepEqual(await finanzas(),financialBefore);await producto.reload({transaction:t});assert.equal(Number(producto.get('stock')),100.125);
         // La propiedad se valida contra el lote, nunca contra lo enviado por el cliente.
-        const other=await Productor.create({nombre:'OTRO PRODUCTOR '+mark,activo:true},{transaction:t});
+        const other=await Proveedor.create({nombre:'OTRO PRODUCTOR '+mark,activo:true},{transaction:t});
         const d3=await recepcion(1,{id_productor:Number(other.get('id'))});
         await rejected(()=>guardarEtapa('SECADO',null,{...dry,origenes:[{id_lote:d1.id_lote,cantidad:1},{id_lote:d3.id_lote,cantidad:1}],clave_creacion:randomUUID()},uid,t));
         const filtro={id_productor:pid,fecha_desde:'2026-11-01',fecha_hasta:'2026-11-30',estado:'CONFIRMADO',variedad:'MAC-18 PRUEBA',orden:'cantidad',direccion:1,limit:10};

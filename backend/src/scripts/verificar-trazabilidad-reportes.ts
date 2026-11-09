@@ -4,17 +4,17 @@ import {randomUUID} from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import {QueryTypes,Transaction} from 'sequelize';
-import {sequelize,User,Productor,Productos} from '../models';
-import {consultarLotes,detalleLote,existenciasProductor} from '../servicios/produccion-trazabilidad.servicio';
-import {consultarReporteProduccion,hojaReporteProduccion,reportesProduccion} from '../servicios/produccion-reportes.servicio';
+import {QueryTypes, Transaction} from 'sequelize';
+import {sequelize, User, Proveedor, Productos} from '../models';
+import {consultarLotes, detalleLote, existenciasProductor} from '../servicios/produccion-trazabilidad.servicio';
+import {consultarReporteProduccion, hojaReporteProduccion, reportesProduccion} from '../servicios/produccion-reportes.servicio';
 import {bufferReportePdf} from '../utils/exportar';
 async function insert(table:string,data:Record<string,any>,t:Transaction){const keys=Object.keys(data);const [id]=await sequelize.query(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(k=>':'+k).join(',')})`,{replacements:data,type:QueryTypes.INSERT,transaction:t});return Number(id);}
 async function main(){
  if(process.env.NODE_ENV!=='development')throw new Error('Solo en desarrollo.');await sequelize.authenticate();const t=await sequelize.transaction();
  try{
  const u=await User.findOne({where:{activo:true,eliminado:false},transaction:t});assert(u);const uid=Number(u.get('id')),mark=randomUUID().slice(0,8);
- const p=await Productor.create({nombre:'CLIENTE DE PRUEBA '+mark+' CON NOMBRE EXTENSO PARA COMPROBAR EL AJUSTE COMPLETO DEL TEXTO EN LOS REPORTES',activo:true},{transaction:t}),pid=Number(p.get('id'));
+ const p=await Proveedor.create({nombre:'CLIENTE DE PRUEBA '+mark+' CON NOMBRE EXTENSO PARA COMPROBAR EL AJUSTE COMPLETO DEL TEXTO EN LOS REPORTES',activo:true},{transaction:t}),pid=Number(p.get('id'));
  const a=await Productos.create({nombre:'CHALA DE PRUEBA '+mark,unidad_medida:'Kilo'},{transaction:t}),b=await Productos.create({nombre:'ARROZ DE PRUEBA '+mark,unidad_medida:'Quintal'},{transaction:t}),dest=await Productos.create({nombre:'ENVASADO DE PRUEBA '+mark,unidad_medida:'Unidad'},{transaction:t});
  let seq=0;const op=async(tipo:string,date='2026-11-05 10:00:00')=>insert('produccion_operaciones',{codigo:tipo+'-TEST-'+mark+'-'+(++seq),tipo,fecha:date,estado:'CONFIRMADO',modalidad:'SERVICIO',id_propietario:pid,id_productor:pid,id_usuario:uid,version:0,created_at:new Date(),updated_at:new Date()},t);
  const lot=async(o:number,qty:number,disp:number,etapa:string,producto=Number(a.get('id')),unidad='Kilo')=>insert('produccion_lotes',{codigo:'LOTE-TEST-'+mark+'-'+(++seq),id_operacion_origen:o,id_producto:producto,modalidad:'SERVICIO',id_propietario:pid,id_productor:pid,variedad:'MAC-18',cantidad_inicial:qty,cantidad_disponible:disp,unidad,etapa,estado_fisico:etapa==='DESCARGUIO'?'CHALA_HUMEDA':['SECADO','GUARDADO'].includes(etapa)?'CHALA_SECA':etapa,estado:disp?'ACTIVO':'AGOTADO',id_usuario:uid,version:0,created_at:new Date(),updated_at:new Date()},t);

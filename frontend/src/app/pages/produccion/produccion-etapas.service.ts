@@ -9,7 +9,8 @@ export class ProduccionEtapasService {
     private base(ruta:RutaEtapa) {return apiUrl('/api/produccion/'+ruta);}
     private params(q:DatosEtapa) {let p=new HttpParams();for(const [k,v] of Object.entries(q)) if(v!=null&&v!=='')p=p.set(k,String(v));return p;}
     listar(r:RutaEtapa,q:DatosEtapa){return this.http.get<DatosEtapa>(this.base(r),{params:this.params(q)});}
-    opciones(r:RutaEtapa,grupo:string,q='',id?:number){return this.http.get<DatosEtapa[]>(this.base(r)+'/opciones',{params:this.params({grupo,q,id})});}
+    opciones(r:RutaEtapa,grupo:string,q='',id?:number,todos=false){return this.http.get<DatosEtapa[]>(this.base(r)+'/opciones',{params:this.params({grupo,q,id,todos:todos?1:undefined})});}
+    filtros() { return this.http.get<Record<string, any[]>>(apiUrl('/api/produccion/lotes/opciones')); }
     obtener(r:RutaEtapa,id:number){return this.http.get<DatosEtapa>(this.base(r)+'/'+id);}
     guardar(r:RutaEtapa,id:number|null,d:DatosEtapa){return id ? this.http.put<DatosEtapa>(this.base(r)+'/'+id,d):this.http.post<DatosEtapa>(this.base(r),d);}
     confirmar(r:RutaEtapa,id:number,version:number,clave_confirmacion:string){return this.http.post<DatosEtapa>(this.base(r)+'/'+id+'/confirmar',{version,clave_confirmacion});}

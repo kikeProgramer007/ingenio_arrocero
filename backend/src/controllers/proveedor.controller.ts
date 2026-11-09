@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
-import { Op } from 'sequelize';
-import { Acopio, Campana, Compra, CompraDetalle, PagoProveedor, Productor, Productos, Proveedor, User } from '../models';
+import { Op, QueryTypes } from 'sequelize';
+import sequelize from '../db/connection';
+import { Acopio, Campana, Compra, CompraDetalle, PagoProveedor, Proveedor, Productos, User } from '../models';
 import { handleError } from '../utils/error.handler';
 import { DtoValidator } from '../utils/dto.validador';
 import { ActualizarProveedorDTO, CrearProveedorDTO } from '../dtos/proveedor.dto';
@@ -27,24 +28,12 @@ function mapProveedor(proveedor: any) {
 export class ProveedorController {
     public static async listar(req: Request, res: Response): Promise<void> {
         try {
-            const { q, activos, rol } = req.query;
+            const { q, activos } = req.query;
             const where: any = {};
             if (activos === 'inactivos') {
                 where.activo = false;
             } else if (activos !== 'todos') {
                 where.activo = true;
-            }
-            if (rol === 'PRODUCTOR') {
-                where.observacion = { [Op.like]: '%Productor%' };
-            } else if (rol === 'PROVEEDOR') {
-                where[Op.and] = [
-                    {
-                        [Op.or]: [
-                            { observacion: { [Op.notLike]: '%Productor%' } },
-                            { observacion: null }
-                        ]
-                    }
-                ];
             }
             if (typeof q === 'string' && q.trim()) {
                 where[Op.or] = [
@@ -90,7 +79,7 @@ export class ProveedorController {
                     where: { id_proveedor: id },
                     include: [
                         { model: CompraDetalle, as: 'detalles', include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombre', 'unidad_medida'] }] },
-                        { model: Productor, as: 'productor', attributes: ['id', 'nombre'] },
+                        { model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] },
                         { model: User, as: 'usuario', attributes: usuarioAtributos }
                     ],
                     order: [['fecha', 'DESC'], ['id', 'DESC']]
@@ -101,8 +90,8 @@ export class ProveedorController {
                         {
                             model: Compra,
                             as: 'compra',
-                            attributes: ['id', 'total', 'saldo_pendiente', 'estado', 'tipo_compra', 'tipo_cambio', 'total_usd', 'fanegas', 'boleta', 'ordenante', 'id_productor'],
-                            include: [{ model: Productor, as: 'productor', attributes: ['id', 'nombre'] }]
+                            attributes: ['id', 'total', 'saldo_pendiente', 'estado', 'tipo_compra', 'tipo_cambio', 'total_usd', 'fanegas', 'boleta', 'ordenante', 'id_proveedor', 'id_productor'],
+                            include: [{ model: Proveedor, as: 'productor', attributes: ['id', 'nombre'] }]
                         },
                         { model: User, as: 'usuario', attributes: usuarioAtributos }
                     ],
@@ -207,6 +196,32 @@ export class ProveedorController {
             res.status(200).json({ mensaje: 'Proveedor actualizado', data: mapProveedor(proveedor) });
         } catch (error) {
             handleError(res, error, 'Error al actualizar el proveedor');
+        }
+    }
+    public static async eliminar(req: Request, res: Response): Promise<void> {
+        try {
+            const proveedor = await Proveedor.findByPk(req.params.id);
+            if (!proveedor) {
+                res.status(404).json({ mensaje: `No se encontró el proveedor con ID ${req.params.id}` });
+                return;
+            }
+            const id = Number(proveedor.get('id'));
+            const [compras, pagos, acopios, produccion] = await Promise.all([
+                Compra.count({ where: { [Op.or]: [{ id_proveedor: id }, { id_productor: id }] } }),
+                PagoProveedor.count({ where: { id_proveedor: id } }),
+                Acopio.count({ where: { id_proveedor: id } }),
+                sequelize.query(`SELECT id FROM produccion_operaciones WHERE id_productor=:id OR id_propietario=:id
+                    UNION ALL SELECT id FROM produccion_lotes WHERE id_productor=:id OR id_propietario=:id LIMIT 1`,
+                    { replacements: { id }, type: QueryTypes.SELECT })
+            ]);
+            if (compras || pagos || acopios || produccion.length) {
+                res.status(409).json({ mensaje: 'No se puede eliminar: el proveedor tiene movimientos o referencias de producción. Puede inactivarlo.' });
+                return;
+            }
+            await proveedor.destroy();
+            res.status(200).json({ mensaje: 'Proveedor eliminado' });
+        } catch (error) {
+            handleError(res, error, 'Error al eliminar el proveedor');
         }
     }
 }

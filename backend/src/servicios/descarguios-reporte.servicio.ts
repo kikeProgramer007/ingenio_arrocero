@@ -8,10 +8,12 @@ export async function hojaDescarguios(query: Record<string, unknown>, formato: '
     const etiquetas: Record<string, string> = { COMPRA: 'Compra', SERVICIO: 'Servicio', BORRADOR: 'Borrador', CONFIRMADO: 'Confirmado', ANULADO: 'Anulado' };
     const fecha = (valor: Date | string) => new Intl.DateTimeFormat('es-BO', { timeZone: 'America/La_Paz' }).format(new Date(valor));
     const numero = (valor: unknown) => new Intl.NumberFormat('es-BO', { maximumFractionDigits: 3 }).format(Number(valor));
-    const [productor] = c.productor ? await leerDesc('SELECT nombre FROM productores WHERE id= :id', { id: c.productor }, transaction) : [];
+    const productores = c.productor ? await leerDesc('SELECT nombre FROM proveedores WHERE id IN (:id)', { id: c.productor }, transaction) : [];
+    const nombreProductores = productores.map(p => p.nombre).join(', ');
+    const etiquetasFiltro = (valores: string[] | undefined, defecto: string) => valores?.map(v => etiquetas[v] || v).join(', ') || defecto;
     const filtros = [{ label: 'Desde', valor: c.desde || 'Sin límite' }, { label: 'Hasta', valor: c.hasta || 'Sin límite' },
-        { label: 'Modalidad', valor: etiquetas[c.modalidad || ''] || 'Todas' }, { label: 'Estado', valor: etiquetas[c.estado] || 'Todos' },
-        { label: 'Variedad', valor: c.variedad || 'Todas' }, { label: 'Productor', valor: productor?.nombre || 'Todos' }, { label: 'Búsqueda', valor: c.buscar || 'Sin búsqueda' }];
+        { label: 'Modalidad', valor: etiquetasFiltro(c.modalidad, 'Todas') }, { label: 'Estado', valor: etiquetasFiltro(c.estado, 'Todos') },
+        { label: 'Variedad', valor: c.variedad.join(', ') || 'Todas' }, { label: 'Productor', valor: nombreProductores || 'Todos' }, { label: 'Búsqueda', valor: c.buscar || 'Sin búsqueda' }];
     const cantidades = new Map<string, number>();
     for (const f of filas) if (f.estado === 'CONFIRMADO' && f.cantidad != null && f.unidad) {
         const clave = `${etiquetas[f.modalidad]} / ${f.unidad}`;

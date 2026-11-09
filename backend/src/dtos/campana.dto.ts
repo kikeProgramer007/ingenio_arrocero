@@ -91,26 +91,3 @@ export class CrearAcopioDTO {
     observacion?: string;
 }
 
-export class CrearProduccionDTO {
-    @Type(() => Number)
-    @IsInt({ message: 'El producto de origen es obligatorio' })
-    id_producto_origen!: number;
-
-    @Type(() => Number)
-    @IsNumber()
-    @Min(0.001)
-    cantidad_entrada!: number;
-
-    @Type(() => Number)
-    @IsInt({ message: 'El producto de destino es obligatorio' })
-    id_producto_destino!: number;
-
-    @Type(() => Number)
-    @IsNumber()
-    @Min(0.001)
-    cantidad_salida!: number;
-
-    @IsOptional()
-    @IsString()
-    observacion?: string;
-}

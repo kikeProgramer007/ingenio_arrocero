@@ -8,12 +8,13 @@ import { ErrorDescarguio, claveSolicitud, versionDescarguio } from '../dtos/desc
 import { FilaEtapa as Fila } from '../dtos/produccion-etapa.dto';
 import { Transformacion, validarTransformacion } from '../dtos/produccion-transformacion.dto';
 import { leerDesc } from './descarguios.servicio';
+import { mayusculizarDatos } from '../utils/mayusculas';
 
 const tabla=(tipo:Transformacion)=>tipo==='PROCESADO'?'produccion_procesados':'produccion_envasados';
 const mil=(v:any)=>Math.round(Number(v||0)*1000);
 const tx=<T>(work:(t:Transaction)=>Promise<T>,external?:Transaction)=>sequelize.transaction({transaction:external,isolationLevel:Transaction.ISOLATION_LEVELS.READ_COMMITTED},work);
-async function sql(query:string,replacements:Fila,t:Transaction){return sequelize.query(query,{replacements,transaction:t});}
-async function insert(table:string,data:Fila,t:Transaction){const keys=Object.keys(data);const [id]=await sequelize.query(`INSERT INTO ${table} (${keys.map(k=>'`'+k+'`').join(',')}) VALUES (${keys.map(k=>':'+k).join(',')})`,{replacements:data,transaction:t,type:QueryTypes.INSERT});return Number(id);}
+async function sql(query:string,replacements:Fila,t:Transaction){return sequelize.query(query,{replacements:mayusculizarDatos(replacements),transaction:t});}
+async function insert(table:string,data:Fila,t:Transaction){const payload=mayusculizarDatos(data);const keys=Object.keys(payload);const [id]=await sequelize.query(`INSERT INTO ${table} (${keys.map(k=>'`'+k+'`').join(',')}) VALUES (${keys.map(k=>':'+k).join(',')})`,{replacements:payload,transaction:t,type:QueryTypes.INSERT});return Number(id);}
 const entero=(id:unknown)=>{if(!Number.isSafeInteger(Number(id))||Number(id)<=0)throw new ErrorDescarguio('Identificador inválido.');return Number(id);};
 const checkVersion=(o:Fila,raw:Fila)=>{if(Number(o.version)!==versionDescarguio(raw.version))throw new ErrorDescarguio('El documento cambió. Vuelva a abrirlo antes de guardar.',409);};
 async function audit(id:number,evento:string,antes:any,despues:any,usuario:number,t:Transaction,motivo:string|null=null){await insert('produccion_auditoria',{id_operacion:id,evento,antes:antes==null?null:JSON.stringify(antes),despues:despues==null?null:JSON.stringify(despues),motivo,fecha:new Date(),id_usuario:usuario},t);}
@@ -30,13 +31,13 @@ export function resumenTransformacion(tipo:Transformacion,d:Fila,origins:Fila[])
 }
 export async function obtenerTransformacion(tipo:Transformacion,id:unknown,t?:Transaction):Promise<Fila>{
     const [o]=await leerDesc(`SELECT o.*,d.*,p.nombre productor,u.nombre ubicacion,${tipo==='ENVASADO'?'pd.nombre producto_destino,pd.unidad_medida destino_unidad,pe.nombre empaque,':'NULL maquina_reservada,'} 1 completo
-        FROM produccion_operaciones o JOIN ${tabla(tipo)} d ON d.id_operacion=o.id LEFT JOIN productores p ON p.id=o.id_productor
+        FROM produccion_operaciones o JOIN ${tabla(tipo)} d ON d.id_operacion=o.id LEFT JOIN proveedores p ON p.id=o.id_productor
         LEFT JOIN produccion_ubicaciones u ON u.id=d.id_ubicacion ${tipo==='ENVASADO'?'LEFT JOIN productos pd ON pd.id=d.id_producto_destino LEFT JOIN productos pe ON pe.id=d.id_producto_empaque':''}
         WHERE o.id = :id AND o.tipo = :tipo`,{id:entero(id),tipo},t);
     if(!o)throw new ErrorDescarguio('No se encontró el documento.',404);
     const origenes=await leerDesc(`SELECT r.*,l.codigo,l.unidad,l.variedad,l.modalidad,l.id_propietario,l.id_productor,l.id_producto,l.cantidad_disponible,p.nombre productor,pr.nombre producto,dp.clasificacion,oo.codigo origen_codigo,oo.fecha origen_fecha
         FROM produccion_etapa_origenes r JOIN produccion_lotes l ON l.id=r.id_lote JOIN produccion_operaciones oo ON oo.id=l.id_operacion_origen
-        LEFT JOIN productores p ON p.id=l.id_productor LEFT JOIN productos pr ON pr.id=l.id_producto LEFT JOIN produccion_procesado_detalles dp ON dp.id_lote_resultado=l.id WHERE r.id_operacion = :id ORDER BY r.id`,{id:o.id},t);
+        LEFT JOIN proveedores p ON p.id=l.id_productor LEFT JOIN productos pr ON pr.id=l.id_producto LEFT JOIN produccion_procesado_detalles dp ON dp.id_lote_resultado=l.id WHERE r.id_operacion = :id ORDER BY r.id`,{id:o.id},t);
     const resultados=tipo==='PROCESADO'?await leerDesc(`SELECT d.*,p.nombre producto,l.codigo lote_codigo,l.cantidad_disponible FROM produccion_procesado_detalles d LEFT JOIN productos p ON p.id=d.id_producto
         LEFT JOIN produccion_lotes l ON l.id=d.id_lote_resultado WHERE d.id_operacion = :id ORDER BY d.id`,{id:o.id},t):[];
     const lotes=await leerDesc('SELECT id,codigo,cantidad_disponible,unidad,id_producto FROM produccion_lotes WHERE id_operacion_origen = :id ORDER BY id',{id:o.id},t);
@@ -131,7 +132,7 @@ export async function guardarTransformacion(tipo:Transformacion,id:unknown|null,
         const lots=await fuentes(tipo,d,t);await validarProductos(tipo,d,lots,t);
         const header={fecha:d.fecha,modalidad:lots[0]?.modalidad||'SERVICIO',id_propietario:lots[0]?.id_propietario??null,id_productor:lots[0]?.id_productor??null,id_campana:lots[0]?.id_campana??null,responsable:d.responsable,observacion:d.observacion};let opId:number;
         if(!o){const [seq]=await leerDesc('SELECT ultimo FROM produccion_secuencias WHERE tipo = :tipo AND gestion = :gestion',{tipo,gestion},t),n=Number(seq.ultimo)+1;await sql('UPDATE produccion_secuencias SET ultimo = :n WHERE tipo = :tipo AND gestion = :gestion',{n,tipo,gestion},t);
-            opId=await insert('produccion_operaciones',{...header,codigo:`${tipo==='PROCESADO'?'P':'E'}-${gestion}-${String(n).padStart(4,'0')}`,tipo,estado:'BORRADOR',id_usuario:usuario,clave_creacion:key,hash_creacion:hash,version:0,created_at:new Date(),updated_at:new Date()},t);
+            opId=await insert('produccion_operaciones',{...header,codigo:`${tipo==='PROCESADO'?'P':'E'}-${String(n).padStart(4,'0')}`,tipo,estado:'BORRADOR',id_usuario:usuario,clave_creacion:key,hash_creacion:hash,version:0,created_at:new Date(),updated_at:new Date()},t);
         }else{opId=Number(o.id);await sql(`UPDATE produccion_operaciones SET ${Object.keys(header).map(k=>k+' = :'+k).join(',')},version=version+1,updated_at=NOW() WHERE id = :id`,{...header,id:opId},t);}
         await detalle(tipo,opId,d,t,!o);await audit(opId,o?'EDITAR_BORRADOR':'CREAR_BORRADOR',o,d,usuario,t);return obtenerTransformacion(tipo,opId,t);
     },externa);
@@ -162,7 +163,7 @@ export async function confirmarTransformacion(tipo:Transformacion,id:unknown,raw
         const results=tipo==='PROCESADO'?d.resultados:[{id_producto:d.id_producto_destino,cantidad:d.cantidad_destino,unidad:d.unidad_destino,clasificacion:saved.origenes[0]?.producto}];
         if(tipo==='ENVASADO')await ledger(d.id_producto_empaque,d.numero_bolsas,'SALIDA');
         for(const [index,r] of results.entries()){
-            const lotId=await insert('produccion_lotes',{codigo:`${o.codigo}-R${index+1}`,id_operacion_origen:o.id,id_producto:r.id_producto,modalidad:o.modalidad,id_propietario:o.id_propietario,id_productor:o.id_productor,variedad:lots[0].variedad,
+            const lotId=await insert('produccion_lotes',{codigo:results.length===1?String(o.codigo):`${o.codigo}-${index+1}`,id_operacion_origen:o.id,id_producto:r.id_producto,modalidad:o.modalidad,id_propietario:o.id_propietario,id_productor:o.id_productor,variedad:lots[0].variedad,
                 cantidad_inicial:r.cantidad,cantidad_disponible:r.cantidad,unidad:r.unidad,etapa:tipo,estado_fisico:tipo==='PROCESADO'?'PROCESADO':'ENVASADO',estado:'ACTIVO',id_ubicacion:dest??null,ubicacion_detalle:d.ubicacion_detalle,id_usuario:usuario,version:0,created_at:new Date(),updated_at:new Date()},t);
             await insert('produccion_operacion_lotes',{id_operacion:o.id,id_lote:lotId,rol:'SALIDA',cantidad:r.cantidad,unidad:r.unidad},t);
             await insert('produccion_movimientos',{clave:`${tipo}:${o.id}:RESULTADO:${index+1}`,id_operacion:o.id,id_lote:lotId,tipo:'ENTRADA',cantidad:r.cantidad,unidad:r.unidad,saldo_anterior:0,saldo_resultante:r.cantidad,fecha:new Date(),id_usuario:usuario,id_ubicacion_destino:dest??null},t);

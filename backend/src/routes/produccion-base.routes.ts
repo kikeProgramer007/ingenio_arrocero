@@ -23,6 +23,7 @@ router.get('/descarguios/opciones', desc.opciones);
 router.get('/descarguios/recepciones', desc.recepciones);
 router.get('/descarguios/exportar', desc.exportar);
 router.post('/descarguios/productores', desc.productor);
+router.get('/descarguios/:id/documento', desc.documento);
 router.get('/descarguios/:id', desc.obtener);
 router.post('/descarguios', desc.crear);
 router.put('/descarguios/:id', desc.editar);
@@ -33,6 +34,7 @@ for (const [ruta,tipo] of [['secados','SECADO'],['guardados','GUARDADO'],['proce
     router.get(`/${ruta}`,c.listar);
     router.get(`/${ruta}/opciones`,c.opciones);
     router.get(`/${ruta}/exportar`,c.exportar);
+    if (tipo === 'SECADO') router.get(`/${ruta}/:id/documento`, (c as ReturnType<typeof controladorEtapa>).documento);
     router.get(`/${ruta}/:id`,c.obtener);
     router.post(`/${ruta}`,c.crear);
     router.put(`/${ruta}/:id`,c.editar);

@@ -1,3 +1,4 @@
+import { valoresFiltro, idsFiltro } from '../utils/filtros-multiples-produccion';
 import { Transaction } from 'sequelize';
 import { leerDesc } from './descarguios.servicio';
 import { filtrosProduccion, ErrorConsultaProduccion } from './produccion-consulta.servicio';
@@ -21,7 +22,7 @@ const proyeccion = `${ancestros}, vista AS (
  (SELECT GROUP_CONCAT(DISTINCT d.boleta ORDER BY d.boleta SEPARATOR ', ') FROM ascendencia a
  JOIN produccion_lotes rl ON rl.id=a.ascendiente JOIN produccion_descarguios d ON d.id_operacion=rl.id_operacion_origen WHERE a.nodo=l.id) boleta
  FROM produccion_lotes l JOIN produccion_operaciones o ON o.id=l.id_operacion_origen
- LEFT JOIN productores p ON p.id=l.id_productor LEFT JOIN productores prop ON prop.id=l.id_propietario
+ LEFT JOIN proveedores p ON p.id=l.id_productor LEFT JOIN proveedores prop ON prop.id=l.id_propietario
  LEFT JOIN productos pr ON pr.id=l.id_producto LEFT JOIN produccion_ubicaciones u ON u.id=l.id_ubicacion
  LEFT JOIN produccion_procesado_detalles dp ON dp.id_lote_resultado=l.id
  LEFT JOIN produccion_etapa_origenes ee ON ee.id_operacion=o.id AND o.tipo='ENVASADO'
@@ -34,13 +35,13 @@ function consulta(q: Datos) {
  JOIN produccion_operaciones ro ON ro.id=rl.id_operacion_origen WHERE a.nodo=v.id AND ro.tipo='DESCARGUIO'
  ${f.desde?'AND ro.fecha >= :desde':''} ${f.hasta?'AND ro.fecha < DATE_ADD(:hasta,INTERVAL 1 DAY)':''})`);
  params.desde=f.desde+' 00:00:00';params.hasta=f.hasta;}
- if(f.modalidad){where.push('v.modalidad = :modalidad');params.modalidad=f.modalidad;}
- if(f.productor){where.push('v.id_productor = :productor');params.productor=f.productor;}
- if(q.propiedad){if(!['PROPIO','TERCERO'].includes(q.propiedad))throw new ErrorConsultaProduccion('Propiedad inválida.');where.push(q.propiedad==='PROPIO'?'v.id_propietario IS NULL':'v.id_propietario IS NOT NULL');}
+ if(f.modalidad){where.push('v.modalidad IN (:modalidad)');params.modalidad=f.modalidad;}
+ if(f.productor){where.push('v.id_productor IN (:productor)');params.productor=f.productor;}
+ if(q.propiedad){const propiedades=valoresFiltro(q.propiedad,['PROPIO','TERCERO']);if(propiedades.length===1)where.push(propiedades[0]==='PROPIO'?'v.id_propietario IS NULL':'v.id_propietario IS NOT NULL');}
  const permitidos:Datos={estado:['ACTIVO','AGOTADO','ANULADO'],estado_fisico:['CHALA_HUMEDA','CHALA_SECA','PROCESADO','ENVASADO']};
  for(const k of ['estado','estado_fisico','variedad','clasificacion','ubicacion'])if(q[k]){
-  if(typeof q[k]!=='string'||q[k].length>150||permitidos[k]&&!permitidos[k].includes(q[k]))throw new ErrorConsultaProduccion('Filtro inválido.');
-  where.push(`v.${k} = :${k}`);params[k]=q[k];
+  valoresFiltro(q[k],permitidos[k]);
+  where.push(`v.${k} IN (:${k})`);params[k]=valoresFiltro(q[k]);
  }
  if(f.buscar){where.push(`(LOCATE(:q,v.codigo)>0 OR LOCATE(:q,v.productor)>0 OR LOCATE(:q,v.producto)>0
  OR EXISTS (SELECT 1 FROM ascendencia a JOIN produccion_lotes rl ON rl.id=a.ascendiente
@@ -60,7 +61,10 @@ export async function consultarLotes(q:Datos,t?:Transaction){
  return {items:await filasLotes(q,false,t),total:Number(n.total),resumen:{saldos},alcance:'Saldos actuales de lotes cuyas recepciones coinciden con el período. No es un saldo histórico.'};
 }
 export async function opcionesLotes(t?:Transaction){return {
- productores:await leerDesc('SELECT id,nombre FROM productores WHERE activo=1 ORDER BY nombre,id',{},t),
+ secadoras:await leerDesc("SELECT DISTINCT secadora nombre FROM produccion_secados WHERE secadora IS NOT NULL AND secadora<>'' ORDER BY secadora",{},t),
+ presentaciones:await leerDesc("SELECT DISTINCT presentacion nombre FROM produccion_envasados WHERE presentacion IS NOT NULL AND presentacion<>'' ORDER BY presentacion",{},t),
+ productos:await leerDesc('SELECT id,nombre FROM productos WHERE eliminado=0 ORDER BY nombre,id',{},t),
+ productores:await leerDesc('SELECT id,nombre FROM proveedores WHERE activo=1 ORDER BY nombre,id',{},t),
  variedades:await leerDesc('SELECT DISTINCT variedad nombre FROM produccion_lotes WHERE variedad IS NOT NULL ORDER BY variedad',{},t),
  ubicaciones:await leerDesc("SELECT DISTINCT COALESCE(u.nombre,'Sin ubicación') nombre FROM produccion_lotes l LEFT JOIN produccion_ubicaciones u ON u.id=l.id_ubicacion ORDER BY nombre",{},t),
  clasificaciones:await leerDesc('SELECT DISTINCT clasificacion nombre FROM produccion_procesado_detalles WHERE clasificacion IS NOT NULL ORDER BY clasificacion',{},t)
@@ -75,7 +79,7 @@ export async function detalleLote(id:unknown,t?:Transaction){
  const ids=relacionados.map(l=>Number(l.id));
  const operaciones=await leerDesc(`SELECT DISTINCT o.*,p.nombre productor,COALESCE(prop.nombre,'Ingenio (propio)') propietario,
  CASE o.tipo WHEN 'DESCARGUIO' THEN 'descarguios' WHEN 'SECADO' THEN 'secados' WHEN 'GUARDADO' THEN 'guardados' WHEN 'PROCESADO' THEN 'procesados' ELSE 'envasados' END ruta
- FROM produccion_operaciones o LEFT JOIN productores p ON p.id=o.id_productor LEFT JOIN productores prop ON prop.id=o.id_propietario
+ FROM produccion_operaciones o LEFT JOIN proveedores p ON p.id=o.id_productor LEFT JOIN proveedores prop ON prop.id=o.id_propietario
  WHERE o.id IN (SELECT id_operacion_origen FROM produccion_lotes WHERE id IN (:ids))
  OR o.id IN (SELECT id_operacion FROM produccion_etapa_origenes WHERE id_lote IN (:ids)) ORDER BY o.fecha,o.id`,{ids},t);
  const opids=operaciones.map(o=>o.id);
@@ -102,7 +106,7 @@ export async function existenciasProductor(q:Datos,todas=false,t?:Transaction){
 export const numeroProduccion=(n:any)=>n==null?'No medido':new Intl.NumberFormat('es-BO',{maximumFractionDigits:3}).format(Number(n));
 export async function filtrosLotes(q:Datos,t?:Transaction){
  const items=[{label:'Recepciones desde',valor:q.fecha_desde||'Sin límite'},{label:'Hasta',valor:q.fecha_hasta||'Sin límite'}];
- if(q.id_productor){const [p]=await leerDesc('SELECT nombre FROM productores WHERE id = :id',{id:Number(q.id_productor)},t);items.push({label:'Productor',valor:p?.nombre||'No encontrado'});}
+ if(q.id_productor){const productores=await leerDesc('SELECT nombre FROM proveedores WHERE id IN (:id)',{id:idsFiltro(q.id_productor)},t); const p={nombre:productores.map(p=>p.nombre).join(', ')};items.push({label:'Productor',valor:p?.nombre||'No encontrado'});}
  for(const [k,label] of Object.entries({modalidad:'Modalidad',propiedad:'Propiedad',variedad:'Variedad',estado:'Estado',estado_fisico:'Etapa física',ubicacion:'Ubicación',clasificacion:'Clasificación',buscar:'Búsqueda',q:'Búsqueda'}))if(q[k])items.push({label,valor:String(q[k])});
  items.push({label:'Alcance',valor:'Saldos actuales; período aplicado a la recepción de origen. Salidas comerciales sin asignación de lote no incluidas.'});return items;
 }

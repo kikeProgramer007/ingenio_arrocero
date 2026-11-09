@@ -3,18 +3,18 @@ import assert from 'assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { randomUUID } from 'crypto';
-import { QueryTypes, Transaction } from 'sequelize';
-import { sequelize, User, Productos, Productor } from '../models';
-import { listarTransformacion, opcionesTransformacion, hojaTransformacion } from '../servicios/produccion-transformaciones-consulta.servicio';
-import { obtenerTransformacion } from '../servicios/produccion-transformaciones.servicio';
-import { bufferReportePdf } from '../utils/exportar';
+import {randomUUID} from 'crypto';
+import {QueryTypes, Transaction} from 'sequelize';
+import {sequelize, User, Productos, Proveedor} from '../models';
+import {listarTransformacion, opcionesTransformacion, hojaTransformacion} from '../servicios/produccion-transformaciones-consulta.servicio';
+import {obtenerTransformacion} from '../servicios/produccion-transformaciones.servicio';
+import {bufferReportePdf} from '../utils/exportar';
 async function insert(table:string,data:Record<string,any>,t:Transaction){const keys=Object.keys(data),[id]=await sequelize.query(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(k=>':'+k).join(',')})`,{replacements:data,type:QueryTypes.INSERT,transaction:t});return Number(id);}
 async function main(){
     if(process.env.NODE_ENV!=='development')throw new Error('Solo en desarrollo.');await sequelize.authenticate();const t=await sequelize.transaction();
     try{
         const u=await User.findOne({where:{activo:true,eliminado:false},transaction:t});assert(u);const uid=Number(u.get('id')),mark=randomUUID().slice(0,8);
-        const p=await Productor.create({nombre:'PRODUCTOR DE PRUEBA '+mark+' CON NOMBRE EXTENSO PARA VALIDAR CONTINUIDAD DE CELDAS Y SALTOS DE PAGINA',activo:true},{transaction:t}),pid=Number(p.get('id'));
+        const p=await Proveedor.create({nombre:'PRODUCTOR DE PRUEBA '+mark+' CON NOMBRE EXTENSO PARA VALIDAR CONTINUIDAD DE CELDAS Y SALTOS DE PAGINA',activo:true},{transaction:t}),pid=Number(p.get('id'));
         const a=await Productos.create({nombre:'CHALA DE PRUEBA '+mark,unidad_medida:'Kilo'},{transaction:t}),b=await Productos.create({nombre:'ARROZ ENTERO DE PRUEBA '+mark,unidad_medida:'Quintal'},{transaction:t}),bag=await Productos.create({nombre:'BOLSA VACIA PRUEBA '+mark,unidad_medida:'Unidad',stock:20},{transaction:t}),dest=await Productos.create({nombre:'ARROZ ENVASADO PRUEBA '+mark,unidad_medida:'Unidad'},{transaction:t});
         const op=async(tipo:string)=>insert('produccion_operaciones',{codigo:tipo+'-PRUEBA-'+mark,tipo,fecha:new Date('2026-11-05T18:00:00Z'),estado:'CONFIRMADO',modalidad:'SERVICIO',id_propietario:pid,id_productor:pid,id_usuario:uid,version:0,created_at:new Date(),updated_at:new Date()},t);
         const g=await op('GUARDADO'),pr=await op('PROCESADO'),e=await op('ENVASADO');
@@ -32,7 +32,7 @@ async function main(){
         const bolsas=await opcionesTransformacion('ENVASADO',{grupo:'empaques',q:mark},t);assert.equal(bolsas.length,1);assert.equal(Number(bolsas[0].id),Number(bag.get('id')));
         const dir=fs.mkdtempSync(path.join(os.tmpdir(),'codex-transformaciones-pdf-final-'));
         for(const tipo of ['PROCESADO','ENVASADO'] as const){
-            const hoja=await hojaTransformacion(tipo,q,'pdf',t);assert(hoja.consulta?.some(c=>c.label==='Productor'&&c.valor.includes(mark)));
+            const hoja=await hojaTransformacion(tipo,q,'pdf',t);assert(hoja.consulta?.some(c=>c.label==='Proveedor'&&c.valor.includes(mark)));
             assert(!hoja.columnas.some(c=>c.includes('(Bs)')),'Los pesos no son importes monetarios');
             hoja.filas=Array.from({length:tipo==='PROCESADO'?14:5},(_,i)=>hoja.filas[0].map((v,j)=>j===0?i+1:v));
             const pdf=await bufferReportePdf([hoja]),file=path.join(dir,tipo.toLowerCase()+'.pdf');fs.writeFileSync(file,pdf.buffer);console.log(JSON.stringify({tipo,archivo:file,paginas:pdf.paginas}));

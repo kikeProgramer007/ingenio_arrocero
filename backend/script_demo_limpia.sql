@@ -34,7 +34,6 @@ DELETE FROM `arqueos_caja`;
 DELETE FROM `movimientos_caja`;
 DELETE FROM `cajas`;
 DELETE FROM `beneficiarios`;
-DELETE FROM `productores`;
 DELETE FROM `proveedores`;
 DELETE FROM `clientes`;
 
@@ -60,7 +59,6 @@ ALTER TABLE `arqueos_caja` AUTO_INCREMENT = 1;
 ALTER TABLE `movimientos_caja` AUTO_INCREMENT = 1;
 ALTER TABLE `cajas` AUTO_INCREMENT = 1;
 ALTER TABLE `beneficiarios` AUTO_INCREMENT = 1;
-ALTER TABLE `productores` AUTO_INCREMENT = 1;
 ALTER TABLE `proveedores` AUTO_INCREMENT = 1;
 ALTER TABLE `clientes` AUTO_INCREMENT = 1;
 

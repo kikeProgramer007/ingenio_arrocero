@@ -6,6 +6,7 @@ export interface OpcionDescarguio {
     id: number; nombre: string; nit_ci?: string; unidad_medida?: string; categoria?: string; estado?: string;
     id_compra?: number; id_producto?: number; id_productor?: number | null; producto?: string; productor?: string;
     unidad?: string; descripcion?: string; boleta?: string; chofer?: string; placa?: string; disponible?: number; cantidad_recibida?: number; etiqueta?: string;
+    concepto?: string; variedad?: string; fecha?: string;
 }
 export interface Descarguio {
     id: number; codigo: string; fecha: string; modalidad: 'COMPRA' | 'SERVICIO'; estado: string; version: number;
@@ -19,7 +20,7 @@ export interface Descarguio {
     historial: { id: number; evento: string; fecha: string; usuario: string; motivo: string | null }[];
 }
 export interface FiltroDescarguios {
-    fecha_desde?: string; fecha_hasta?: string; id_productor?: number; modalidad?: string; variedad?: string; estado?: string;
+    fecha_desde?: string; fecha_hasta?: string; id_productor?: number | string; modalidad?: string; variedad?: string; estado?: string;
     buscar?: string; orden?: string; direccion?: number; limit?: number; offset?: number;
 }
 export interface ListadoDescarguios {
@@ -36,8 +37,9 @@ export class DescarguiosService {
         return params;
     }
     listar(filtro: FiltroDescarguios) { return this.http.get<ListadoDescarguios>(this.base, { params: this.params(filtro) }); }
+    filtros() { return this.http.get<Record<string, any[]>>(apiUrl('/api/produccion/lotes/opciones')); }
     obtener(id: number) { return this.http.get<Descarguio>(`${this.base}/${id}`); }
-    opciones(grupo: string, q = '', id?: number) { return this.http.get<OpcionDescarguio[]>(`${this.base}/opciones`, { params: this.params({ grupo, q, id }) }); }
+    opciones(grupo: string, q = '', id?: number, todos = false) { return this.http.get<OpcionDescarguio[]>(`${this.base}/opciones`, { params: this.params({ grupo, q, id, todos: todos ? 1 : undefined }) }); }
     recepciones(detalle: number) { return this.http.get<{ id: number; fecha: string; cantidad: number; disponible: number }[]>(`${this.base}/recepciones`, { params: this.params({ id_detalle: detalle }) }); }
     crear(datos: object) { return this.http.post<Descarguio>(this.base, datos); }
     editar(id: number, datos: object) { return this.http.put<Descarguio>(`${this.base}/${id}`, datos); }

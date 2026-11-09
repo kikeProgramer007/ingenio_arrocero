@@ -1,10 +1,10 @@
 import { Transaction } from 'sequelize';
 import { hojaDescarguios } from './descarguios-reporte.servicio';
 import { hojaEtapa } from './produccion-etapas-consulta.servicio';
-import { hojaTransformacion,filasTransformacion,listarTransformacion } from './produccion-transformaciones-consulta.servicio';
-import { hojaLotes,numeroProduccion } from './produccion-trazabilidad.servicio';
-import { aplicarPlantillaFormal,HojaExport } from '../utils/exportar';
-import { filtrosProduccion,ErrorConsultaProduccion } from './produccion-consulta.servicio';
+import { hojaTransformacion, filasTransformacion, listarTransformacion } from './produccion-transformaciones-consulta.servicio';
+import { hojaLotes, numeroProduccion } from './produccion-trazabilidad.servicio';
+import { aplicarPlantillaFormal, HojaExport } from '../utils/exportar';
+import { filtrosProduccion, ErrorConsultaProduccion } from './produccion-consulta.servicio';
 
 export const reportesProduccion:Record<string,{nombre:string;programa:string}>={
  descarguios:{nombre:'Control de descarguíos',programa:'descarguios'},secados:{nombre:'Control de secados',programa:'secados'},guardados:{nombre:'Control de guardados',programa:'guardados'},

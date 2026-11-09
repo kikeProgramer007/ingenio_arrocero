@@ -4,7 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "migrate:proveedores": "npm run build && node dist/scripts/unificar-productores-proveedores.js --base=db_empresa_rojas",
+    "test:proveedores:unificacion": "npm run build && node tests/unificacion-proveedores.cjs",
+    "mayusculas:datos": "npm run build && node dist/scripts/mayusculizar-datos-existentes.js --base=db_empresa_rojas",
+    "mayusculas:datos:dry": "npm run build && node dist/scripts/mayusculizar-datos-existentes.js --base=db_empresa_rojas --dry-run",
     "test:produccion:integral": "npm run build && node dist/scripts/verificar-produccion-integral.js",
+    "migrate:campos-control": "npm run build && node dist/scripts/migrar-campos-control.js",
     "migrate:transformaciones": "npm run build && node dist/scripts/migrar-transformaciones.js",
     "migrate:secados-guardados": "npm run build && node dist/scripts/migrar-secados-guardados.js",
     "migrate:descarguios": "npm run build && node dist/scripts/migrar-descarguios.js",

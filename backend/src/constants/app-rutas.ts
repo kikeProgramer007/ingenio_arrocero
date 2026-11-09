@@ -25,7 +25,8 @@ export const APP_RUTAS = {
     REPORTES: '/reportes',
     EMPRESA: '/empresa',
     PLANTILLAS_DOCUMENTOS: '/plantillas-documentos',
-    USUARIOS: '/usuarios'
+    USUARIOS: '/usuarios',
+    AUDITORIA: '/auditoria'
 } as const;
 
 export const PROGRAMAS_SEED = [
@@ -157,5 +158,12 @@ export const PROGRAMAS_SEED = [
         class_icon: 'pi pi-users',
         es_expandible: false,
         nro_posicion: 91
+    },
+    {
+        nombre_programa: 'Auditoría',
+        url: APP_RUTAS.AUDITORIA,
+        class_icon: 'pi pi-history',
+        es_expandible: false,
+        nro_posicion: 93
     }
 ];
